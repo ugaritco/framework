@@ -130,7 +130,7 @@ class PackageManifest
         $ignoreAll = in_array('*', $ignore = $this->packagesToIgnore());
 
         $this->write((new Collection($packages))->mapWithKeys(function ($package) {
-            return [$this->format($package['name']) => $package['extra']['ugarit'] ?? []];
+            return [$this->format($package['name']) => $package['extra']['ugarit'] ?? $package['extra']['laravel'] ?? []];
         })->each(function ($configuration) use (&$ignore) {
             $ignore = array_merge($ignore, $configuration['dont-discover'] ?? []);
         })->reject(function ($configuration, $package) use ($ignore, $ignoreAll) {
@@ -160,9 +160,9 @@ class PackageManifest
             return [];
         }
 
-        return json_decode(file_get_contents(
-            $this->basePath.'/composer.json'
-        ), true)['extra']['ugarit']['dont-discover'] ?? [];
+        $composer = json_decode(file_get_contents($this->basePath.'/composer.json'), true);
+
+        return $composer['extra']['ugarit']['dont-discover'] ?? $composer['extra']['laravel']['dont-discover'] ?? [];
     }
 
     /**

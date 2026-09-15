@@ -288,6 +288,16 @@ class Application extends Container implements ApplicationContract, CachesConfig
     {
         static::setInstance($this);
 
+        spl_autoload_register(function ($class) {
+            if (str_starts_with($class, 'Illuminate\\')) {
+                $heritageClass = 'Heritage\\' . substr($class, 11);
+                if (class_exists($heritageClass) || interface_exists($heritageClass) || trait_exists($heritageClass)) {
+                    class_alias($heritageClass, $class);
+                    return true;
+                }
+            }
+        }, true, true);
+
         $this->instance('app', $this);
 
         $this->instance(Container::class, $this);

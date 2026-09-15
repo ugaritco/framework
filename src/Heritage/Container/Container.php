@@ -342,7 +342,8 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function isAlias($name)
     {
-        return isset($this->aliases[$name]);
+        return isset($this->aliases[$name]) ||
+               (is_string($name) && str_starts_with($name, 'Illuminate\\') && $this->bound('Heritage\\' . substr($name, 11)));
     }
 
     /**
@@ -1688,6 +1689,13 @@ class Container implements ArrayAccess, ContainerContract
             $seen[$abstract] = true;
 
             $abstract = $this->aliases[$abstract];
+        }
+
+        if (is_string($abstract) && str_starts_with($abstract, 'Illuminate\\')) {
+            $heritage = 'Heritage\\' . substr($abstract, 11);
+            if ($this->bound($heritage)) {
+                return $this->getAlias($heritage);
+            }
         }
 
         return $abstract;
