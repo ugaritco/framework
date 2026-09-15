@@ -1,0 +1,147 @@
+<?php
+
+namespace Heritage\Tests\Console\View;
+
+use Heritage\Console\OutputStyle;
+use Heritage\Console\View\Components;
+use Heritage\Database\Migrations\MigrationResult;
+use Mockery;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Question\ChoiceQuestion;
+
+class ComponentsTest extends TestCase
+{
+    public function testAlert()
+    {
+        $output = new BufferedOutput();
+
+        (new Components\Alert($output))->render('The application is in the [production] environment');
+
+        $this->assertStringContainsString(
+            'THE APPLICATION IS IN THE [PRODUCTION] ENVIRONMENT.',
+            $output->fetch()
+        );
+    }
+
+    public function testBulletList()
+    {
+        $output = new BufferedOutput();
+
+        (new Components\BulletList($output))->render([
+            'ls -la',
+            'php scribe inspire',
+        ]);
+
+        $output = $output->fetch();
+
+        $this->assertStringContainsString('⇂ ls -la', $output);
+        $this->assertStringContainsString('⇂ php scribe inspire', $output);
+    }
+
+    public function testSuccess()
+    {
+        $output = new BufferedOutput();
+
+        (new Components\Success($output))->render('The application is in the [production] environment');
+
+        $this->assertStringContainsString('SUCCESS  The application is in the [production] environment.', $output->fetch());
+    }
+
+    public function testError()
+    {
+        $output = new BufferedOutput();
+
+        (new Components\Error($output))->render('The application is in the [production] environment');
+
+        $this->assertStringContainsString('ERROR  The application is in the [production] environment.', $output->fetch());
+    }
+
+    public function testInfo()
+    {
+        $output = new BufferedOutput();
+
+        (new Components\Info($output))->render('The application is in the [production] environment');
+
+        $this->assertStringContainsString('INFO  The application is in the [production] environment.', $output->fetch());
+    }
+
+    public function testConfirm()
+    {
+        $output = Mockery::mock(OutputStyle::class);
+
+        $output->expects('confirm')
+            ->with('Question?', false)
+            ->andReturnTrue();
+
+        $result = (new Components\Confirm($output))->render('Question?');
+        $this->assertTrue($result);
+
+        $output->expects('confirm')
+            ->with('Question?', true)
+            ->andReturnTrue();
+
+        $result = (new Components\Confirm($output))->render('Question?', true);
+        $this->assertTrue($result);
+    }
+
+    public function testChoice()
+    {
+        $output = Mockery::mock(OutputStyle::class);
+
+        $output->expects('askQuestion')
+            ->with(Mockery::type(ChoiceQuestion::class))
+            ->andReturn('a');
+
+        $result = (new Components\Choice($output))->render('Question?', ['a', 'b']);
+        $this->assertSame('a', $result);
+    }
+
+    public function testTask()
+    {
+        $output = new BufferedOutput();
+
+        (new Components\Task($output))->render('My task', fn () => MigrationResult::Success->value);
+        $result = $output->fetch();
+        $this->assertStringContainsString('My task', $result);
+        $this->assertStringContainsString('DONE', $result);
+
+        (new Components\Task($output))->render('My task', fn () => MigrationResult::Failure->value);
+        $result = $output->fetch();
+        $this->assertStringContainsString('My task', $result);
+        $this->assertStringContainsString('FAIL', $result);
+
+        (new Components\Task($output))->render('My task', fn () => MigrationResult::Skipped->value);
+        $result = $output->fetch();
+        $this->assertStringContainsString('My task', $result);
+        $this->assertStringContainsString('SKIPPED', $result);
+    }
+
+    public function testTwoColumnDetail()
+    {
+        $output = new BufferedOutput();
+
+        (new Components\TwoColumnDetail($output))->render('First', 'Second');
+        $result = $output->fetch();
+        $this->assertStringContainsString('First', $result);
+        $this->assertStringContainsString('Second', $result);
+    }
+
+    public function testTwoColumnDetailPreservesTrailingPunctuationInValue()
+    {
+        $output = new BufferedOutput();
+
+        (new Components\TwoColumnDetail($output))->render('Key', 'value!');
+        $result = $output->fetch();
+        $this->assertStringContainsString('value!', $result);
+    }
+
+    public function testWarn()
+    {
+        $output = new BufferedOutput();
+
+        (new Components\Warn($output))->render('The application is in the [production] environment');
+
+        $this->assertStringContainsString('WARN  The application is in the [production] environment.', $output->fetch());
+    }
+}

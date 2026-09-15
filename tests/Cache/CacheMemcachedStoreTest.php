@@ -1,0 +1,129 @@
+<?php
+
+namespace Heritage\Tests\Cache;
+
+use Heritage\Cache\MemcachedStore;
+use Heritage\Support\Carbon;
+use Memcached;
+use Mockery;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use PHPUnit\Framework\TestCase;
+
+#[RequiresPhpExtension('memcached')]
+class CacheMemcachedStoreTest extends TestCase
+{
+    public function testGetReturnsNullWhenNotFound()
+    {
+        $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['get', 'getResultCode'])->getMock();
+        $memcache->expects($this->once())->method('get')->with('foo:bar')->willReturn(null);
+        $memcache->expects($this->once())->method('getResultCode')->willReturn(1);
+        $store = new MemcachedStore($memcache, 'foo:');
+        $this->assertNull($store->get('bar'));
+    }
+
+    public function testMemcacheValueIsReturned()
+    {
+        $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['get', 'getResultCode'])->getMock();
+        $memcache->expects($this->once())->method('get')->willReturn('bar');
+        $memcache->expects($this->once())->method('getResultCode')->willReturn(0);
+        $store = new MemcachedStore($memcache);
+        $this->assertSame('bar', $store->get('foo'));
+    }
+
+    public function testMemcacheGetMultiValuesAreReturnedWithCorrectKeys()
+    {
+        $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['getMulti', 'getResultCode'])->getMock();
+        $memcache->expects($this->once())->method('getMulti')->with(
+            ['foo:foo', 'foo:bar', 'foo:baz']
+        )->willReturn([
+            'fizz', 'buzz', 'norf',
+        ]);
+        $memcache->expects($this->once())->method('getResultCode')->willReturn(0);
+        $store = new MemcachedStore($memcache, 'foo:');
+        $this->assertEquals([
+            'foo' => 'fizz',
+            'bar' => 'buzz',
+            'baz' => 'norf',
+        ], $store->many([
+            'foo', 'bar', 'baz',
+        ]));
+    }
+
+    public function testSetMethodProperlyCallsMemcache()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+        $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['set'])->getMock();
+        $memcache->expects($this->once())->method('set')->with('foo', 'bar', $now->addMinute()->getTimestamp())->willReturn(true);
+        $store = new MemcachedStore($memcache);
+        $result = $store->put('foo', 'bar', 60);
+        $this->assertTrue($result);
+    }
+
+    public function testTouchMethodProperlyCallsMemcache(): void
+    {
+        $key = 'key';
+        $ttl = 60;
+
+        Carbon::setTestNow($now = Carbon::now());
+
+        $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['touch'])->getMock();
+
+        $memcache->expects($this->once())->method('touch')->with($key, $now->addSeconds($ttl)->getTimestamp())->willReturn(true);
+
+        $this->assertTrue((new MemcachedStore($memcache))->touch($key, $ttl));
+    }
+
+    public function testIncrementMethodProperlyCallsMemcache()
+    {
+        $memcached = Mockery::mock(Memcached::class);
+        $memcached->expects('increment')->with('foo', 5)->andReturn(5);
+
+        $store = new MemcachedStore($memcached);
+        $store->increment('foo', 5);
+    }
+
+    public function testDecrementMethodProperlyCallsMemcache()
+    {
+        $memcached = Mockery::mock(Memcached::class);
+        $memcached->expects('decrement')->with('foo', 5)->andReturn(0);
+
+        $store = new MemcachedStore($memcached);
+        $store->decrement('foo', 5);
+    }
+
+    public function testStoreItemForeverProperlyCallsMemcached()
+    {
+        $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['set'])->getMock();
+        $memcache->expects($this->once())->method('set')->with('foo', 'bar', 0)->willReturn(true);
+        $store = new MemcachedStore($memcache);
+        $result = $store->forever('foo', 'bar');
+        $this->assertTrue($result);
+    }
+
+    public function testForgetMethodProperlyCallsMemcache()
+    {
+        $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['delete'])->getMock();
+        $memcache->expects($this->once())->method('delete')->with('foo');
+        $store = new MemcachedStore($memcache);
+        $store->forget('foo');
+    }
+
+    public function testFlushesCached()
+    {
+        $memcache = $this->getMockBuilder(Memcached::class)->onlyMethods(['flush'])->getMock();
+        $memcache->expects($this->once())->method('flush')->willReturn(true);
+        $store = new MemcachedStore($memcache);
+        $result = $store->flush();
+        $this->assertTrue($result);
+    }
+
+    public function testGetAndSetPrefix()
+    {
+        $store = new MemcachedStore(new Memcached, 'bar');
+        $this->assertSame('bar', $store->getPrefix());
+        $store->setPrefix('foo');
+        $this->assertSame('foo', $store->getPrefix());
+        $store->setPrefix(null);
+        $this->assertEmpty($store->getPrefix());
+    }
+}

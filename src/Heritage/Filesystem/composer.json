@@ -1,0 +1,63 @@
+{
+    "name": "heritage/filesystem",
+    "description": "The Heritage Filesystem package.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Muath R Abu Ouda",
+            "email": "muathrabuouda@hotmail.com",
+            "role": "Vision Leader of Ugarit"
+        },
+        {
+            "name": "Taylor Otwell",
+            "email": "taylor@laravel.com",
+            "role": "Original Creator & Primary Developer"
+        }
+    ],
+    "homepage": "https://ugarit.com",
+    "support": {
+        "issues": "https://github.com/ugarit/framework/issues",
+        "source": "https://github.com/ugarit/framework"
+    },
+    "require": {
+        "php": "^8.3",
+        "heritage/collections": "^1.00.00",
+        "heritage/conditionable": "^1.00.00",
+        "heritage/contracts": "^1.00.00",
+        "heritage/macroable": "^1.00.00",
+        "heritage/support": "^1.00.00",
+        "symfony/finder": "^7.4.0 || ^8.0.0"
+    },
+    "suggest": {
+        "ext-fileinfo": "Required to use the Filesystem class.",
+        "ext-ftp": "Required to use the Flysystem FTP driver.",
+        "ext-hash": "Required to use the Filesystem class.",
+        "heritage/http": "Required for handling uploaded files (^13.0).",
+        "heritage/image": "Required to create images from stored files (^13.0).",
+        "league/flysystem": "Required to use the Flysystem local driver (^3.25.1).",
+        "league/flysystem-aws-s3-v3": "Required to use the Flysystem S3 driver (^3.25.1).",
+        "league/flysystem-ftp": "Required to use the Flysystem FTP driver (^3.25.1).",
+        "league/flysystem-sftp-v3": "Required to use the Flysystem SFTP driver (^3.25.1).",
+        "psr/http-message": "Required to allow Storage::put to accept a StreamInterface (^1.0 || ^2.0).",
+        "symfony/filesystem": "Required to enable support for relative symbolic links (^7.4 || ^8.0).",
+        "symfony/mime": "Required to enable support for guessing extensions (^7.4 || ^8.0)."
+    },
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "Heritage\\Filesystem\\": ""
+        },
+        "files": [
+            "functions.php"
+        ]
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "13.0.x-dev"
+        }
+    },
+    "version": "1.00.00"
+}

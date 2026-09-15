@@ -1,0 +1,42 @@
+<?php
+
+namespace Heritage\Tests\Integration\Redis;
+
+use Heritage\Redis\Connections\PredisConnection;
+use Heritage\Redis\Events\CommandExecuted;
+use Heritage\Support\Facades\Event;
+use Mockery;
+use Orchestra\Testbench\Attributes\WithConfig;
+use Orchestra\Testbench\TestCase;
+use Predis\Client;
+use Predis\Command\Argument\Search\SearchArguments;
+
+#[WithConfig('database.redis.client', 'predis')]
+class PredisConnectionTest extends TestCase
+{
+    public function testPredisCanEmitEventWithArrayableArgumentObject()
+    {
+        if (! class_exists(SearchArguments::class)) {
+            return $this->markTestSkipped('Skipped tests on predis/predis dependency without '.SearchArguments::class);
+        }
+
+        $event = Event::fake();
+
+        $command = 'ftSearch';
+        $parameters = ['test', '*', (new SearchArguments())->dialect('3')->withScores()];
+
+        $client = Mockery::mock(Client::class);
+        $predis = new PredisConnection($client);
+        $predis->setEventDispatcher($event);
+
+        $client->expects($command)->with(...$parameters)->andReturnTrue();
+
+        $this->assertTrue($predis->command($command, $parameters));
+
+        $event->assertDispatched(function (CommandExecuted $event) use ($command) {
+            return $event->connection instanceof PredisConnection
+                && $event->command === $command
+                && $event->parameters === ['test', '*', ['DIALECT', '3', 'WITHSCORES']];
+        });
+    }
+}

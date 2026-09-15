@@ -1,0 +1,197 @@
+<?php
+
+namespace Heritage\Tests\Integration\Http;
+
+use Carbon\CarbonInterval;
+use Heritage\Contracts\Http\Kernel;
+use Heritage\Http\Request;
+use Heritage\Http\Response;
+use Heritage\Support\Carbon;
+use Heritage\Support\Facades\Config;
+use Heritage\Support\Facades\Route;
+use Orchestra\Testbench\TestCase;
+
+class RequestDurationThresholdTest extends TestCase
+{
+    public function testItCanHandleExceedingRequestDuration()
+    {
+        Route::get('test-route', fn () => 'ok');
+        $request = Request::create('http://localhost/test-route');
+        $response = new Response();
+        $called = false;
+        $kernel = $this->app[Kernel::class];
+        $kernel->whenRequestLifecycleIsLongerThan(CarbonInterval::second(), function () use (&$called) {
+            $called = true;
+        });
+
+        Carbon::setTestNow($now = Carbon::now());
+        $kernel->handle($request);
+
+        Carbon::setTestNow($now->addSecond()->addMillisecond());
+        $kernel->terminate($request, $response);
+
+        $this->assertTrue($called);
+    }
+
+    public function testItDoesntCallWhenExactlyThresholdDuration()
+    {
+        Route::get('test-route', fn () => 'ok');
+        $request = Request::create('http://localhost/test-route');
+        $response = new Response();
+        $called = false;
+        $kernel = $this->app[Kernel::class];
+        $kernel->whenRequestLifecycleIsLongerThan(CarbonInterval::second(), function () use (&$called) {
+            $called = true;
+        });
+
+        Carbon::setTestNow($now = Carbon::now());
+        $kernel->handle($request);
+
+        Carbon::setTestNow($now->addSecond());
+        $kernel->terminate($request, $response);
+
+        $this->assertFalse($called);
+    }
+
+    public function testItProvidesRequestToHandler()
+    {
+        Route::get('test-route', fn () => 'ok');
+        $request = Request::create('http://localhost/test-route');
+        $response = new Response();
+        $url = null;
+        $kernel = $this->app[Kernel::class];
+        $kernel->whenRequestLifecycleIsLongerThan(CarbonInterval::second(), function ($startedAt, $request) use (&$url) {
+            $url = $request->url();
+        });
+
+        Carbon::setTestNow($now = Carbon::now());
+        $kernel->handle($request);
+
+        Carbon::setTestNow($now->addSeconds(2));
+        $kernel->terminate($request, $response);
+
+        $this->assertSame('http://localhost/test-route', $url);
+    }
+
+    public function testUsesTheConfiguredDateTimezone()
+    {
+        Config::set('app.timezone', 'UTC');
+        Route::get('test-route', fn () => 'ok');
+        $kernel = $this->app[Kernel::class];
+        $startedAt = null;
+        $kernel->whenRequestLifecycleIsLongerThan(CarbonInterval::second(), function ($started) use (&$startedAt) {
+            $startedAt = $started;
+        });
+
+        Config::set('app.timezone', 'Australia/Melbourne');
+        Carbon::setTestNow($now = Carbon::today());
+        $kernel->handle($request = Request::create('http://localhost/test-route'));
+        Carbon::setTestNow($now->addMinute());
+        $kernel->terminate($request, new Response);
+
+        $this->assertSame('Australia/Melbourne', $startedAt->timezone->getName());
+    }
+
+    public function testItCanExceedThresholdWhenSpecifyingDurationAsMilliseconds()
+    {
+        Route::get('test-route', fn () => 'ok');
+        $request = Request::create('http://localhost/test-route');
+        $response = new Response();
+        $called = false;
+        $kernel = $this->app[Kernel::class];
+        $kernel->whenRequestLifecycleIsLongerThan(1000, function () use (&$called) {
+            $called = true;
+        });
+
+        Carbon::setTestNow($now = Carbon::now());
+        $kernel->handle($request);
+
+        Carbon::setTestNow($now->addSecond()->addMillisecond());
+        $kernel->terminate($request, $response);
+
+        $this->assertTrue($called);
+    }
+
+    public function testItCanStayUnderThresholdWhenSpecifyingDurationAsMilliseconds()
+    {
+        Route::get('test-route', fn () => 'ok');
+        $request = Request::create('http://localhost/test-route');
+        $response = new Response();
+        $called = false;
+        $kernel = $this->app[Kernel::class];
+        $kernel->whenRequestLifecycleIsLongerThan(1000, function () use (&$called) {
+            $called = true;
+        });
+
+        Carbon::setTestNow($now = Carbon::now());
+        $kernel->handle($request);
+
+        Carbon::setTestNow($now->addSecond());
+        $kernel->terminate($request, $response);
+
+        $this->assertFalse($called);
+    }
+
+    public function testItCanExceedThresholdWhenSpecifyingDurationAsDateTime()
+    {
+        Route::get('test-route', fn () => 'ok');
+        $request = Request::create('http://localhost/test-route');
+        $response = new Response();
+        $called = false;
+        $kernel = $this->app[Kernel::class];
+        $kernel->whenRequestLifecycleIsLongerThan(Carbon::now()->addSecond(), function () use (&$called) {
+            $called = true;
+        });
+
+        Carbon::setTestNow($now = Carbon::now());
+        $kernel->handle($request);
+
+        Carbon::setTestNow($now->addSecond()->addMillisecond());
+        $kernel->terminate($request, $response);
+
+        $this->assertTrue($called);
+    }
+
+    public function testItCanStayUnderThresholdWhenSpecifyingDurationAsDateTime()
+    {
+        Route::get('test-route', fn () => 'ok');
+        $request = Request::create('http://localhost/test-route');
+        $response = new Response();
+        $called = false;
+        $kernel = $this->app[Kernel::class];
+        $kernel->whenRequestLifecycleIsLongerThan(Carbon::now()->addSecond(), function () use (&$called) {
+            $called = true;
+        });
+
+        Carbon::setTestNow($now = Carbon::now());
+        $kernel->handle($request);
+
+        Carbon::setTestNow($now->addSecond());
+        $kernel->terminate($request, $response);
+
+        $this->assertFalse($called);
+    }
+
+    public function testItClearsStartTimeAfterHandlingRequest()
+    {
+        $kernel = $this->app[Kernel::class];
+        Route::get('test-route', fn () => 'ok');
+        $request = Request::create('http://localhost/test-route');
+        $response = new Response();
+
+        Carbon::setTestNow($now = Carbon::now());
+        $kernel->handle($request);
+        $this->assertTrue($now->eq($kernel->requestStartedAt()));
+
+        $kernel->terminate($request, $response);
+        $this->assertNull($kernel->requestStartedAt());
+    }
+
+    public function testItHandlesCallingTerminateWithoutHandle()
+    {
+        $this->app[Kernel::class]->terminate(Request::create('http://localhost/test-route'), new Response);
+
+        // this is a placeholder just to show that the above did not throw an exception.
+        $this->assertTrue(true);
+    }
+}

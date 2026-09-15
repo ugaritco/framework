@@ -1,0 +1,52 @@
+{
+    "name": "heritage/auth",
+    "description": "The Heritage Auth package.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Muath R Abu Ouda",
+            "email": "muathrabuouda@hotmail.com",
+            "role": "Vision Leader of Ugarit"
+        },
+        {
+            "name": "Taylor Otwell",
+            "email": "taylor@laravel.com",
+            "role": "Original Creator & Primary Developer"
+        }
+    ],
+    "homepage": "https://ugarit.com",
+    "support": {
+        "issues": "https://github.com/ugarit/framework/issues",
+        "source": "https://github.com/ugarit/framework"
+    },
+    "require": {
+        "php": "^8.3",
+        "ext-hash": "*",
+        "heritage/collections": "^1.00.00",
+        "heritage/contracts": "^1.00.00",
+        "heritage/http": "^1.00.00",
+        "heritage/macroable": "^1.00.00",
+        "heritage/queue": "^1.00.00",
+        "heritage/support": "^1.00.00"
+    },
+    "suggest": {
+        "heritage/console": "Required to use the auth:clear-resets command (^13.0).",
+        "heritage/queue": "Required to fire login / logout events (^13.0).",
+        "heritage/session": "Required to use the session based guard (^13.0)."
+    },
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "Heritage\\Auth\\": ""
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "13.0.x-dev"
+        }
+    },
+    "version": "1.00.00"
+}

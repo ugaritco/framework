@@ -1,0 +1,99 @@
+<?php
+
+namespace Heritage\Tests\Support;
+
+use Carbon\CarbonImmutable;
+use Carbon\Factory;
+use DateTime;
+use Heritage\Support\Carbon;
+use Heritage\Support\DateFactory;
+use Heritage\Support\Facades\Date;
+use Heritage\Tests\Support\Fixtures\CustomDateClass;
+use InvalidArgumentException;
+use PHPUnit\Framework\TestCase;
+
+class DateFacadeTest extends TestCase
+{
+    protected function tearDown(): void
+    {
+        DateFactory::use(Carbon::class);
+    }
+
+    protected static function assertBetweenStartAndNow($start, $actual)
+    {
+        self::assertThat(
+            $actual,
+            static::logicalAnd(
+                static::greaterThanOrEqual($start),
+                static::lessThanOrEqual(Carbon::now()->getTimestamp())
+            )
+        );
+    }
+
+    public function testUseClosure()
+    {
+        $start = Carbon::now()->getTimestamp();
+        $this->assertInstanceOf(Carbon::class, Date::now());
+        self::assertBetweenStartAndNow($start, Date::now()->getTimestamp());
+        DateFactory::use(function (Carbon $date) {
+            return new DateTime($date->format('Y-m-d H:i:s.u'), $date->getTimezone());
+        });
+        $start = Carbon::now()->getTimestamp();
+        $this->assertInstanceOf(DateTime::class, Date::now());
+        self::assertBetweenStartAndNow($start, Date::now()->getTimestamp());
+    }
+
+    public function testUseClassName()
+    {
+        $start = Carbon::now()->getTimestamp();
+        $this->assertInstanceOf(Carbon::class, Date::now());
+        self::assertBetweenStartAndNow($start, Date::now()->getTimestamp());
+        DateFactory::use(DateTime::class);
+        $start = Carbon::now()->getTimestamp();
+        $this->assertInstanceOf(DateTime::class, Date::now());
+        self::assertBetweenStartAndNow($start, Date::now()->getTimestamp());
+    }
+
+    public function testCarbonImmutable()
+    {
+        DateFactory::use(CarbonImmutable::class);
+        $this->assertInstanceOf(CarbonImmutable::class, Date::now());
+        DateFactory::use(Carbon::class);
+        $this->assertInstanceOf(Carbon::class, Date::now());
+        DateFactory::use(function (Carbon $date) {
+            return $date->toImmutable();
+        });
+        $this->assertInstanceOf(CarbonImmutable::class, Date::now());
+        DateFactory::use(function ($date) {
+            return $date;
+        });
+        $this->assertInstanceOf(Carbon::class, Date::now());
+
+        DateFactory::use(new Factory([
+            'locale' => 'fr',
+        ]));
+        $this->assertSame('fr', Date::now()->locale);
+        DateFactory::use(Carbon::class);
+        $this->assertSame('en', Date::now()->locale);
+        DateFactory::use(CustomDateClass::class);
+        $this->assertInstanceOf(CustomDateClass::class, Date::now());
+        $this->assertInstanceOf(Carbon::class, Date::now()->getOriginal());
+        DateFactory::use(Carbon::class);
+    }
+
+    public function testUseInvalidHandler()
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        DateFactory::use(42);
+    }
+
+    public function testMacro()
+    {
+        Date::macro('returnNonDate', function () {
+            return 'string';
+        });
+
+        $this->assertSame('string', Date::returnNonDate());
+    }
+}

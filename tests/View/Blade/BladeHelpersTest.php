@@ -1,0 +1,24 @@
+<?php
+
+namespace Heritage\Tests\View\Blade;
+
+class BladeHelpersTest extends AbstractBladeTestCase
+{
+    public function testEchosAreCompiled()
+    {
+        $this->assertSame('<?php echo csrf_field(); ?>', $this->compiler->compileString('@csrf'));
+        $this->assertSame('<?php echo method_field(\'patch\'); ?>', $this->compiler->compileString("@method('patch')"));
+        $this->assertSame('<?php dd($var1); ?>', $this->compiler->compileString('@dd($var1)'));
+        $this->assertSame('<?php dd($var1, $var2); ?>', $this->compiler->compileString('@dd($var1, $var2)'));
+        $this->assertSame('<?php dump($var1, $var2); ?>', $this->compiler->compileString('@dump($var1, $var2)'));
+        $this->assertSame('<?php echo app(\'Heritage\Foundation\Vite\')(); ?>', $this->compiler->compileString('@vite'));
+        $this->assertSame('<?php echo app(\'Heritage\Foundation\Vite\')(); ?>', $this->compiler->compileString('@vite()'));
+        $this->assertSame('<?php echo app(\'Heritage\Foundation\Vite\')(\'resources/js/app.js\'); ?>', $this->compiler->compileString('@vite(\'resources/js/app.js\')'));
+        $this->assertSame('<?php echo app(\'Heritage\Foundation\Vite\')([\'resources/js/app.js\']); ?>', $this->compiler->compileString('@vite([\'resources/js/app.js\'])'));
+        $this->assertSame('<?php echo app(\'Heritage\Foundation\Vite\')->reactRefresh(); ?>', $this->compiler->compileString('@viteReactRefresh'));
+        $this->assertSame('<?php echo app(\'Heritage\Foundation\Vite\')->fonts(); ?>', $this->compiler->compileString('@fonts'));
+        $this->assertSame('<?php echo app(\'Heritage\Foundation\Vite\')->fonts(); ?>', $this->compiler->compileString('@fonts()'));
+        $this->assertSame('<?php echo app(\'Heritage\Foundation\Vite\')->fonts([\'Inter\']); ?>', $this->compiler->compileString('@fonts([\'Inter\'])'));
+        $this->assertSame('<?php echo app(\'Heritage\Foundation\Vite\')->fonts([\'Inter\', \'JetBrains Mono\']); ?>', $this->compiler->compileString('@fonts([\'Inter\', \'JetBrains Mono\'])'));
+    }
+}

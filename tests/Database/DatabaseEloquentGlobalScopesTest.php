@@ -1,0 +1,342 @@
+<?php
+
+namespace Heritage\Tests\Database;
+
+use Heritage\Database\Capsule\Manager as DB;
+use Heritage\Database\Eloquent\Attributes\ScopedBy;
+use Heritage\Database\Eloquent\Builder;
+use Heritage\Database\Eloquent\Model;
+use Heritage\Database\Eloquent\Scope;
+use PHPUnit\Framework\TestCase;
+
+class DatabaseEloquentGlobalScopesTest extends TestCase
+{
+    protected function setUp(): void
+    {
+        tap(new DB)->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ])->bootEloquent();
+    }
+
+    protected function tearDown(): void
+    {
+        Model::unsetConnectionResolver();
+    }
+
+    public function testGlobalScopeIsApplied()
+    {
+        $model = new EloquentGlobalScopesTestModel;
+        $query = $model->newQuery();
+        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertEquals([1], $query->getBindings());
+    }
+
+    public function testGlobalScopeCanBeRemoved()
+    {
+        $model = new EloquentGlobalScopesTestModel;
+        $query = $model->newQuery()->withoutGlobalScope(ActiveScope::class);
+        $this->assertSame('select * from "table"', $query->toSql());
+        $this->assertSame([], $query->getBindings());
+    }
+
+    public function testClassNameGlobalScopeIsApplied()
+    {
+        $model = new EloquentClassNameGlobalScopesTestModel;
+        $query = $model->newQuery();
+        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertEquals([1], $query->getBindings());
+    }
+
+    public function testGlobalScopeInAttributeIsApplied()
+    {
+        $model = new EloquentGlobalScopeInAttributeTestModel;
+        $query = $model->newQuery();
+        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertEquals([1], $query->getBindings());
+    }
+
+    public function testGlobalScopeInInheritedAttributeIsApplied()
+    {
+        $model = new EloquentGlobalScopeInInheritedAttributeTestModel;
+        $query = $model->newQuery();
+        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertEquals([1], $query->getBindings());
+    }
+
+    public function testGlobalScopeInParentClassAttributeIsApplied()
+    {
+        $model = new EloquentGlobalScopeInAttributeChildTestModel;
+        $query = $model->newQuery();
+        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertEquals([1], $query->getBindings());
+    }
+
+    public function testClosureGlobalScopeIsApplied()
+    {
+        $model = new EloquentClosureGlobalScopesTestModel;
+        $query = $model->newQuery();
+        $this->assertSame('select * from "table" where "active" = ? order by "name" asc', $query->toSql());
+        $this->assertEquals([1], $query->getBindings());
+    }
+
+    public function testGlobalScopesCanBeRegisteredViaArray()
+    {
+        $model = new EloquentGlobalScopesArrayTestModel;
+        $query = $model->newQuery();
+        $this->assertSame('select * from "table" where "active" = ? order by "name" asc', $query->toSql());
+        $this->assertEquals([1], $query->getBindings());
+    }
+
+    public function testClosureGlobalScopeCanBeRemoved()
+    {
+        $model = new EloquentClosureGlobalScopesTestModel;
+        $query = $model->newQuery()->withoutGlobalScope('active_scope');
+        $this->assertSame('select * from "table" order by "name" asc', $query->toSql());
+        $this->assertSame([], $query->getBindings());
+    }
+
+    public function testGlobalScopeCanBeRemovedAfterTheQueryIsExecuted()
+    {
+        $model = new EloquentClosureGlobalScopesTestModel;
+        $query = $model->newQuery();
+        $this->assertSame('select * from "table" where "active" = ? order by "name" asc', $query->toSql());
+        $this->assertEquals([1], $query->getBindings());
+
+        $query->withoutGlobalScope('active_scope');
+        $this->assertSame('select * from "table" order by "name" asc', $query->toSql());
+        $this->assertSame([], $query->getBindings());
+    }
+
+    public function testAllGlobalScopesCanBeRemoved()
+    {
+        $model = new EloquentClosureGlobalScopesTestModel;
+        $query = $model->newQuery()->withoutGlobalScopes();
+        $this->assertSame('select * from "table"', $query->toSql());
+        $this->assertSame([], $query->getBindings());
+
+        $query = EloquentClosureGlobalScopesTestModel::withoutGlobalScopes();
+        $this->assertSame('select * from "table"', $query->toSql());
+        $this->assertSame([], $query->getBindings());
+    }
+
+    public function testAllGlobalScopesCanBeRemovedExceptSpecified()
+    {
+        $model = new EloquentClosureGlobalScopesTestModel;
+        $query = $model->newQuery()->withoutGlobalScopesExcept(['active_scope']);
+        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertEquals([1], $query->getBindings());
+
+        $query = EloquentClosureGlobalScopesTestModel::withoutGlobalScopesExcept(['active_scope']);
+        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertEquals([1], $query->getBindings());
+    }
+
+    public function testGlobalScopesWithOrWhereConditionsAreNested()
+    {
+        $model = new EloquentClosureGlobalScopesWithOrTestModel;
+
+        $query = $model->newQuery();
+        $this->assertSame('select "email", "password" from "table" where ("email" = ? or "email" = ?) and "active" = ? order by "name" asc', $query->toSql());
+        $this->assertEquals(['taylor@gmail.com', 'someone@else.com', 1], $query->getBindings());
+
+        $query = $model->newQuery()->where('col1', 'val1')->orWhere('col2', 'val2');
+        $this->assertSame('select "email", "password" from "table" where ("col1" = ? or "col2" = ?) and ("email" = ? or "email" = ?) and "active" = ? order by "name" asc', $query->toSql());
+        $this->assertEquals(['val1', 'val2', 'taylor@gmail.com', 'someone@else.com', 1], $query->getBindings());
+    }
+
+    public function testRegularScopesWithOrWhereConditionsAreNested()
+    {
+        $query = EloquentClosureGlobalScopesTestModel::withoutGlobalScopes()->where('foo', 'foo')->orWhere('bar', 'bar')->approved();
+
+        $this->assertSame('select * from "table" where ("foo" = ? or "bar" = ?) and ("approved" = ? or "should_approve" = ?)', $query->toSql());
+        $this->assertEquals(['foo', 'bar', 1, 0], $query->getBindings());
+    }
+
+    public function testScopesStartingWithOrBooleanArePreserved()
+    {
+        $query = EloquentClosureGlobalScopesTestModel::withoutGlobalScopes()->where('foo', 'foo')->orWhere('bar', 'bar')->orApproved();
+
+        $this->assertSame('select * from "table" where ("foo" = ? or "bar" = ?) or ("approved" = ? or "should_approve" = ?)', $query->toSql());
+        $this->assertEquals(['foo', 'bar', 1, 0], $query->getBindings());
+    }
+
+    public function testHasQueryWhereBothModelsHaveGlobalScopes()
+    {
+        $query = EloquentGlobalScopesWithRelationModel::has('related')->where('bar', 'baz');
+
+        $subQuery = 'select * from "table" where "table2"."id" = "table"."related_id" and "foo" = ? and "active" = ?';
+        $mainQuery = 'select * from "table2" where exists ('.$subQuery.') and "bar" = ? and "active" = ? order by "name" asc';
+
+        $this->assertEquals($mainQuery, $query->toSql());
+        $this->assertEquals(['bar', 1, 'baz', 1], $query->getBindings());
+    }
+
+    public function testRegularScopesThatRemoveGlobalScopes()
+    {
+        $query = EloquentClosureGlobalScopesTestModel::where('foo', 'foo')->approved()->notApproved();
+
+        $this->assertSame('select * from "table" where "foo" = ? and ("approved" = ? or "should_approve" = ?) and ("approved" = ? or "should_approve" = ?) order by "name" asc', $query->toSql());
+        $this->assertEquals(['foo', 1, 0, 0, 1], $query->getBindings());
+    }
+
+    public function testRegularScopesThatRemoveGlobalScopesCalledInNestedWhereCondition()
+    {
+        $query = EloquentClosureGlobalScopesTestModel::where('foo', 'foo')->where(function ($query) {
+            $query->approved();
+            $query->orWhere(function ($query) {
+                $query->notApproved();
+            });
+        });
+
+        $this->assertSame('select * from "table" where "foo" = ? and (("approved" = ? or "should_approve" = ?) or (("approved" = ? or "should_approve" = ?))) order by "name" asc', $query->toSql());
+        $this->assertEquals(['foo', 1, 0, 0, 1], $query->getBindings());
+    }
+
+    public function testRemovingGlobalScopeInNestedWhereCondition()
+    {
+        $query = EloquentClosureGlobalScopesTestModel::where('foo', 'foo')->where(function ($query) {
+            $query->approved();
+            $query->withoutGlobalScope('active_scope');
+        });
+
+        $this->assertSame('select * from "table" where "foo" = ? and (("approved" = ? or "should_approve" = ?)) order by "name" asc', $query->toSql());
+        $this->assertEquals(['foo', 1, 0], $query->getBindings());
+    }
+}
+
+class EloquentClosureGlobalScopesTestModel extends Model
+{
+    protected $table = 'table';
+
+    public static function boot()
+    {
+        static::addGlobalScope(function ($query) {
+            $query->orderBy('name');
+        });
+
+        static::addGlobalScope('active_scope', function ($query) {
+            $query->where('active', 1);
+        });
+
+        parent::boot();
+    }
+
+    public function scopeApproved($query)
+    {
+        return $query->where('approved', 1)->orWhere('should_approve', 0);
+    }
+
+    public function scopeNotApproved($query)
+    {
+        return $query->where('approved', 0)->orWhere('should_approve', 1)->withoutGlobalScope('active_scope');
+    }
+
+    public function scopeOrApproved($query)
+    {
+        return $query->orWhere('approved', 1)->orWhere('should_approve', 0);
+    }
+}
+
+class EloquentGlobalScopesWithRelationModel extends EloquentClosureGlobalScopesTestModel
+{
+    protected $table = 'table2';
+
+    public function related()
+    {
+        return $this->hasMany(EloquentGlobalScopesTestModel::class, 'related_id')->where('foo', 'bar');
+    }
+}
+
+class EloquentClosureGlobalScopesWithOrTestModel extends EloquentClosureGlobalScopesTestModel
+{
+    public static function boot()
+    {
+        static::addGlobalScope('or_scope', function ($query) {
+            $query->where('email', 'taylor@gmail.com')->orWhere('email', 'someone@else.com');
+        });
+
+        static::addGlobalScope(function ($query) {
+            $query->select('email', 'password');
+        });
+
+        parent::boot();
+    }
+}
+
+class EloquentGlobalScopesTestModel extends Model
+{
+    protected $table = 'table';
+
+    public static function boot()
+    {
+        static::addGlobalScope(new ActiveScope);
+
+        parent::boot();
+    }
+}
+
+class EloquentClassNameGlobalScopesTestModel extends Model
+{
+    protected $table = 'table';
+
+    public static function boot()
+    {
+        static::addGlobalScope(ActiveScope::class);
+
+        parent::boot();
+    }
+}
+
+class EloquentGlobalScopesArrayTestModel extends Model
+{
+    protected $table = 'table';
+
+    public static function boot()
+    {
+        static::addGlobalScopes([
+            'active_scope' => new ActiveScope,
+            fn ($query) => $query->orderBy('name'),
+        ]);
+
+        parent::boot();
+    }
+}
+
+#[ScopedBy(ActiveScope::class)]
+class EloquentGlobalScopeInAttributeTestModel extends Model
+{
+    protected $table = 'table';
+}
+
+class ActiveScope implements Scope
+{
+    public function apply(Builder $builder, Model $model)
+    {
+        return $builder->where('active', 1);
+    }
+}
+
+#[ScopedBy(ActiveScope::class)]
+trait EloquentGlobalScopeInInheritedAttributeTestTrait
+{
+    //
+}
+
+class EloquentGlobalScopeInInheritedAttributeTestModel extends Model
+{
+    use EloquentGlobalScopeInInheritedAttributeTestTrait;
+
+    protected $table = 'table';
+}
+
+#[ScopedBy(ActiveScope::class)]
+class EloquentGlobalScopeInAttributeParentTestModel extends Model
+{
+    protected $table = 'table';
+}
+
+class EloquentGlobalScopeInAttributeChildTestModel extends EloquentGlobalScopeInAttributeParentTestModel
+{
+    //
+}

@@ -1,0 +1,191 @@
+<?php
+
+namespace Heritage\Tests\Mail;
+
+use Aws\Command;
+use Aws\Exception\AwsException;
+use Aws\SesV2\SesV2Client;
+use Heritage\Config\Repository;
+use Heritage\Container\Container;
+use Heritage\Mail\MailManager;
+use Heritage\Mail\Transport\SesV2Transport;
+use Heritage\View\Factory;
+use Mockery;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\Mailer\Exception\TransportException;
+use Symfony\Component\Mailer\Header\MetadataHeader;
+use Symfony\Component\Mime\Address;
+use Symfony\Component\Mime\Email;
+
+class MailSesV2TransportTest extends TestCase
+{
+    public function testGetTransport(): void
+    {
+        $container = new Container;
+
+        $container->singleton('config', function () {
+            return new Repository([
+                'services.ses' => [
+                    'key' => 'foo',
+                    'secret' => 'bar',
+                    'region' => 'us-east-1',
+                ],
+            ]);
+        });
+
+        $manager = new MailManager($container);
+
+        /** @var \Heritage\Mail\Transport\SesV2Transport $transport */
+        $transport = $manager->createSymfonyTransport(['transport' => 'ses-v2']);
+
+        $ses = $transport->ses();
+
+        $this->assertSame('us-east-1', $ses->getRegion());
+
+        $this->assertSame('ses-v2', (string) $transport);
+    }
+
+    public function testSend(): void
+    {
+        $message = new Email();
+        $message->subject('Foo subject');
+        $message->text('Bar body');
+        $message->sender('myself@example.com');
+        $message->to('me@example.com');
+        $message->bcc('you@example.com');
+        $message->replyTo(new Address('taylor@example.com', 'Taylor Otwell'));
+        $message->getHeaders()->add(new MetadataHeader('FooTag', 'TagValue'));
+        $message->getHeaders()->addTextHeader('X-SES-LIST-MANAGEMENT-OPTIONS', 'contactListName=TestList;topicName=TestTopic');
+
+        $client = Mockery::mock(SesV2Client::class);
+        $sesResult = Mockery::mock();
+        $sesResult->expects('get')
+            ->with('MessageId')
+            ->andReturn('ses-message-id');
+        $client->expects('sendEmail')
+            ->with(Mockery::on(function ($arg) {
+                return $arg['Source'] === 'myself@example.com' &&
+                    $arg['Destination']['ToAddresses'] === ['me@example.com', 'you@example.com'] &&
+                    $arg['ListManagementOptions'] === ['ContactListName' => 'TestList', 'TopicName' => 'TestTopic'] &&
+                    $arg['EmailTags'] === [['Name' => 'FooTag', 'Value' => 'TagValue']] &&
+                    str_contains($arg['Content']['Raw']['Data'], 'Reply-To: Taylor Otwell <taylor@example.com>');
+            }))
+            ->andReturn($sesResult);
+
+        (new SesV2Transport($client))->send($message);
+    }
+
+    public function testSendWithTenantName(): void
+    {
+        $message = new Email();
+        $message->subject('Foo subject');
+        $message->text('Bar body');
+        $message->sender('myself@example.com');
+        $message->to('me@example.com');
+        $message->getHeaders()->addTextHeader('X-SES-TENANT-NAME', 'my-tenant');
+
+        $client = Mockery::mock(SesV2Client::class);
+        $sesResult = Mockery::mock();
+        $sesResult->expects('get')
+            ->with('MessageId')
+            ->andReturn('ses-message-id');
+        $client->expects('sendEmail')
+            ->with(Mockery::on(function ($arg) {
+                return $arg['TenantName'] === 'my-tenant';
+            }))
+            ->andReturn($sesResult);
+
+        (new SesV2Transport($client))->send($message);
+    }
+
+    public function testSendWithoutTenantNameDoesNotSetTheOption(): void
+    {
+        $message = new Email();
+        $message->subject('Foo subject');
+        $message->text('Bar body');
+        $message->sender('myself@example.com');
+        $message->to('me@example.com');
+
+        $client = Mockery::mock(SesV2Client::class);
+        $sesResult = Mockery::mock();
+        $sesResult->expects('get')
+            ->with('MessageId')
+            ->andReturn('ses-message-id');
+        $client->expects('sendEmail')
+            ->with(Mockery::on(function ($arg) {
+                return ! array_key_exists('TenantName', $arg);
+            }))
+            ->andReturn($sesResult);
+
+        (new SesV2Transport($client))->send($message);
+    }
+
+    public function testSendError(): void
+    {
+        $message = new Email();
+        $message->subject('Foo subject');
+        $message->text('Bar body');
+        $message->sender('myself@example.com');
+        $message->to('me@example.com');
+
+        $client = Mockery::mock(SesV2Client::class);
+        $client->expects('sendEmail')
+            ->andThrow(new AwsException('Email address is not verified.', new Command('sendRawEmail')));
+
+        $this->expectException(TransportException::class);
+
+        (new SesV2Transport($client))->send($message);
+    }
+
+    public function testSesV2LocalConfiguration(): void
+    {
+        $container = new Container;
+
+        $container->singleton('config', function () {
+            return new Repository([
+                'mail' => [
+                    'mailers' => [
+                        'ses' => [
+                            'transport' => 'ses-v2',
+                            'region' => 'eu-west-1',
+                            'options' => [
+                                'ConfigurationSetName' => 'Ugarit',
+                                'EmailTags' => [
+                                    ['Name' => 'Ugarit', 'Value' => 'Framework'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                'services' => [
+                    'ses' => [
+                        'region' => 'us-east-1',
+                    ],
+                ],
+            ]);
+        });
+
+        $container->instance('view', $this->createMock(Factory::class));
+
+        $container->bind('events', function () {
+            return null;
+        });
+
+        $manager = new MailManager($container);
+
+        /** @var \Heritage\Mail\Mailer $mailer */
+        $mailer = $manager->mailer('ses');
+
+        /** @var \Heritage\Mail\Transport\SesV2Transport $transport */
+        $transport = $mailer->getSymfonyTransport();
+
+        $this->assertSame('eu-west-1', $transport->ses()->getRegion());
+
+        $this->assertSame([
+            'ConfigurationSetName' => 'Ugarit',
+            'EmailTags' => [
+                ['Name' => 'Ugarit', 'Value' => 'Framework'],
+            ],
+        ], $transport->getOptions());
+    }
+}

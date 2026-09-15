@@ -1,0 +1,509 @@
+<?php
+
+namespace Heritage\Tests\Cache;
+
+use Exception;
+use Heritage\Cache\FileStore;
+use Heritage\Contracts\Filesystem\FileNotFoundException;
+use Heritage\Filesystem\Filesystem;
+use Heritage\Support\Carbon;
+use Heritage\Support\Str;
+use Mockery;
+use PHPUnit\Framework\TestCase;
+use RuntimeException;
+
+class CacheFileStoreTest extends TestCase
+{
+    public function testNullIsReturnedIfFileDoesntExist()
+    {
+        $files = $this->mockFilesystem();
+        $files->expects($this->once())->method('get')->willThrowException(new FileNotFoundException);
+        $store = new FileStore($files, __DIR__);
+        $value = $store->get('foo');
+        $this->assertNull($value);
+    }
+
+    public function testPutCreatesMissingDirectories()
+    {
+        $files = $this->mockFilesystem();
+        $hash = sha1('foo');
+        $contents = '0000000000';
+        $full_dir = __DIR__.'/'.substr($hash, 0, 2).'/'.substr($hash, 2, 2);
+        $files->expects($this->once())->method('makeDirectory')->with($full_dir, 0777, true);
+        $files->expects($this->once())->method('put')->with($full_dir.'/'.$hash)->willReturn(strlen($contents));
+        $store = new FileStore($files, __DIR__);
+        $result = $store->put('foo', $contents, 0);
+        $this->assertTrue($result);
+    }
+
+    public function testPutWillConsiderZeroAsEternalTime()
+    {
+        $files = $this->mockFilesystem();
+
+        $hash = sha1('O--L / key');
+        $filePath = __DIR__.'/'.substr($hash, 0, 2).'/'.substr($hash, 2, 2).'/'.$hash;
+        $ten9s = '9999999999'; // The "forever" time value.
+        $fileContents = $ten9s.serialize('gold');
+        $exclusiveLock = true;
+
+        $files->expects($this->once())->method('put')->with(
+            $filePath,
+            $fileContents,
+            $exclusiveLock // Ensure we do lock the file while putting.
+        )->willReturn(strlen($fileContents));
+
+        (new FileStore($files, __DIR__))->put('O--L / key', 'gold', 0);
+    }
+
+    public function testPutWillConsiderBigValuesAsEternalTime()
+    {
+        $files = $this->mockFilesystem();
+
+        $hash = sha1('O--L / key');
+        $filePath = __DIR__.'/'.substr($hash, 0, 2).'/'.substr($hash, 2, 2).'/'.$hash;
+        $ten9s = '9999999999'; // The "forever" time value.
+        $fileContents = $ten9s.serialize('gold');
+
+        $files->expects($this->once())->method('put')->with(
+            $filePath,
+            $fileContents,
+        );
+
+        (new FileStore($files, __DIR__))->put('O--L / key', 'gold', (int) $ten9s + 1);
+    }
+
+    public function testExpiredItemsReturnNullAndGetDeleted()
+    {
+        $files = $this->mockFilesystem();
+        $contents = '0000000000';
+        $files->expects($this->once())->method('get')->willReturn($contents);
+        $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['forget'])->setConstructorArgs([$files, __DIR__])->getMock();
+        $store->expects($this->once())->method('forget');
+        $value = $store->get('foo');
+        $this->assertNull($value);
+    }
+
+    public function testValidItemReturnsContents()
+    {
+        $files = $this->mockFilesystem();
+        $contents = '9999999999'.serialize('Hello World');
+        $files->expects($this->once())->method('get')->willReturn($contents);
+        $store = new FileStore($files, __DIR__);
+        $this->assertSame('Hello World', $store->get('foo'));
+    }
+
+    public function testStoreItemProperlyStoresValues()
+    {
+        $files = $this->mockFilesystem();
+        $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['expiration'])->setConstructorArgs([$files, __DIR__])->getMock();
+        $store->expects($this->once())->method('expiration')->with(10)->willReturn(1111111111);
+        $contents = '1111111111'.serialize('Hello World');
+        $hash = sha1('foo');
+        $cache_dir = substr($hash, 0, 2).'/'.substr($hash, 2, 2);
+        $files->expects($this->once())->method('put')->with(__DIR__.'/'.$cache_dir.'/'.$hash, $contents)->willReturn(strlen($contents));
+        $result = $store->put('foo', 'Hello World', 10);
+        $this->assertTrue($result);
+    }
+
+    public function testPutPadsShortTimestampsToTenDigits()
+    {
+        $files = $this->mockFilesystem();
+        $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['expiration'])->setConstructorArgs([$files, __DIR__])->getMock();
+        $store->expects($this->once())->method('expiration')->with(3)->willReturn(990464403);
+        $contents = '0990464403'.serialize('Hello World');
+        $hash = sha1('foo');
+        $cache_dir = substr($hash, 0, 2).'/'.substr($hash, 2, 2);
+        $files->expects($this->once())->method('put')->with(__DIR__.'/'.$cache_dir.'/'.$hash, $contents)->willReturn(strlen($contents));
+        $result = $store->put('foo', 'Hello World', 3);
+        $this->assertTrue($result);
+    }
+
+    public function testGetPayloadReadsZeroPaddedTimestampsCorrectly()
+    {
+        Carbon::setTestNow(Carbon::createFromTimestampUTC(990464400));
+
+        $files = $this->mockFilesystem();
+        $contents = '0990464403'.serialize('Hello World');
+        $files->expects($this->once())->method('get')->willReturn($contents);
+        $store = new FileStore($files, __DIR__);
+        $this->assertSame('Hello World', $store->get('foo'));
+    }
+
+    public function testTouchExtendsTtl(): void
+    {
+        $files = $this->mockFilesystem();
+        $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['expiration', 'get', 'getPayload'])->setConstructorArgs([$files, __DIR__])->getMock();
+
+        $now = Carbon::now();
+
+        $key = 'foo';
+        $content = 'Hello World';
+        $ttl = 60;
+        $hash = sha1($key);
+        $path = __DIR__.'/'.substr($hash, 0, 2).'/'.substr($hash, 2, 2).'/'.$hash;
+
+        $store->expects($this->once())
+            ->method('expiration')
+            ->with($ttl)
+            ->willReturn($now->clone()->addSeconds($ttl)->getTimestamp());
+        $store->expects($this->once())
+            ->method('getPayload')
+            ->with($key)
+            ->willReturn(['data' => $content, 'expiration' => $now->clone()->addSeconds($ttl)->getTimestamp()]);
+        $files->expects($this->once())
+            ->method('put')
+            ->with(
+                $path,
+                $now->clone()->addSeconds($ttl)->getTimestamp().serialize($content),
+                true
+            )
+            ->willReturn(1);
+
+        $this->assertTrue($store->touch($key, $ttl));
+    }
+
+    public function testStoreItemProperlySetsPermissions()
+    {
+        $files = Mockery::mock(Filesystem::class)->shouldIgnoreMissing();
+        $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['expiration'])->setConstructorArgs([$files, __DIR__, 0644])->getMock();
+        $hash = sha1('foo');
+        $cache_dir = substr($hash, 0, 2).'/'.substr($hash, 2, 2);
+        $files->expects('put')->times(3)->withArgs([__DIR__.'/'.$cache_dir.'/'.$hash, Mockery::any(), Mockery::any()])->andReturnUsing(function ($name, $value) {
+            return strlen($value);
+        });
+        $files->expects('chmod')->withArgs([__DIR__.'/'.$cache_dir.'/'.$hash])->andReturnValues(['0600', '0644'])->times(3);
+        $files->expects('chmod')->withArgs([__DIR__.'/'.$cache_dir.'/'.$hash, 0644])->andReturn([true]);
+        $result = $store->put('foo', 'foo', 10);
+        $this->assertTrue($result);
+        $result = $store->put('foo', 'bar', 10);
+        $this->assertTrue($result);
+        $result = $store->put('foo', 'baz', 10);
+        $this->assertTrue($result);
+    }
+
+    public function testStoreItemDirectoryProperlySetsPermissions()
+    {
+        $files = Mockery::mock(Filesystem::class)->shouldIgnoreMissing();
+        $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['expiration'])->setConstructorArgs([$files, __DIR__, 0606])->getMock();
+        $hash = sha1('foo');
+        $cache_parent_dir = substr($hash, 0, 2);
+        $cache_dir = $cache_parent_dir.'/'.substr($hash, 2, 2);
+
+        $files->expects('put')->withArgs([__DIR__.'/'.$cache_dir.'/'.$hash, Mockery::any(), Mockery::any()])->andReturnUsing(function ($name, $value) {
+            return strlen($value);
+        });
+
+        $files->expects('exists')->withArgs([__DIR__.'/'.$cache_dir])->andReturn(false);
+        $files->expects('makeDirectory')->withArgs([__DIR__.'/'.$cache_dir, 0777, true, true]);
+        $files->expects('chmod')->withArgs([__DIR__.'/'.$cache_parent_dir])->andReturn(['0600']);
+        $files->expects('chmod')->withArgs([__DIR__.'/'.$cache_parent_dir, 0606])->andReturn([true]);
+        $files->expects('chmod')->withArgs([__DIR__.'/'.$cache_dir])->andReturn(['0600']);
+        $files->expects('chmod')->withArgs([__DIR__.'/'.$cache_dir, 0606])->andReturn([true]);
+
+        $result = $store->put('foo', 'foo', 10);
+        $this->assertTrue($result);
+    }
+
+    public function testForeversAreStoredWithHighTimestamp()
+    {
+        $files = $this->mockFilesystem();
+        $contents = '9999999999'.serialize('Hello World');
+        $hash = sha1('foo');
+        $cache_dir = substr($hash, 0, 2).'/'.substr($hash, 2, 2);
+        $files->expects($this->once())->method('put')->with(__DIR__.'/'.$cache_dir.'/'.$hash, $contents)->willReturn(strlen($contents));
+        $store = new FileStore($files, __DIR__);
+        $result = $store->forever('foo', 'Hello World', 10);
+        $this->assertTrue($result);
+    }
+
+    public function testForeversAreNotRemovedOnIncrement()
+    {
+        $files = $this->mockFilesystem();
+        $contents = '9999999999'.serialize('Hello World');
+        $store = new FileStore($files, __DIR__);
+        $store->forever('foo', 'Hello World');
+        $store->increment('foo');
+        $files->expects($this->once())->method('get')->willReturn($contents);
+        $this->assertSame('Hello World', $store->get('foo'));
+    }
+
+    public function testIncrementExpiredKeys()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+
+        $filePath = $this->getCachePath('foo');
+        $files = $this->mockFilesystem();
+        $initialValue = $now->subSeconds(10)->getTimestamp().serialize(77);
+        $valueAfterIncrement = '9999999999'.serialize(3);
+        $store = new FileStore($files, __DIR__);
+
+        $files->expects($this->once())->method('get')->with($filePath, true)->willReturn($initialValue);
+        $files->expects($this->once())->method('put')->with($filePath, $valueAfterIncrement);
+
+        $result = $store->increment('foo', 3);
+    }
+
+    public function testIncrementCanAtomicallyJump()
+    {
+        $filePath = $this->getCachePath('foo');
+        $files = $this->mockFilesystem();
+        $initialValue = '9999999999'.serialize(1);
+        $valueAfterIncrement = '9999999999'.serialize(4);
+        $store = new FileStore($files, __DIR__);
+
+        $files->expects($this->once())->method('get')->with($filePath, true)->willReturn($initialValue);
+        $files->expects($this->once())->method('put')->with($filePath, $valueAfterIncrement);
+
+        $result = $store->increment('foo', 3);
+        $this->assertEquals(4, $result);
+    }
+
+    public function testDecrementCanAtomicallyJump()
+    {
+        $filePath = $this->getCachePath('foo');
+
+        $files = $this->mockFilesystem();
+        $initialValue = '9999999999'.serialize(2);
+        $valueAfterIncrement = '9999999999'.serialize(0);
+        $store = new FileStore($files, __DIR__);
+
+        $files->expects($this->once())->method('get')->with($filePath, true)->willReturn($initialValue);
+        $files->expects($this->once())->method('put')->with($filePath, $valueAfterIncrement);
+
+        $result = $store->decrement('foo', 2);
+        $this->assertEquals(0, $result);
+    }
+
+    public function testIncrementNonNumericValues()
+    {
+        $filePath = $this->getCachePath('foo');
+
+        $files = $this->mockFilesystem();
+        $initialValue = '1999999909'.serialize('foo');
+        $valueAfterIncrement = '1999999909'.serialize(1);
+        $store = new FileStore($files, __DIR__);
+        $files->expects($this->once())->method('get')->with($filePath, true)->willReturn($initialValue);
+        $files->expects($this->once())->method('put')->with($filePath, $valueAfterIncrement);
+        $result = $store->increment('foo');
+
+        $this->assertEquals(1, $result);
+    }
+
+    public function testIncrementNonExistentKeys()
+    {
+        $filePath = $this->getCachePath('foo');
+
+        $files = $this->mockFilesystem();
+        $valueAfterIncrement = '9999999999'.serialize(1);
+        $store = new FileStore($files, __DIR__);
+        // simulates a missing item in file store by the exception
+        $files->expects($this->once())->method('get')->with($filePath, true)->willThrowException(new Exception);
+        $files->expects($this->once())->method('put')->with($filePath, $valueAfterIncrement);
+        $result = $store->increment('foo');
+        $this->assertIsInt($result);
+        $this->assertEquals(1, $result);
+    }
+
+    public function testIncrementDoesNotExtendCacheLife()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+
+        $files = $this->mockFilesystem();
+        $expiration = $now->addSeconds(50)->getTimestamp();
+        $initialValue = $expiration.serialize(1);
+        $valueAfterIncrement = $expiration.serialize(2);
+        $store = new FileStore($files, __DIR__);
+        $files->expects($this->once())->method('get')->willReturn($initialValue);
+        $hash = sha1('foo');
+        $cache_dir = substr($hash, 0, 2).'/'.substr($hash, 2, 2);
+        $files->expects($this->once())->method('put')->with(__DIR__.'/'.$cache_dir.'/'.$hash, $valueAfterIncrement);
+        $store->increment('foo');
+    }
+
+    public function testRemoveDeletesFileDoesntExist()
+    {
+        $files = $this->mockFilesystem();
+        $hash = sha1('foobull');
+        $cache_dir = substr($hash, 0, 2).'/'.substr($hash, 2, 2);
+        $files->expects($this->once())->method('exists')->with(__DIR__.'/'.$cache_dir.'/'.$hash)->willReturn(false);
+        $store = new FileStore($files, __DIR__);
+        $store->forget('foobull');
+    }
+
+    public function testRemoveDeletesFile()
+    {
+        $files = new Filesystem;
+        $store = new FileStore($files, __DIR__);
+        $store->put('foobar', 'Hello Baby', 10);
+
+        $this->assertFileExists($store->path('foobar'));
+
+        $store->forget('foobar');
+
+        $this->assertFileDoesNotExist($store->path('foobar'));
+    }
+
+    public function testFlushCleansDirectory()
+    {
+        $files = $this->mockFilesystem();
+        $files->expects($this->once())->method('isDirectory')->with(__DIR__)->willReturn(true);
+        $files->expects($this->once())->method('directories')->with(__DIR__)->willReturn(['foo']);
+        $files->expects($this->once())->method('deleteDirectory')->with('foo')->willReturn(true);
+
+        $store = new FileStore($files, __DIR__);
+        $result = $store->flush();
+        $this->assertTrue($result, 'Flush failed');
+    }
+
+    public function testFlushFailsDirectoryClean()
+    {
+        $files = $this->mockFilesystem();
+        $files->expects($this->once())->method('isDirectory')->with(__DIR__)->willReturn(true);
+        $files->expects($this->once())->method('directories')->with(__DIR__)->willReturn(['foo']);
+        $files->expects($this->once())->method('deleteDirectory')->with('foo')->willReturn(false);
+
+        $store = new FileStore($files, __DIR__);
+        $result = $store->flush();
+        $this->assertFalse($result, 'Flush should not have cleared directories');
+    }
+
+    public function testFlushIgnoreNonExistingDirectory()
+    {
+        $files = $this->mockFilesystem();
+        $files->expects($this->once())->method('isDirectory')->with(__DIR__.'--wrong')->willReturn(false);
+
+        $store = new FileStore($files, __DIR__.'--wrong');
+        $result = $store->flush();
+        $this->assertFalse($result, 'Flush should not clean directory');
+    }
+
+    public function testFlushingLocksCleansDirectory()
+    {
+        $lockDir = __DIR__.'/locks';
+        $files = $this->mockFilesystem();
+        $files->expects($this->once())->method('isDirectory')->with($lockDir)->willReturn(true);
+        $files->expects($this->once())->method('directories')->with($lockDir)->willReturn(['foo']);
+        $files->expects($this->once())->method('deleteDirectory')->with('foo')->willReturn(true);
+
+        $store = new FileStore($files, __DIR__);
+        $store->setLockDirectory($lockDir);
+        $result = $store->flushLocks();
+        $this->assertTrue($result, 'Flushing locks failed');
+    }
+
+    public function testFlushingLocksFailsDirectoryClean()
+    {
+        $lockDir = __DIR__.'/locks';
+        $files = $this->mockFilesystem();
+        $files->expects($this->once())->method('isDirectory')->with($lockDir)->willReturn(true);
+        $files->expects($this->once())->method('directories')->with($lockDir)->willReturn(['foo']);
+        $files->expects($this->once())->method('deleteDirectory')->with('foo')->willReturn(false);
+
+        $store = new FileStore($files, __DIR__);
+        $store->setLockDirectory($lockDir);
+        $result = $store->flushLocks();
+        $this->assertFalse($result, 'Flushing locks should not have cleared directories');
+    }
+
+    public function testFlushingLocksIgnoreNonExistingDirectory()
+    {
+        $lockDir = __DIR__.'/locks';
+        $files = $this->mockFilesystem();
+        $files->expects($this->once())->method('isDirectory')->with($lockDir)->willReturn(false);
+
+        $store = new FileStore($files, __DIR__);
+        $store->setLockDirectory($lockDir);
+        $result = $store->flushLocks();
+        $this->assertFalse($result, 'Flushing locks should not clean locks directory');
+    }
+
+    public function testHasSeparateLockStoreReturnsTrueWhenLockDirectoryDiffers()
+    {
+        $store = new FileStore(new Filesystem, __DIR__);
+        $store->setLockDirectory('/locks');
+
+        $this->assertTrue($store->hasSeparateLockStore());
+    }
+
+    public function testHasSeparateLockStoreReturnsFalseWhenLockDirectoryIsSame()
+    {
+        $store = new FileStore(new Filesystem, __DIR__);
+        $store->setLockDirectory(__DIR__);
+
+        $this->assertFalse($store->hasSeparateLockStore());
+    }
+
+    public function testHasSeparateLockStoreReturnsFalseWhenLockDirectoryIsNull()
+    {
+        $store = new FileStore(new Filesystem, __DIR__);
+        $store->setLockDirectory(null);
+
+        $this->assertFalse($store->hasSeparateLockStore());
+    }
+
+    public function testFlushLocksThrowsExceptionWhenLockDirectoryIsSame()
+    {
+        $store = new FileStore(new Filesystem, __DIR__);
+        $store->setLockDirectory(__DIR__);
+
+        $this->expectException(RuntimeException::class);
+
+        $store->flushLocks();
+    }
+
+    public function testItHandlesForgettingNonFlexibleKeys()
+    {
+        $store = new FileStore(new Filesystem, __DIR__);
+
+        $key = Str::random();
+        $path = $store->path($key);
+        $flexiblePath = "heritage:cache:flexible:created:{$key}";
+
+        $store->put($key, 'value', 5);
+
+        $this->assertFileExists($path);
+        $this->assertFileDoesNotExist($flexiblePath);
+
+        $store->forget($key);
+
+        $this->assertFileDoesNotExist($path);
+        $this->assertFileDoesNotExist($flexiblePath);
+    }
+
+    public function itOnlyForgetsFlexibleKeysIfParentIsForgotten()
+    {
+        $store = new FileStore(new Filesystem, __DIR__);
+
+        $key = Str::random();
+        $path = $store->path($key);
+        $flexiblePath = "heritage:cache:flexible:created:{$key}";
+
+        touch($flexiblePath);
+
+        $this->assertFileDoesNotExist($path);
+        $this->assertFileExists($flexiblePath);
+
+        $store->forget($key);
+
+        $this->assertFileDoesNotExist($path);
+        $this->assertFileExists($flexiblePath);
+
+        $store->put($key, 'value', 5);
+
+        $this->assertFileDoesNotExist($path);
+        $this->assertFileDoesNotExist($flexiblePath);
+    }
+
+    protected function mockFilesystem()
+    {
+        return $this->createMock(Filesystem::class);
+    }
+
+    protected function getCachePath($key)
+    {
+        $hash = sha1($key);
+        $cache_dir = substr($hash, 0, 2).'/'.substr($hash, 2, 2);
+
+        return __DIR__.'/'.$cache_dir.'/'.$hash;
+    }
+}

@@ -1,0 +1,271 @@
+<?php
+
+namespace Heritage\Tests\Database;
+
+use Closure;
+use Heritage\Contracts\Events\Dispatcher as DispatcherContract;
+use Heritage\Database\Capsule\Manager as DB;
+use Heritage\Database\Console\PruneCommand;
+use Heritage\Database\Events\ModelPruningFinished;
+use Heritage\Database\Events\ModelPruningStarting;
+use Heritage\Database\Events\ModelsPruned;
+use Heritage\Events\Dispatcher;
+use Heritage\Foundation\Application;
+use InvalidArgumentException;
+use Mockery;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
+
+class PruneCommandTest extends TestCase
+{
+    protected function setUp(): void
+    {
+        Application::setInstance($container = new Application(__DIR__.'/Fixtures/Pruning'));
+
+        Closure::bind(
+            fn () => $this->namespace = 'Heritage\\Tests\\Database\\Fixtures\\Pruning\\',
+            $container,
+            Application::class,
+        )();
+
+        $container->useAppPath(__DIR__.'/Fixtures/Pruning');
+
+        $container->singleton(DispatcherContract::class, function () {
+            return new Dispatcher();
+        });
+
+        $container->alias(DispatcherContract::class, 'events');
+    }
+
+    public function testPrunableModelAndExceptWithEachOther(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('The --model and --except options cannot be combined.'));
+
+        $this->scribe([
+            '--model' => Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords::class,
+            '--except' => Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords::class,
+        ]);
+    }
+
+    public function testPrunableModelWithPrunableRecords()
+    {
+        $output = $this->scribe(['--model' => Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords::class]);
+
+        $output = $output->fetch();
+
+        $this->assertStringContainsString(
+            'Heritage\Tests\Database\Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords',
+            $output,
+        );
+
+        $this->assertStringContainsString(
+            '10 records',
+            $output,
+        );
+
+        $this->assertStringContainsString(
+            'Heritage\Tests\Database\Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords',
+            $output,
+        );
+
+        $this->assertStringContainsString(
+            '20 records',
+            $output,
+        );
+    }
+
+    public function testPrunableTestModelWithoutPrunableRecords()
+    {
+        $output = $this->scribe(['--model' => Fixtures\Pruning\Models\PrunableTestModelWithoutPrunableRecords::class]);
+
+        $this->assertStringContainsString(
+            'No prunable [Heritage\Tests\Database\Fixtures\Pruning\Models\PrunableTestModelWithoutPrunableRecords] records found.',
+            $output->fetch()
+        );
+    }
+
+    public function testPrunableSoftDeletedModelWithPrunableRecords()
+    {
+        $db = new DB;
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ]);
+        $db->bootEloquent();
+        $db->setAsGlobal();
+        DB::connection('default')->getSchemaBuilder()->create('prunables', function ($table) {
+            $table->string('value')->nullable();
+            $table->datetime('deleted_at')->nullable();
+        });
+        DB::connection('default')->table('prunables')->insert([
+            ['value' => 1, 'deleted_at' => null],
+            ['value' => 2, 'deleted_at' => '2021-12-01 00:00:00'],
+            ['value' => 3, 'deleted_at' => null],
+            ['value' => 4, 'deleted_at' => '2021-12-02 00:00:00'],
+        ]);
+
+        $output = $this->scribe(['--model' => Fixtures\Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords::class]);
+
+        $output = $output->fetch();
+
+        $this->assertStringContainsString(
+            'Heritage\Tests\Database\Fixtures\Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords',
+            $output,
+        );
+
+        $this->assertStringContainsString(
+            '2 records',
+            $output,
+        );
+
+        $this->assertEquals(2, Fixtures\Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords::withTrashed()->count());
+    }
+
+    public function testNonPrunableTest()
+    {
+        $output = $this->scribe(['--model' => Fixtures\Pruning\Models\NonPrunableTestModel::class]);
+
+        $this->assertStringContainsString(
+            'No prunable [Heritage\Tests\Database\Fixtures\Pruning\Models\NonPrunableTestModel] records found.',
+            $output->fetch(),
+        );
+    }
+
+    public function testNonPrunableTestWithATrait()
+    {
+        $output = $this->scribe(['--model' => Fixtures\Pruning\Models\NonPrunableTrait::class]);
+
+        $this->assertStringContainsString(
+            'No prunable models found.',
+            $output->fetch(),
+        );
+    }
+
+    public function testNonModelFilesAreIgnoredTest()
+    {
+        $output = $this->scribe(['--path' => 'Models']);
+
+        $output = $output->fetch();
+
+        $this->assertStringNotContainsString(
+            'No prunable [Heritage\Tests\Database\Fixtures\Pruning\Models\AbstractPrunableModel] records found.',
+            $output,
+        );
+
+        $this->assertStringNotContainsString(
+            'No prunable [Heritage\Tests\Database\Fixtures\Pruning\Models\SomeClass] records found.',
+            $output,
+        );
+
+        $this->assertStringNotContainsString(
+            'No prunable [Heritage\Tests\Database\Fixtures\Pruning\Models\SomeEnum] records found.',
+            $output,
+        );
+    }
+
+    public function testTheCommandMayBePretended()
+    {
+        $db = new DB;
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ]);
+        $db->bootEloquent();
+        $db->setAsGlobal();
+        DB::connection('default')->getSchemaBuilder()->create('prunables', function ($table) {
+            $table->string('name')->nullable();
+            $table->string('value')->nullable();
+        });
+        DB::connection('default')->table('prunables')->insert([
+            ['name' => 'zain', 'value' => 1],
+            ['name' => 'patrice', 'value' => 2],
+            ['name' => 'amelia', 'value' => 3],
+            ['name' => 'stuart', 'value' => 4],
+            ['name' => 'bello', 'value' => 5],
+        ]);
+
+        $output = $this->scribe([
+            '--model' => Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords::class,
+            '--pretend' => true,
+        ]);
+
+        $this->assertStringContainsString(
+            '3 [Heritage\Tests\Database\Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords] records will be pruned.',
+            $output->fetch(),
+        );
+
+        $this->assertEquals(5, Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords::count());
+    }
+
+    public function testTheCommandMayBePretendedOnSoftDeletedModel()
+    {
+        $db = new DB;
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ]);
+        $db->bootEloquent();
+        $db->setAsGlobal();
+        DB::connection('default')->getSchemaBuilder()->create('prunables', function ($table) {
+            $table->string('value')->nullable();
+            $table->datetime('deleted_at')->nullable();
+        });
+        DB::connection('default')->table('prunables')->insert([
+            ['value' => 1, 'deleted_at' => null],
+            ['value' => 2, 'deleted_at' => '2021-12-01 00:00:00'],
+            ['value' => 3, 'deleted_at' => null],
+            ['value' => 4, 'deleted_at' => '2021-12-02 00:00:00'],
+        ]);
+
+        $output = $this->scribe([
+            '--model' => Fixtures\Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords::class,
+            '--pretend' => true,
+        ]);
+
+        $this->assertStringContainsString(
+            '2 [Heritage\Tests\Database\Fixtures\Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords] records will be pruned.',
+            $output->fetch(),
+        );
+
+        $this->assertEquals(4, Fixtures\Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords::withTrashed()->count());
+    }
+
+    public function testTheCommandDispatchesEvents()
+    {
+        $dispatcher = Mockery::mock(DispatcherContract::class);
+
+        $dispatcher->expects('dispatch')->withArgs(function ($event) {
+            return get_class($event) === ModelPruningStarting::class &&
+                $event->models === [Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords::class];
+        });
+        $dispatcher->expects('listen')->with(ModelsPruned::class, Mockery::type(Closure::class));
+        $dispatcher->expects('dispatch')->times(2)->with(Mockery::type(ModelsPruned::class));
+        $dispatcher->expects('dispatch')->withArgs(function ($event) {
+            return get_class($event) === ModelPruningFinished::class &&
+                $event->models === [Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords::class];
+        });
+        $dispatcher->expects('forget')->with(ModelsPruned::class);
+
+        Application::getInstance()->instance(DispatcherContract::class, $dispatcher);
+
+        $this->scribe(['--model' => Fixtures\Pruning\Models\PrunableTestModelWithPrunableRecords::class]);
+    }
+
+    protected function scribe($arguments)
+    {
+        $input = new ArrayInput($arguments);
+        $output = new BufferedOutput;
+
+        tap(new PruneCommand())
+            ->setUgarit(Application::getInstance())
+            ->run($input, $output);
+
+        return $output;
+    }
+
+    protected function tearDown(): void
+    {
+        Application::setInstance(null);
+    }
+}

@@ -1,0 +1,502 @@
+<?php
+
+namespace Heritage\Tests\Integration\Queue;
+
+use Exception;
+use Heritage\Bus\Queueable;
+use Heritage\Bus\UniqueLock;
+use Heritage\Container\Container;
+use Heritage\Contracts\Cache\Repository as Cache;
+use Heritage\Contracts\Queue\ShouldBeUnique;
+use Heritage\Contracts\Queue\ShouldBeUniqueUntilProcessing;
+use Heritage\Contracts\Queue\ShouldQueue;
+use Heritage\Database\Eloquent\ModelNotFoundException;
+use Heritage\Foundation\Auth\User;
+use Heritage\Foundation\Bus\Dispatchable;
+use Heritage\Queue\Events\UniqueJobSkipped;
+use Heritage\Queue\InteractsWithQueue;
+use Heritage\Queue\SerializesModels;
+use Heritage\Support\Facades\Bus;
+use Heritage\Support\Facades\DB;
+use Heritage\Support\Facades\Event;
+use Heritage\Support\Facades\Queue;
+use Orchestra\Testbench\Attributes\WithMigration;
+use Orchestra\Testbench\Factories\UserFactory;
+
+#[WithMigration]
+#[WithMigration('cache')]
+#[WithMigration('queue')]
+class UniqueJobTest extends QueueTestCase
+{
+    protected function defineEnvironment($app)
+    {
+        parent::defineEnvironment($app);
+
+        $app['config']->set('cache.default', 'database');
+    }
+
+    public function testUniqueJobsAreNotDispatched()
+    {
+        Bus::fake();
+
+        UniqueTestJob::dispatch();
+        $this->runQueueWorkerCommand(['--once' => true]);
+        Bus::assertDispatched(UniqueTestJob::class);
+
+        $this->assertFalse(
+            $this->app->get(Cache::class)->lock($this->getLockKey(UniqueTestJob::class), 10)->get()
+        );
+
+        Bus::assertDispatchedTimes(UniqueTestJob::class);
+        UniqueTestJob::dispatch();
+        $this->runQueueWorkerCommand(['--once' => true]);
+        Bus::assertDispatchedTimes(UniqueTestJob::class);
+
+        $this->assertFalse(
+            $this->app->get(Cache::class)->lock($this->getLockKey(UniqueTestJob::class), 10)->get()
+        );
+    }
+
+    public function testUniqueJobEmitsUniqueJobSkippedEventWhenAlreadyAcquired()
+    {
+        Bus::fake();
+
+        $skipped = [];
+
+        Event::listen(UniqueJobSkipped::class, function ($event) use (&$skipped) {
+            $skipped[] = $event->job;
+        });
+
+        UniqueTestJob::dispatch();
+
+        $this->assertSame([], $skipped);
+
+        UniqueTestJob::dispatch();
+
+        $this->assertCount(1, $skipped);
+        $this->assertInstanceOf(UniqueTestJob::class, $skipped[0]);
+    }
+
+    public function testUniqueJobWithViaDispatched()
+    {
+        Bus::fake();
+
+        UniqueViaJob::dispatch();
+        Bus::assertDispatched(UniqueViaJob::class);
+    }
+
+    public function testLockIsReleasedForSuccessfulJobs()
+    {
+        UniqueTestJob::$handled = false;
+        dispatch($job = new UniqueTestJob);
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertTrue($job::$handled);
+        $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+    }
+
+    public function testLockIsReleasedForFailedJobs()
+    {
+        UniqueTestFailJob::$handled = false;
+
+        $this->expectException(Exception::class);
+
+        try {
+            dispatch_sync($job = new UniqueTestFailJob);
+        } finally {
+            $this->assertTrue($job::$handled);
+            $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+        }
+    }
+
+    public function testLockIsNotReleasedForJobRetries()
+    {
+        $this->markTestSkippedWhenUsingSyncQueueDriver();
+
+        UniqueTestRetryJob::$handled = false;
+
+        dispatch($job = new UniqueTestRetryJob);
+
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertTrue($job::$handled);
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+
+        UniqueTestRetryJob::$handled = false;
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertTrue($job::$handled);
+        $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+    }
+
+    public function testLockIsNotReleasedForJobReleases()
+    {
+        $this->markTestSkippedWhenUsingSyncQueueDriver();
+
+        UniqueTestReleasedJob::$handled = false;
+        dispatch($job = new UniqueTestReleasedJob);
+
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertTrue($job::$handled);
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+
+        UniqueTestReleasedJob::$handled = false;
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertFalse($job::$handled);
+        $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+    }
+
+    public function testLockCanBeReleasedBeforeProcessing()
+    {
+        $this->markTestSkippedWhenUsingSyncQueueDriver();
+
+        UniqueUntilStartTestJob::$handled = false;
+
+        dispatch($job = new UniqueUntilStartTestJob);
+
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertTrue($job::$handled);
+        $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+    }
+
+    public function testRetryOfUniqueUntilProcessingJobDoesNotReleaseSubsequentLock()
+    {
+        $this->markTestSkippedWhenUsingSyncQueueDriver();
+
+        dispatch($job = new UniqueUntilProcessingRetryJob);
+
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertTrue($job::$handled);
+        $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 60)->get());
+
+        UniqueUntilProcessingRetryJob::$handled = false;
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertTrue($job::$handled);
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+    }
+
+    public function testRetryOfOwnerlessUniqueUntilProcessingJobDoesNotReleaseSubsequentLock()
+    {
+        $this->markTestSkippedWhenUsingSyncQueueDriver();
+
+        dispatch($job = new OwnerlessUniqueUntilProcessingRetryJob);
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 60)->get());
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+    }
+
+    public function testLockIsReleasedOnModelNotFoundException()
+    {
+        UniqueTestSerializesModelsJob::$handled = false;
+
+        /** @var \Heritage\Foundation\Auth\User */
+        $user = UserFactory::new()->create();
+        $job = new UniqueTestSerializesModelsJob($user);
+
+        $this->expectException(ModelNotFoundException::class);
+
+        try {
+            $user->delete();
+            dispatch($job);
+            $this->runQueueWorkerCommand(['--once' => true]);
+            unserialize(serialize($job));
+        } finally {
+            $this->assertFalse($job::$handled);
+            $this->assertModelMissing($user);
+            $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+        }
+    }
+
+    public function testModelNotFoundExceptionDoesNotReleaseSubsequentLock()
+    {
+        $this->markTestSkippedWhenUsingSyncQueueDriver();
+
+        /** @var \Heritage\Foundation\Auth\User */
+        $user = UserFactory::new()->create();
+        $job = new UniqueTestSerializesModelsJob($user);
+        $cache = $this->app->get(Cache::class);
+        $lock = new UniqueLock($cache);
+
+        dispatch($job);
+
+        $lock->release($job);
+
+        $replacement = new UniqueTestSerializesModelsJob($user);
+        $this->assertTrue($lock->acquire($replacement));
+
+        $user->delete();
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertFalse($cache->lock($this->getLockKey($job), 10)->get());
+
+        $lock->release($replacement);
+    }
+
+    public function testQueueFakeReleasesUniqueJobLocksBetweenFakes()
+    {
+        Queue::fake();
+
+        UniqueTestJob::dispatch();
+        Queue::assertPushed(UniqueTestJob::class);
+
+        Queue::fake();
+
+        UniqueTestJob::dispatch();
+        Queue::assertPushed(UniqueTestJob::class);
+    }
+
+    public function testQueueFakePreservesUniqueJobLockWithinTest()
+    {
+        Queue::fake();
+
+        UniqueTestJob::dispatch();
+        UniqueTestJob::dispatch();
+
+        Queue::assertPushedTimes(UniqueTestJob::class, 1);
+    }
+
+    public function testRolledBackPushDoesNotReleaseAnotherDispatchesUniqueLock()
+    {
+        $this->markTestSkippedWhenUsingSyncQueueDriver();
+
+        dispatch($job = new UniqueTestAfterCommitJob);
+
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+
+        try {
+            DB::transaction(function () {
+                Queue::push(new UniqueTestAfterCommitJob);
+
+                throw new Exception('Rollback.');
+            });
+        } catch (Exception) {
+            //
+        }
+
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+    }
+
+    protected function getLockKey($job)
+    {
+        return 'ugarit_unique_job:'.(is_string($job) ? $job : get_class($job)).':';
+    }
+
+    public function testLockUsesDisplayNameWhenAvailable()
+    {
+        Bus::fake();
+
+        $lockKey = 'ugarit_unique_job:'.hash('xxh128', 'App\\Actions\\UniqueTestAction').':';
+
+        dispatch(new UniqueTestJobWithDisplayName);
+        $this->runQueueWorkerCommand(['--once' => true]);
+        Bus::assertDispatched(UniqueTestJobWithDisplayName::class);
+
+        $this->assertFalse(
+            $this->app->get(Cache::class)->lock($lockKey, 10)->get()
+        );
+
+        Bus::assertDispatchedTimes(UniqueTestJobWithDisplayName::class);
+        dispatch(new UniqueTestJobWithDisplayName);
+        $this->runQueueWorkerCommand(['--once' => true]);
+        Bus::assertDispatchedTimes(UniqueTestJobWithDisplayName::class);
+
+        $this->assertFalse(
+            $this->app->get(Cache::class)->lock($lockKey, 10)->get()
+        );
+    }
+
+    public function testUniqueLockCreatesKeyWithClassName()
+    {
+        $this->assertSame(
+            'ugarit_unique_job:'.UniqueTestJob::class.':',
+            UniqueLock::getKey(new UniqueTestJob)
+        );
+    }
+
+    public function testUniqueLockCreatesKeyWithIdAndClassName()
+    {
+        $this->assertSame(
+            'ugarit_unique_job:'.UniqueIdTestJob::class.':unique-id-1',
+            UniqueLock::getKey(new UniqueIdTestJob)
+        );
+    }
+
+    public function testUniqueLockCreatesKeyWithDisplayNameWhenAvailable()
+    {
+        $this->assertSame(
+            'ugarit_unique_job:'.hash('xxh128', 'App\\Actions\\UniqueTestAction').':unique-id-2',
+            UniqueLock::getKey(new UniqueIdTestJobWithDisplayName)
+        );
+    }
+
+    public function testUniqueLockCreatesKeyWithIdAndDisplayNameWhenAvailable()
+    {
+        $this->assertSame(
+            'ugarit_unique_job:'.hash('xxh128', 'App\\Actions\\UniqueTestAction').':unique-id-2',
+            UniqueLock::getKey(new UniqueIdTestJobWithDisplayName)
+        );
+    }
+}
+
+class UniqueTestJob implements ShouldQueue, ShouldBeUnique
+{
+    use InteractsWithQueue, Queueable, Dispatchable;
+
+    public static $handled = false;
+
+    public function handle()
+    {
+        static::$handled = true;
+    }
+}
+
+class UniqueTestFailJob implements ShouldQueue, ShouldBeUnique
+{
+    use InteractsWithQueue, Queueable, Dispatchable;
+
+    public $tries = 1;
+
+    public static $handled = false;
+
+    public function handle()
+    {
+        static::$handled = true;
+
+        throw new Exception;
+    }
+}
+
+class UniqueTestReleasedJob extends UniqueTestFailJob
+{
+    public $tries = 1;
+
+    public function handle()
+    {
+        static::$handled = true;
+
+        $this->release();
+    }
+}
+
+class UniqueTestRetryJob extends UniqueTestFailJob
+{
+    public $tries = 2;
+}
+
+class UniqueUntilStartTestJob extends UniqueTestJob implements ShouldBeUniqueUntilProcessing
+{
+    public $tries = 2;
+}
+
+class UniqueUntilProcessingRetryJob implements ShouldQueue, ShouldBeUniqueUntilProcessing
+{
+    use InteractsWithQueue, Queueable, Dispatchable;
+
+    public $tries = 2;
+
+    public static $handled = false;
+
+    public function handle()
+    {
+        static::$handled = true;
+
+        if ($this->attempts() === 1) {
+            throw new Exception('First attempt failure.');
+        }
+    }
+}
+
+class OwnerlessUniqueUntilProcessingRetryJob implements ShouldQueue, ShouldBeUniqueUntilProcessing
+{
+    use InteractsWithQueue, Dispatchable;
+
+    public $tries = 2;
+
+    public function handle()
+    {
+        if ($this->attempts() === 1) {
+            throw new Exception('First attempt failure.');
+        }
+    }
+}
+
+class UniqueTestSerializesModelsJob extends UniqueTestJob
+{
+    use SerializesModels;
+
+    public $deleteWhenMissingModels = true;
+
+    public function __construct(public User $user)
+    {
+    }
+}
+
+class UniqueViaJob extends UniqueTestJob
+{
+    public function uniqueVia(): Cache
+    {
+        return Container::getInstance()->make(Cache::class);
+    }
+}
+
+class UniqueIdTestJob extends UniqueTestJob
+{
+    public function uniqueId(): string
+    {
+        return 'unique-id-1';
+    }
+}
+
+class UniqueTestJobWithDisplayName extends UniqueTestJob
+{
+    public function displayName(): string
+    {
+        return 'App\\Actions\\UniqueTestAction';
+    }
+}
+
+class UniqueIdTestJobWithDisplayName extends UniqueTestJob
+{
+    public function uniqueId(): string
+    {
+        return 'unique-id-2';
+    }
+
+    public function displayName(): string
+    {
+        return 'App\\Actions\\UniqueTestAction';
+    }
+}
+
+class UniqueTestAfterCommitJob implements ShouldQueue, ShouldBeUnique
+{
+    use Dispatchable, InteractsWithQueue, Queueable;
+
+    public function __construct()
+    {
+        $this->afterCommit = true;
+    }
+
+    public function handle()
+    {
+        //
+    }
+}

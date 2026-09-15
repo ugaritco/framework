@@ -1,0 +1,56 @@
+{
+    "name": "heritage/broadcasting",
+    "description": "The Heritage Broadcasting package.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Muath R Abu Ouda",
+            "email": "muathrabuouda@hotmail.com",
+            "role": "Vision Leader of Ugarit"
+        },
+        {
+            "name": "Taylor Otwell",
+            "email": "taylor@laravel.com",
+            "role": "Original Creator & Primary Developer"
+        }
+    ],
+    "homepage": "https://ugarit.com",
+    "support": {
+        "issues": "https://github.com/ugarit/framework/issues",
+        "source": "https://github.com/ugarit/framework"
+    },
+    "require": {
+        "php": "^8.3",
+        "heritage/bus": "^1.00.00",
+        "heritage/collections": "^1.00.00",
+        "heritage/container": "^1.00.00",
+        "heritage/contracts": "^1.00.00",
+        "heritage/queue": "^1.00.00",
+        "heritage/reflection": "^1.00.00",
+        "heritage/support": "^1.00.00",
+        "psr/log": "^1.0 || ^2.0 || ^3.0"
+    },
+    "suggest": {
+        "ext-hash": "Required to use the Ably and Pusher broadcast drivers.",
+        "ably/ably-php": "Required to use the Ably broadcast driver (^1.0).",
+        "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^6.0 || ^7.0).",
+        "symfony/http-client": "Required to set the Mercure \"client_options\" configuration value (^7.4).",
+        "symfony/mercure": "Required to use the Mercure broadcast driver (^0.8).",
+        "web-token/jwt-library": "Required to sign Mercure JWTs and use end-to-end encrypted channels (^4.1)."
+    },
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "Heritage\\Broadcasting\\": ""
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "13.0.x-dev"
+        }
+    },
+    "version": "1.00.00"
+}

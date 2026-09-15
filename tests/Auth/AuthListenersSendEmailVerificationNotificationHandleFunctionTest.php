@@ -1,0 +1,54 @@
+<?php
+
+namespace Heritage\Tests\Auth;
+
+use Heritage\Auth\Events\Registered;
+use Heritage\Auth\Listeners\SendEmailVerificationNotification;
+use Heritage\Contracts\Auth\MustVerifyEmail;
+use Heritage\Foundation\Auth\User;
+use Mockery;
+use PHPUnit\Framework\TestCase;
+
+class AuthListenersSendEmailVerificationNotificationHandleFunctionTest extends TestCase
+{
+    /**
+     * @return void
+     */
+    public function testWillExecuted()
+    {
+        $user = $this->createMock(MustVerifyEmail::class);
+        $user->method('hasVerifiedEmail')->willReturn(false);
+        $user->expects($this->once())->method('sendEmailVerificationNotification');
+
+        $listener = new SendEmailVerificationNotification;
+
+        $listener->handle(new Registered($user));
+    }
+
+    /**
+     * @return void
+     */
+    public function testUserIsNotInstanceOfMustVerifyEmail()
+    {
+        $user = Mockery::mock(User::class);
+        $user->shouldNotReceive('sendEmailVerificationNotification');
+
+        $listener = new SendEmailVerificationNotification;
+
+        $listener->handle(new Registered($user));
+    }
+
+    /**
+     * @return void
+     */
+    public function testHasVerifiedEmailAsTrue()
+    {
+        $user = $this->createMock(MustVerifyEmail::class);
+        $user->method('hasVerifiedEmail')->willReturn(true);
+        $user->expects($this->never())->method('sendEmailVerificationNotification');
+
+        $listener = new SendEmailVerificationNotification;
+
+        $listener->handle(new Registered($user));
+    }
+}

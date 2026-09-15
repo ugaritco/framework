@@ -1,0 +1,56 @@
+{
+    "name": "heritage/container",
+    "description": "The Heritage Container package.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Muath R Abu Ouda",
+            "email": "muathrabuouda@hotmail.com",
+            "role": "Vision Leader of Ugarit"
+        },
+        {
+            "name": "Taylor Otwell",
+            "email": "taylor@laravel.com",
+            "role": "Original Creator & Primary Developer"
+        }
+    ],
+    "homepage": "https://ugarit.com",
+    "support": {
+        "issues": "https://github.com/ugarit/framework/issues",
+        "source": "https://github.com/ugarit/framework"
+    },
+    "require": {
+        "php": "^8.3",
+        "heritage/contracts": "^1.00.00",
+        "heritage/reflection": "^1.00.00",
+        "psr/container": "^1.1.1 || ^2.0.1",
+        "symfony/polyfill-php84": "^1.36",
+        "symfony/polyfill-php85": "^1.36"
+    },
+    "provide": {
+        "psr/container-implementation": "1.1 || 2.0"
+    },
+    "suggest": {
+        "heritage/auth": "Required to use the Auth attribute",
+        "heritage/cache": "Required to use the Cache attribute",
+        "heritage/config": "Required to use the Config attribute",
+        "heritage/database": "Required to use the DB attribute",
+        "heritage/filesystem": "Required to use the Storage attribute",
+        "heritage/log": "Required to use the Log or Context attributes"
+    },
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "Heritage\\Container\\": ""
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "13.0.x-dev"
+        }
+    },
+    "version": "1.00.00"
+}

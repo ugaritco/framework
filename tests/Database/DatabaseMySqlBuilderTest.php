@@ -1,0 +1,69 @@
+<?php
+
+namespace Heritage\Tests\Database;
+
+use Heritage\Database\Connection;
+use Heritage\Database\Query\Builder;
+use Heritage\Database\Query\Grammars\MySqlGrammar;
+use Heritage\Database\Query\Processors\Processor;
+use Heritage\Database\Schema\Grammars\MySqlGrammar as MySqlGrammarSchema;
+use Heritage\Database\Schema\MySqlBuilder;
+use Mockery;
+use PHPUnit\Framework\TestCase;
+
+class DatabaseMySqlBuilderTest extends TestCase
+{
+    public function testCreateDatabase(): void
+    {
+        $connection = Mockery::mock(Connection::class);
+        $grammar = new MySqlGrammarSchema($connection);
+
+        $connection->expects('getConfig')->with('charset')->andReturn('utf8mb4');
+        $connection->expects('getConfig')->with('collation')->andReturn('utf8mb4_unicode_ci');
+        $connection->expects('getSchemaGrammar')->andReturn($grammar);
+        $connection->expects('statement')->with(
+            'create database `my_temporary_database` default character set `utf8mb4` default collate `utf8mb4_unicode_ci`'
+        )->andReturn(true);
+
+        $builder = new MySqlBuilder($connection);
+        $builder->createDatabase('my_temporary_database');
+    }
+
+    public function testDropDatabaseIfExists()
+    {
+        $connection = Mockery::mock(Connection::class);
+        $grammar = new MySqlGrammarSchema($connection);
+
+        $connection->expects('getSchemaGrammar')->andReturn($grammar);
+        $connection->expects('statement')->with(
+            'drop database if exists `my_database_a`'
+        )->andReturn(true);
+
+        $builder = new MySqlBuilder($connection);
+
+        $builder->dropDatabaseIfExists('my_database_a');
+    }
+
+    public function testDeleteWithJoinCompilesOrderByAndLimit(): void
+    {
+        $connection = Mockery::mock(Connection::class);
+        $processor = Mockery::mock(Processor::class);
+        $grammar = new MySqlGrammar($connection);
+
+        $connection->expects('getTablePrefix')->times(5)->andReturn('');
+
+        $builder = new Builder($connection, $grammar, $processor);
+
+        $builder
+            ->from('users')
+            ->join('contacts', 'users.id', '=', 'contacts.id')
+            ->where('email', '=', 'foo')
+            ->orderBy('users.id')
+            ->limit(5);
+
+        $sql = $grammar->compileDelete($builder);
+
+        $this->assertStringContainsString('order by `users`.`id` asc', $sql);
+        $this->assertStringContainsString('limit 5', $sql);
+    }
+}

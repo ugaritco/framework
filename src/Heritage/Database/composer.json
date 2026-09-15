@@ -1,0 +1,68 @@
+{
+    "name": "heritage/database",
+    "description": "The Heritage Database package.",
+    "license": "MIT",
+    "keywords": [
+        "ugarit",
+        "database",
+        "sql",
+        "orm"
+    ],
+    "authors": [
+        {
+            "name": "Muath R Abu Ouda",
+            "email": "muathrabuouda@hotmail.com",
+            "role": "Vision Leader of Ugarit"
+        },
+        {
+            "name": "Taylor Otwell",
+            "email": "taylor@laravel.com",
+            "role": "Original Creator & Primary Developer"
+        }
+    ],
+    "homepage": "https://ugarit.com",
+    "support": {
+        "issues": "https://github.com/ugarit/framework/issues",
+        "source": "https://github.com/ugarit/framework"
+    },
+    "require": {
+        "php": "^8.3",
+        "ext-pdo": "*",
+        "brick/math": "^0.14.2 || ^0.15 || ^0.16 || ^0.17 || ^0.18 || ^0.19",
+        "heritage/collections": "^1.00.00",
+        "heritage/conditionable": "^1.00.00",
+        "heritage/container": "^1.00.00",
+        "heritage/contracts": "^1.00.00",
+        "heritage/macroable": "^1.00.00",
+        "heritage/support": "^1.00.00",
+        "ugarit/serializable-closure": "^1.00.00",
+        "symfony/polyfill-php84": "^1.36",
+        "symfony/polyfill-php85": "^1.36",
+        "symfony/polyfill-php86": "^1.36"
+    },
+    "suggest": {
+        "ext-filter": "Required to use the Postgres database driver.",
+        "fakerphp/faker": "Required to use the eloquent factory builder (^1.24).",
+        "heritage/console": "Required to use the database commands (^13.0).",
+        "heritage/events": "Required to use the observers with Eloquent (^13.0).",
+        "heritage/filesystem": "Required to use the migrations (^13.0).",
+        "heritage/http": "Required to convert Eloquent models to API resources (^13.0).",
+        "heritage/pagination": "Required to paginate the result set (^13.0).",
+        "symfony/finder": "Required to use Eloquent model factories (^7.4 || ^8.0)."
+    },
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "Heritage\\Database\\": ""
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "13.0.x-dev"
+        }
+    },
+    "version": "1.00.00"
+}

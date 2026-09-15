@@ -1,0 +1,525 @@
+<?php
+
+namespace Heritage\Tests\Integration\Queue;
+
+use Exception;
+use Heritage\Bus\Dispatcher;
+use Heritage\Bus\Queueable;
+use Heritage\Cache\RateLimiter;
+use Heritage\Contracts\Debug\ExceptionHandler;
+use Heritage\Contracts\Queue\Job;
+use Heritage\Queue\CallQueuedHandler;
+use Heritage\Queue\InteractsWithQueue;
+use Heritage\Queue\Middleware\ThrottlesExceptions;
+use Heritage\Support\Carbon;
+use Mockery;
+use Orchestra\Testbench\TestCase;
+use RuntimeException;
+
+class ThrottlesExceptionsTest extends TestCase
+{
+    public function testCircuitIsOpenedForJobErrors()
+    {
+        $this->assertJobWasReleasedImmediately(CircuitBreakerTestJob::class);
+        $this->assertJobWasReleasedImmediately(CircuitBreakerTestJob::class);
+        $this->assertJobWasReleasedWithDelay(CircuitBreakerTestJob::class);
+    }
+
+    public function testCircuitStaysClosedForSuccessfulJobs()
+    {
+        $this->assertJobRanSuccessfully(CircuitBreakerSuccessfulJob::class);
+        $this->assertJobRanSuccessfully(CircuitBreakerSuccessfulJob::class);
+        $this->assertJobRanSuccessfully(CircuitBreakerSuccessfulJob::class);
+    }
+
+    public function testCircuitResetsAfterSuccess()
+    {
+        $this->assertJobWasReleasedImmediately(CircuitBreakerTestJob::class);
+        $this->assertJobRanSuccessfully(CircuitBreakerSuccessfulJob::class);
+        $this->assertJobWasReleasedImmediately(CircuitBreakerTestJob::class);
+        $this->assertJobWasReleasedImmediately(CircuitBreakerTestJob::class);
+        $this->assertJobWasReleasedWithDelay(CircuitBreakerTestJob::class);
+    }
+
+    public function testCircuitCanSkipJob()
+    {
+        $this->assertJobWasDeleted(CircuitBreakerSkipJob::class);
+    }
+
+    public function testCircuitCanFailJob()
+    {
+        $this->assertJobWasFailed(CircuitBreakerFailedJob::class);
+    }
+
+    protected function assertJobWasReleasedImmediately($class)
+    {
+        $class::$handled = false;
+        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+
+        $job = Mockery::mock(Job::class);
+
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('release')->with(0);
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
+
+        $instance->call($job, [
+            'command' => serialize($command = new $class),
+        ]);
+
+        $this->assertTrue($class::$handled);
+    }
+
+    protected function assertJobWasReleasedWithDelay($class)
+    {
+        $class::$handled = false;
+        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+
+        $job = Mockery::mock(Job::class);
+
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('release')->withArgs(function ($delay) {
+            // The delay is the remainder of the decay window, less wall clock
+            // seconds elapsed since the first exception opened the circuit.
+            return $delay >= 590 && $delay <= 610;
+        });
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
+
+        $instance->call($job, [
+            'command' => serialize($command = new $class),
+        ]);
+
+        $this->assertFalse($class::$handled);
+    }
+
+    protected function assertJobWasDeleted($class)
+    {
+        $class::$handled = false;
+        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+
+        $job = Mockery::mock(Job::class);
+
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('delete');
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
+
+        $instance->call($job, [
+            'command' => serialize($command = new $class),
+        ]);
+
+        $this->assertTrue($class::$handled);
+    }
+
+    protected function assertJobWasFailed($class)
+    {
+        $class::$handled = false;
+        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+
+        $job = Mockery::mock(Job::class);
+
+        $job->expects('hasFailed')->andReturn(true);
+        $job->expects('fail');
+        $job->expects('isReleased')->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
+
+        $instance->call($job, [
+            'command' => serialize($command = new $class),
+        ]);
+
+        $this->assertTrue($class::$handled);
+    }
+
+    protected function assertJobRanSuccessfully($class)
+    {
+        $class::$handled = false;
+        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+
+        $job = Mockery::mock(Job::class);
+
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
+
+        $instance->call($job, [
+            'command' => serialize($command = new $class),
+        ]);
+
+        $this->assertTrue($class::$handled);
+    }
+
+    public function testItCanLimitPerMinute()
+    {
+        $jobFactory = fn () => new class
+        {
+            public $released = false;
+
+            public $handled = false;
+
+            public function release()
+            {
+                $this->released = true;
+
+                return $this;
+            }
+        };
+        $next = function ($job) {
+            $job->handled = true;
+
+            throw new RuntimeException('Whoops!');
+        };
+
+        $middleware = new ThrottlesExceptions(3, 60);
+
+        Carbon::setTestNow('2000-00-00 00:00:00.000');
+
+        for ($i = 0; $i < 3; $i++) {
+            $result = $middleware->handle($job = $jobFactory(), $next);
+            $this->assertSame($job, $result);
+            $this->assertTrue($job->released);
+            $this->assertTrue($job->handled);
+
+            Carbon::setTestNow(Carbon::now()->addSecond());
+        }
+
+        $result = $middleware->handle($job = $jobFactory(), $next);
+        $this->assertSame($job, $result);
+        $this->assertTrue($job->released);
+        $this->assertFalse($job->handled);
+
+        Carbon::setTestNow('2000-00-00 00:00:59.999');
+
+        $result = $middleware->handle($job = $jobFactory(), $next);
+        $this->assertSame($job, $result);
+        $this->assertTrue($job->released);
+        $this->assertFalse($job->handled);
+
+        Carbon::setTestNow('2000-00-00 00:01:00.000');
+
+        $result = $middleware->handle($job = $jobFactory(), $next);
+        $this->assertSame($job, $result);
+        $this->assertTrue($job->released);
+        $this->assertTrue($job->handled);
+    }
+
+    public function testItCanLimitPerSecond()
+    {
+        $jobFactory = fn () => new class
+        {
+            public $released = false;
+
+            public $handled = false;
+
+            public function release()
+            {
+                $this->released = true;
+
+                return $this;
+            }
+        };
+        $next = function ($job) {
+            $job->handled = true;
+
+            throw new RuntimeException('Whoops!');
+        };
+
+        $middleware = new ThrottlesExceptions(3, 1);
+
+        Carbon::setTestNow('2000-00-00 00:00:00.000');
+
+        for ($i = 0; $i < 3; $i++) {
+            $result = $middleware->handle($job = $jobFactory(), $next);
+            $this->assertSame($job, $result);
+            $this->assertTrue($job->released);
+            $this->assertTrue($job->handled);
+
+            Carbon::setTestNow(Carbon::now()->addMilliseconds(100));
+        }
+
+        $result = $middleware->handle($job = $jobFactory(), $next);
+        $this->assertSame($job, $result);
+        $this->assertTrue($job->released);
+        $this->assertFalse($job->handled);
+
+        Carbon::setTestNow('2000-00-00 00:00:00.999');
+
+        $result = $middleware->handle($job = $jobFactory(), $next);
+        $this->assertSame($job, $result);
+        $this->assertTrue($job->released);
+        $this->assertFalse($job->handled);
+
+        Carbon::setTestNow('2000-00-00 00:00:01.000');
+
+        $result = $middleware->handle($job = $jobFactory(), $next);
+        $this->assertSame($job, $result);
+        $this->assertTrue($job->released);
+        $this->assertTrue($job->handled);
+    }
+
+    public function testLimitingWithDefaultValues()
+    {
+        $jobFactory = fn () => new class
+        {
+            public $released = false;
+
+            public $handled = false;
+
+            public function release()
+            {
+                $this->released = true;
+
+                return $this;
+            }
+        };
+        $next = function ($job) {
+            $job->handled = true;
+
+            throw new RuntimeException('Whoops!');
+        };
+
+        $middleware = new ThrottlesExceptions();
+
+        Carbon::setTestNow('2000-00-00 00:00:00.000');
+
+        for ($i = 0; $i < 10; $i++) {
+            $result = $middleware->handle($job = $jobFactory(), $next);
+            $this->assertSame($job, $result);
+            $this->assertTrue($job->released);
+            $this->assertTrue($job->handled);
+
+            Carbon::setTestNow(Carbon::now()->addSecond());
+        }
+
+        $result = $middleware->handle($job = $jobFactory(), $next);
+        $this->assertSame($job, $result);
+        $this->assertTrue($job->released);
+        $this->assertFalse($job->handled);
+
+        Carbon::setTestNow('2000-00-00 00:09:59.999');
+
+        $result = $middleware->handle($job = $jobFactory(), $next);
+        $this->assertSame($job, $result);
+        $this->assertTrue($job->released);
+        $this->assertFalse($job->handled);
+
+        Carbon::setTestNow('2000-00-00 00:10:00.000');
+
+        $result = $middleware->handle($job = $jobFactory(), $next);
+        $this->assertSame($job, $result);
+        $this->assertTrue($job->released);
+        $this->assertTrue($job->handled);
+    }
+
+    public function testItCanBackoffUsingException()
+    {
+        $job = new class
+        {
+            public $releasedAfter;
+
+            public function release($delay)
+            {
+                $this->releasedAfter = $delay;
+
+                return $this;
+            }
+        };
+        $expectedException = new RuntimeException('Whoops!');
+        $receivedException = null;
+        $next = function () use ($expectedException) {
+            throw $expectedException;
+        };
+
+        $middleware = (new ThrottlesExceptions())->backoff(function ($throwable) use (&$receivedException) {
+            $receivedException = $throwable;
+
+            return 5;
+        });
+
+        $result = $middleware->handle($job, $next);
+
+        $this->assertSame($job, $result);
+        $this->assertSame($expectedException, $receivedException);
+        $this->assertSame(300, $job->releasedAfter);
+    }
+
+    public function testReportingExceptions()
+    {
+        $this->spy(ExceptionHandler::class)
+            ->expects('report')
+            ->times(2)
+            ->with(Mockery::type(RuntimeException::class));
+
+        $job = new class
+        {
+            public function release()
+            {
+                return $this;
+            }
+        };
+        $next = function () {
+            throw new RuntimeException('Whoops!');
+        };
+
+        $middleware = new ThrottlesExceptions();
+
+        $middleware->report();
+        $middleware->handle($job, $next);
+
+        $middleware->report(fn () => true);
+        $middleware->handle($job, $next);
+
+        $middleware->report(fn () => false);
+        $middleware->handle($job, $next);
+    }
+
+    public function testUsesJobClassNameForCacheKey()
+    {
+        $rateLimiter = $this->mock(RateLimiter::class);
+
+        $job = new class
+        {
+            public $released = false;
+
+            public function release()
+            {
+                $this->released = true;
+
+                return $this;
+            }
+        };
+
+        $expectedKey = 'ugarit_throttles_exceptions:'.hash('xxh128', get_class($job));
+
+        $rateLimiter->expects('tooManyAttempts')
+            ->with($expectedKey, 10)
+            ->andReturn(false);
+
+        $rateLimiter->expects('hit')
+            ->with($expectedKey, 600);
+
+        $next = function ($job) {
+            throw new RuntimeException('Whoops!');
+        };
+
+        $middleware = new ThrottlesExceptions();
+        $middleware->handle($job, $next);
+
+        $this->assertTrue($job->released);
+    }
+
+    public function testUsesDisplayNameForCacheKeyWhenAvailable()
+    {
+        $rateLimiter = $this->mock(RateLimiter::class);
+
+        $job = new class
+        {
+            public $released = false;
+
+            public function release()
+            {
+                $this->released = true;
+
+                return $this;
+            }
+
+            public function displayName(): string
+            {
+                return 'App\\Actions\\ThrottlesExceptionsTestAction';
+            }
+        };
+
+        $expectedKey = 'ugarit_throttles_exceptions:'.hash('xxh128', 'App\\Actions\\ThrottlesExceptionsTestAction');
+
+        $rateLimiter->expects('tooManyAttempts')
+            ->with($expectedKey, 10)
+            ->andReturn(false);
+
+        $rateLimiter->expects('hit')
+            ->with($expectedKey, 600);
+
+        $next = function ($job) {
+            throw new RuntimeException('Whoops!');
+        };
+
+        $middleware = new ThrottlesExceptions();
+        $middleware->handle($job, $next);
+
+        $this->assertTrue($job->released);
+    }
+}
+
+class CircuitBreakerTestJob
+{
+    use InteractsWithQueue, Queueable;
+
+    public static $handled = false;
+
+    public function handle()
+    {
+        static::$handled = true;
+
+        throw new Exception;
+    }
+
+    public function middleware()
+    {
+        return [(new ThrottlesExceptions(2, 10 * 60))->by('test')];
+    }
+}
+
+class CircuitBreakerSkipJob
+{
+    use InteractsWithQueue, Queueable;
+
+    public static $handled = false;
+
+    public function handle()
+    {
+        static::$handled = true;
+
+        throw new Exception;
+    }
+
+    public function middleware()
+    {
+        return [(new ThrottlesExceptions(2, 10 * 60))->deleteWhen(Exception::class)];
+    }
+}
+
+class CircuitBreakerFailedJob
+{
+    use InteractsWithQueue, Queueable;
+
+    public static $handled = false;
+
+    public function handle()
+    {
+        static::$handled = true;
+
+        throw new Exception;
+    }
+
+    public function middleware()
+    {
+        return [(new ThrottlesExceptions(2, 10 * 60))->failWhen(Exception::class)];
+    }
+}
+
+class CircuitBreakerSuccessfulJob
+{
+    use InteractsWithQueue, Queueable;
+
+    public static $handled = false;
+
+    public function handle()
+    {
+        static::$handled = true;
+    }
+
+    public function middleware()
+    {
+        return [(new ThrottlesExceptions(2, 10 * 60))->by('test')];
+    }
+}

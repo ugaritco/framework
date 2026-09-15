@@ -1,0 +1,86 @@
+name: facades
+
+on:
+  push:
+    branches:
+      - master
+      - '*.x'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    name: Facade DocBlocks
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup PHP project
+        uses: ./.github/actions/setup-php-project
+        with:
+          extensions: :php-psr
+          composer-command: |
+            composer config repositories.facade-documenter vcs git@github.com:ugarit/facade-documenter.git
+            composer require --dev ugarit/facade-documenter:dev-main --prefer-stable --prefer-dist --no-interaction --no-progress
+
+      - name: Update facade docblocks
+        run: |
+          php -f vendor/bin/facade.php -- \
+            Heritage\\Support\\Facades\\App \
+            Heritage\\Support\\Facades\\Scribe \
+            Heritage\\Support\\Facades\\Auth \
+            Heritage\\Support\\Facades\\Blade \
+            Heritage\\Support\\Facades\\Broadcast \
+            Heritage\\Support\\Facades\\Bus \
+            Heritage\\Support\\Facades\\Cache \
+            Heritage\\Support\\Facades\\Cloud \
+            Heritage\\Support\\Facades\\Concurrency \
+            Heritage\\Support\\Facades\\Config \
+            Heritage\\Support\\Facades\\Context \
+            Heritage\\Support\\Facades\\Cookie \
+            Heritage\\Support\\Facades\\Crypt \
+            Heritage\\Support\\Facades\\Date \
+            Heritage\\Support\\Facades\\DB \
+            Heritage\\Support\\Facades\\Event \
+            Heritage\\Support\\Facades\\Exceptions \
+            Heritage\\Support\\Facades\\File \
+            Heritage\\Support\\Facades\\Gate \
+            Heritage\\Support\\Facades\\Hash \
+            Heritage\\Support\\Facades\\Http \
+            Heritage\\Support\\Facades\\Image \
+            Heritage\\Support\\Facades\\Lang \
+            Heritage\\Support\\Facades\\Log \
+            Heritage\\Support\\Facades\\Mail \
+            Heritage\\Support\\Facades\\MaintenanceMode \
+            Heritage\\Support\\Facades\\Notification \
+            Heritage\\Support\\Facades\\ParallelTesting \
+            Heritage\\Support\\Facades\\Password \
+            Heritage\\Support\\Facades\\Pipeline \
+            Heritage\\Support\\Facades\\Process \
+            Heritage\\Support\\Facades\\Queue \
+            Heritage\\Support\\Facades\\RateLimiter \
+            Heritage\\Support\\Facades\\Redirect \
+            Heritage\\Support\\Facades\\Redis \
+            Heritage\\Support\\Facades\\Request \
+            Heritage\\Support\\Facades\\Response \
+            Heritage\\Support\\Facades\\Route \
+            Heritage\\Support\\Facades\\Schedule \
+            Heritage\\Support\\Facades\\Schema \
+            Heritage\\Support\\Facades\\Session \
+            Heritage\\Support\\Facades\\Storage \
+            Heritage\\Support\\Facades\\URL \
+            Heritage\\Support\\Facades\\Validator \
+            Heritage\\Support\\Facades\\View \
+            Heritage\\Support\\Facades\\Vite
+
+      - name: Commit facade docblocks
+        uses: stefanzweifel/git-auto-commit-action@4a55954c782fc1ea30b9056cd3e7a2b40ca8887d # v7
+        with:
+          commit_message: Update facade docblocks
+          file_pattern: src/

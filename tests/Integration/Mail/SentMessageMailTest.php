@@ -1,0 +1,64 @@
+<?php
+
+namespace Heritage\Tests\Integration\Mail;
+
+use Heritage\Database\Eloquent\Model;
+use Heritage\Database\Schema\Blueprint;
+use Heritage\Foundation\Testing\LazilyRefreshDatabase;
+use Heritage\Notifications\Events\NotificationSent;
+use Heritage\Notifications\Notifiable;
+use Heritage\Support\Facades\Event;
+use Heritage\Support\Facades\Schema;
+use Heritage\Tests\Notifications\Fixtures\SentMessageMailNotification;
+use Orchestra\Testbench\TestCase;
+
+class SentMessageMailTest extends TestCase
+{
+    use LazilyRefreshDatabase;
+
+    protected function afterRefreshingDatabase()
+    {
+        Schema::create('sent_message_users', function (Blueprint $table) {
+            $table->increments('id');
+        });
+    }
+
+    protected function beforeRefreshingDatabase()
+    {
+        Schema::dropIfExists('sent_message_users');
+    }
+
+    public function testDispatchesNotificationSent()
+    {
+        $notificationWasSent = false;
+
+        $user = SentMessageUser::create();
+
+        Event::listen(
+            NotificationSent::class,
+            function (NotificationSent $notification) use (&$notificationWasSent, $user) {
+                $notificationWasSent = true;
+                /**
+                 * Confirm that NotificationSent can be serialized/unserialized as
+                 * will happen if the listener implements ShouldQueue.
+                 */
+                /** @var NotificationSent $afterSerialization */
+                $afterSerialization = unserialize(serialize($notification));
+
+                $this->assertTrue($user->is($afterSerialization->notifiable));
+
+                $this->assertEqualsCanonicalizing($notification->notification, $afterSerialization->notification);
+            });
+
+        $user->notify(new SentMessageMailNotification());
+
+        $this->assertTrue($notificationWasSent);
+    }
+}
+
+class SentMessageUser extends Model
+{
+    use Notifiable;
+
+    public $timestamps = false;
+}

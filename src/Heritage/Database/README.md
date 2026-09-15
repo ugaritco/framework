@@ -1,0 +1,69 @@
+## Heritage Database
+
+The Heritage Database component is a full database toolkit for PHP, providing an expressive query builder, ActiveRecord style ORM, and schema builder. It currently supports MySQL, Postgres, SQL Server, and SQLite. It also serves as the database layer of the Ugarit PHP framework.
+
+### Usage Instructions
+
+First, create a new "Capsule" manager instance. Capsule aims to make configuring the library for usage outside of the Ugarit framework as easy as possible.
+
+```PHP
+use Heritage\Database\Capsule\Manager as Capsule;
+
+$capsule = new Capsule;
+
+$capsule->addConnection([
+    'driver' => 'mysql',
+    'host' => 'localhost',
+    'database' => 'database',
+    'username' => 'root',
+    'password' => 'password',
+    'charset' => 'utf8',
+    'collation' => 'utf8_unicode_ci',
+    'prefix' => '',
+]);
+
+// Set the event dispatcher used by Eloquent models... (optional)
+use Heritage\Events\Dispatcher;
+use Heritage\Container\Container;
+$capsule->setEventDispatcher(new Dispatcher(new Container));
+
+// Make this Capsule instance available globally via static methods... (optional)
+$capsule->setAsGlobal();
+
+// Setup the Eloquent ORM... (optional; unless you've used setEventDispatcher())
+$capsule->bootEloquent();
+```
+
+> `composer require "heritage/events"` required when you need to use observers with Eloquent.
+
+Once the Capsule instance has been registered. You may use it like so:
+
+**Using The Query Builder**
+
+```PHP
+$users = Capsule::table('users')->where('votes', '>', 100)->get();
+```
+Other core methods may be accessed directly from the Capsule in the same manner as from the DB facade:
+```PHP
+$results = Capsule::select('select * from users where id = ?', [1]);
+```
+
+**Using The Schema Builder**
+
+```PHP
+Capsule::schema()->create('users', function ($table) {
+    $table->increments('id');
+    $table->string('email')->unique();
+    $table->timestamps();
+});
+```
+
+**Using The Eloquent ORM**
+
+```PHP
+class User extends Heritage\Database\Eloquent\Model {}
+
+$users = User::where('votes', '>', 1)->get();
+```
+
+For further documentation on using the various database facilities this library provides, consult the [Ugarit framework documentation](https://ugarit.com/docs).

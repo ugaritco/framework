@@ -1,0 +1,518 @@
+<?php
+
+namespace Heritage\Tests\View;
+
+use Closure;
+use Heritage\Config\Repository as Config;
+use Heritage\Container\Container;
+use Heritage\Contracts\Container\BindingResolutionException;
+use Heritage\Contracts\Support\Htmlable;
+use Heritage\Contracts\View\Factory as FactoryContract;
+use Heritage\Support\Facades\Facade;
+use Heritage\Support\HtmlString;
+use Heritage\View\Component;
+use Heritage\View\ComponentSlot;
+use Heritage\View\Factory;
+use Heritage\View\View;
+use Mockery;
+use PHPUnit\Framework\TestCase;
+
+class ComponentTest extends TestCase
+{
+    protected $viewFactory;
+
+    protected $config;
+
+    protected function setUp(): void
+    {
+        $this->config = Mockery::mock(Config::class);
+
+        $container = new Container;
+
+        $this->viewFactory = Mockery::mock(Factory::class);
+
+        $container->instance('view', $this->viewFactory);
+        $container->alias('view', FactoryContract::class);
+        $container->instance('config', $this->config);
+
+        Container::setInstance($container);
+        Facade::setFacadeApplication($container);
+    }
+
+    protected function tearDown(): void
+    {
+        Facade::clearResolvedInstances();
+        Facade::setFacadeApplication(null);
+        Container::setInstance(null);
+        Component::flushCache();
+        Component::forgetFactory();
+    }
+
+    public function testInlineViewsGetCreated()
+    {
+        $this->config->expects('get')->with('view.compiled')->andReturn('/tmp');
+        $this->viewFactory->expects('exists')->andReturn(false);
+        $this->viewFactory->expects('addNamespace')->with('__components', '/tmp');
+
+        $component = new TestInlineViewComponent;
+        $this->assertSame('__components::57b7a54afa0eb51fd9b88eec031c9e9e', $component->resolveView());
+    }
+
+    public function testRegularViewsGetReturnedUsingViewHelper()
+    {
+        $view = Mockery::mock(View::class);
+        $this->viewFactory->expects('make')->with('alert', [], [])->andReturn($view);
+
+        $component = new TestRegularViewComponentUsingViewHelper;
+
+        $this->assertSame($view, $component->resolveView());
+    }
+
+    public function testRenderingStringClosureFromComponent()
+    {
+        $this->config->expects('get')->with('view.compiled')->andReturn('/tmp');
+        $this->viewFactory->expects('exists')->andReturn(false);
+        $this->viewFactory->expects('addNamespace')->with('__components', '/tmp');
+
+        $component = new class() extends Component
+        {
+            protected $title;
+
+            public function __construct($title = 'World')
+            {
+                $this->title = $title;
+            }
+
+            public function render()
+            {
+                return function (array $data) {
+                    return "<p>Hello {$this->title}</p>";
+                };
+            }
+        };
+
+        $closure = $component->resolveView();
+
+        $viewPath = $closure([]);
+
+        $this->assertInstanceOf(Closure::class, $closure);
+        $this->assertSame('__components::9cc08f5001b343c093ee1a396da820dc', $viewPath);
+
+        $hash = str_replace('__components::', '', $viewPath);
+        $this->assertSame('<p>Hello World</p>', file_get_contents("/tmp/{$hash}.blade.php"));
+    }
+
+    public function testRegularViewsGetReturnedUsingViewMethod()
+    {
+        $view = Mockery::mock(View::class);
+        $this->viewFactory->expects('make')->with('alert', [], [])->andReturn($view);
+
+        $component = new TestRegularViewComponentUsingViewMethod;
+
+        $this->assertSame($view, $component->resolveView());
+    }
+
+    public function testRegularViewNamesGetReturned()
+    {
+        $this->viewFactory->expects('exists')->andReturn(true);
+        $this->viewFactory->shouldReceive('addNamespace')->never();
+
+        $component = new TestRegularViewNameViewComponent;
+
+        $this->assertSame('alert', $component->resolveView());
+    }
+
+    public function testHtmlableGetReturned()
+    {
+        $component = new TestHtmlableReturningViewComponent;
+
+        $view = $component->resolveView();
+
+        $this->assertInstanceOf(Htmlable::class, $view);
+        $this->assertSame('<p>Hello foo</p>', $view->toHtml());
+    }
+
+    public function testResolveWithUnresolvableDependency()
+    {
+        $this->expectExceptionObject(new BindingResolutionException('Unresolvable dependency resolving'));
+
+        TestInlineViewComponentWhereRenderDependsOnProps::resolve([]);
+    }
+
+    public function testResolveDependenciesWithoutContainer()
+    {
+        $component = TestInlineViewComponentWhereRenderDependsOnProps::resolve(['content' => 'foo']);
+        $this->assertSame('foo', $component->render());
+
+        $component = new class extends Component
+        {
+            public $content;
+
+            public function __construct($a = null, $b = null)
+            {
+                $this->content = $a.$b;
+            }
+
+            public function render()
+            {
+                return $this->content;
+            }
+        };
+
+        $component = $component::resolve(['a' => 'a', 'b' => 'b']);
+        $component = $component::resolve(['b' => 'b', 'a' => 'a']);
+        $this->assertSame('ab', $component->render());
+    }
+
+    public function testResolveDependenciesWithContainerIfNecessary()
+    {
+        $component = TestInlineViewComponentWithContainerDependencies::resolve([]);
+        $this->assertSame($this->viewFactory, $component->dependency);
+
+        $component = TestInlineViewComponentWithContainerDependenciesAndProps::resolve(['content' => 'foo']);
+        $this->assertSame($this->viewFactory, $component->dependency);
+        $this->assertSame('foo', $component->render());
+    }
+
+    public function testResolveComponentsUsing()
+    {
+        $component = new TestInlineViewComponent;
+
+        Component::resolveComponentsUsing(function ($class, $data) use ($component) {
+            $this->assertSame(Component::class, $class, 'It takes the component class name as the first parameter.');
+            $this->assertSame(['foo' => 'bar'], $data, 'It takes the given data as the second parameter.');
+
+            return $component;
+        });
+
+        $this->assertSame($component, Component::resolve(['foo' => 'bar']));
+    }
+
+    public function testBladeViewCacheWithRegularViewNameViewComponent()
+    {
+        $component = new TestRegularViewNameViewComponent;
+
+        $this->viewFactory->expects('exists')->times(2)->andReturn(true);
+
+        $this->assertSame('alert', $component->resolveView());
+        $this->assertSame('alert', $component->resolveView());
+        $this->assertSame('alert', $component->resolveView());
+        $this->assertSame('alert', $component->resolveView());
+
+        $cache = (fn () => $component::$bladeViewCache)->call($component);
+        $this->assertSame([$component::class.'::alert' => 'alert'], $cache);
+
+        $component::flushCache();
+
+        $cache = (fn () => $component::$bladeViewCache)->call($component);
+        $this->assertSame([], $cache);
+
+        $this->assertSame('alert', $component->resolveView());
+        $this->assertSame('alert', $component->resolveView());
+        $this->assertSame('alert', $component->resolveView());
+        $this->assertSame('alert', $component->resolveView());
+    }
+
+    public function testBladeViewCacheWithInlineViewComponent()
+    {
+        $component = new TestInlineViewComponent;
+
+        $this->viewFactory->expects('exists')->times(2)->andReturn(false);
+
+        $this->config->expects('get')->times(2)->with('view.compiled')->andReturn('/tmp');
+
+        $this->viewFactory->expects('addNamespace')
+            ->with('__components', '/tmp')
+            ->times(2);
+
+        $compiledViewName = '__components::57b7a54afa0eb51fd9b88eec031c9e9e';
+        $contents = '::Hello {{ $title }}';
+        $cacheKey = $component::class.$contents;
+
+        $this->assertSame($compiledViewName, $component->resolveView());
+        $this->assertSame($compiledViewName, $component->resolveView());
+        $this->assertSame($compiledViewName, $component->resolveView());
+        $this->assertSame($compiledViewName, $component->resolveView());
+
+        $cache = (fn () => $component::$bladeViewCache)->call($component);
+        $this->assertSame([$cacheKey => $compiledViewName], $cache);
+
+        $component::flushCache();
+
+        $cache = (fn () => $component::$bladeViewCache)->call($component);
+        $this->assertSame([], $cache);
+
+        $this->assertSame($compiledViewName, $component->resolveView());
+        $this->assertSame($compiledViewName, $component->resolveView());
+        $this->assertSame($compiledViewName, $component->resolveView());
+        $this->assertSame($compiledViewName, $component->resolveView());
+    }
+
+    public function testBladeViewCacheWithInlineViewComponentWhereRenderDependsOnProps()
+    {
+        $componentA = new TestInlineViewComponentWhereRenderDependsOnProps('A');
+        $componentB = new TestInlineViewComponentWhereRenderDependsOnProps('B');
+
+        $this->viewFactory->expects('exists')->times(2)->andReturn(false);
+
+        $this->config->expects('get')->times(2)->with('view.compiled')->andReturn('/tmp');
+
+        $this->viewFactory->expects('addNamespace')
+            ->with('__components', '/tmp')
+            ->times(2);
+
+        $compiledViewNameA = '__components::9b0498cbe3839becd0d496e05c553485';
+        $compiledViewNameB = '__components::9d1b9bc4078a3e7274d3766ca02423f3';
+        $cacheAKey = $componentA::class.'::A';
+        $cacheBKey = $componentB::class.'::B';
+
+        $this->assertSame($compiledViewNameA, $componentA->resolveView());
+        $this->assertSame($compiledViewNameA, $componentA->resolveView());
+        $this->assertSame($compiledViewNameB, $componentB->resolveView());
+        $this->assertSame($compiledViewNameB, $componentB->resolveView());
+
+        $cacheA = (fn () => $componentA::$bladeViewCache)->call($componentA);
+        $cacheB = (fn () => $componentB::$bladeViewCache)->call($componentB);
+        $this->assertSame($cacheA, $cacheB);
+        $this->assertSame([
+            $cacheAKey => $compiledViewNameA,
+            $cacheBKey => $compiledViewNameB,
+        ], $cacheA);
+
+        $componentA::flushCache();
+
+        $cacheA = (fn () => $componentA::$bladeViewCache)->call($componentA);
+        $cacheB = (fn () => $componentB::$bladeViewCache)->call($componentB);
+        $this->assertSame($cacheA, $cacheB);
+        $this->assertSame([], $cacheA);
+    }
+
+    public function testFactoryGetsSharedBetweenComponents()
+    {
+        $regular = new TestRegularViewNameViewComponent;
+        $inline = new TestInlineViewComponent;
+
+        $getFactory = fn ($component) => (fn () => $component->factory())->call($component);
+
+        $this->assertSame($this->viewFactory, $getFactory($regular));
+
+        Container::getInstance()->instance('view', 'foo');
+        $this->assertSame($this->viewFactory, $getFactory($inline));
+
+        Component::forgetFactory();
+        $this->assertNotSame($this->viewFactory, $getFactory($inline));
+    }
+
+    public function testComponentSlotIsEmpty()
+    {
+        $slot = new ComponentSlot();
+
+        $this->assertTrue((bool) $slot->isEmpty());
+    }
+
+    public function testComponentSlotSanitizedEmpty()
+    {
+        // default sanitizer should remove all html tags
+        $slot = new ComponentSlot('<!-- test -->');
+
+        $linebreakingSlot = new ComponentSlot("\n  \t");
+
+        $moreComplexSlot = new ComponentSlot('<!--
+        <p>commented HTML</p>
+        <img border="0" src="" alt="">
+        -->');
+
+        $this->assertFalse((bool) $slot->hasActualContent());
+        $this->assertFalse((bool) $linebreakingSlot->hasActualContent('trim'));
+        $this->assertFalse((bool) $moreComplexSlot->hasActualContent());
+    }
+
+    public function testComponentSlotSanitizedNotEmpty()
+    {
+        // default sanitizer should remove all html tags
+        $slot = new ComponentSlot('<!-- test -->not empty');
+
+        $linebreakingSlot = new ComponentSlot("\ntest  \t");
+
+        $moreComplexSlot = new ComponentSlot('before<!--
+        <p>commented HTML</p>
+        <img border="0" src="" alt="">
+        -->after');
+
+        $this->assertTrue((bool) $slot->hasActualContent());
+        $this->assertTrue((bool) $linebreakingSlot->hasActualContent('trim'));
+        $this->assertTrue((bool) $moreComplexSlot->hasActualContent());
+    }
+
+    public function testComponentSlotIsNotEmpty()
+    {
+        $slot = new ComponentSlot('test');
+
+        $anotherSlot = new ComponentSlot('test<!-- test -->');
+
+        $moreComplexSlot = new ComponentSlot('t<!--
+        <p>Look at this cool image:</p>
+        <img border="0" src="pic_trulli.jpg" alt="Trulli">
+        -->est');
+
+        $this->assertTrue((bool) $slot->hasActualContent());
+        $this->assertTrue((bool) $anotherSlot->hasActualContent());
+        $this->assertTrue((bool) $moreComplexSlot->hasActualContent());
+    }
+
+    public function testDataOnlyIncludesNonStaticNonIgnoredPublicProperties(): void
+    {
+        $component = new TestComponentWithStaticAndIgnoredProperties;
+
+        $data = $component->data();
+
+        $this->assertSame('bar', $data['visible']);
+        $this->assertArrayNotHasKey('staticProp', $data);
+        $this->assertArrayNotHasKey('__hidden', $data);
+    }
+}
+
+class TestComponentWithStaticAndIgnoredProperties extends Component
+{
+    public static $staticProp = 'static';
+
+    public $__hidden = 'hidden';
+
+    public $visible = 'bar';
+
+    public function render()
+    {
+        return 'Hello';
+    }
+}
+
+class TestInlineViewComponent extends Component
+{
+    public $title;
+
+    public function __construct($title = 'foo')
+    {
+        $this->title = $title;
+    }
+
+    public function render()
+    {
+        return 'Hello {{ $title }}';
+    }
+}
+
+class TestInlineViewComponentWithContainerDependencies extends Component
+{
+    public $dependency;
+
+    public function __construct(FactoryContract $dependency)
+    {
+        $this->dependency = $dependency;
+    }
+
+    public function render()
+    {
+        return '';
+    }
+}
+
+class TestInlineViewComponentWithContainerDependenciesAndProps extends Component
+{
+    public $content;
+
+    public $dependency;
+
+    public function __construct(FactoryContract $dependency, $content)
+    {
+        $this->content = $content;
+        $this->dependency = $dependency;
+    }
+
+    public function render()
+    {
+        return $this->content;
+    }
+}
+
+class TestInlineViewComponentWithoutDependencies extends Component
+{
+    public function render()
+    {
+        return 'alert';
+    }
+}
+
+class TestInlineViewComponentWhereRenderDependsOnProps extends Component
+{
+    public $content;
+
+    public function __construct($content)
+    {
+        $this->content = $content;
+    }
+
+    public function render()
+    {
+        return $this->content;
+    }
+}
+
+class TestRegularViewComponentUsingViewHelper extends Component
+{
+    public $title;
+
+    public function __construct($title = 'foo')
+    {
+        $this->title = $title;
+    }
+
+    public function render()
+    {
+        return view('alert');
+    }
+}
+
+class TestRegularViewComponentUsingViewMethod extends Component
+{
+    public $title;
+
+    public function __construct($title = 'foo')
+    {
+        $this->title = $title;
+    }
+
+    public function render()
+    {
+        return $this->view('alert');
+    }
+}
+
+class TestRegularViewNameViewComponent extends Component
+{
+    public $title;
+
+    public function __construct($title = 'foo')
+    {
+        $this->title = $title;
+    }
+
+    public function render()
+    {
+        return 'alert';
+    }
+}
+
+class TestHtmlableReturningViewComponent extends Component
+{
+    protected $title;
+
+    public function __construct($title = 'foo')
+    {
+        $this->title = $title;
+    }
+
+    public function render()
+    {
+        return new HtmlString("<p>Hello {$this->title}</p>");
+    }
+}

@@ -1,0 +1,11 @@
+<?php
+
+namespace {{ namespace }};
+
+{{ factoryImport }}
+use Heritage\Database\Eloquent\Model;
+
+class {{ class }} extends Model
+{
+    {{ factory }}
+}

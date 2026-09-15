@@ -1,0 +1,54 @@
+{
+    "name": "heritage/collections",
+    "description": "The Heritage Collections package.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Muath R Abu Ouda",
+            "email": "muathrabuouda@hotmail.com",
+            "role": "Vision Leader of Ugarit"
+        },
+        {
+            "name": "Taylor Otwell",
+            "email": "taylor@laravel.com",
+            "role": "Original Creator & Primary Developer"
+        }
+    ],
+    "homepage": "https://ugarit.com",
+    "support": {
+        "issues": "https://github.com/ugarit/framework/issues",
+        "source": "https://github.com/ugarit/framework"
+    },
+    "require": {
+        "php": "^8.3",
+        "heritage/conditionable": "^1.00.00",
+        "heritage/contracts": "^1.00.00",
+        "heritage/macroable": "^1.00.00",
+        "symfony/polyfill-php84": "^1.36",
+        "symfony/polyfill-php85": "^1.36",
+        "symfony/polyfill-php86": "^1.36"
+    },
+    "suggest": {
+        "heritage/http": "Required to convert collections to API resources (^13.0).",
+        "symfony/var-dumper": "Required to use the dump method (^7.4 || ^8.0)."
+    },
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "Heritage\\Support\\": ""
+        },
+        "files": [
+            "functions.php",
+            "helpers.php"
+        ]
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "13.0.x-dev"
+        }
+    },
+    "version": "1.00.00"
+}

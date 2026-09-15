@@ -1,0 +1,183 @@
+<?php
+
+namespace Heritage\Tests\Log;
+
+use Heritage\Contracts\Events\Dispatcher as DispatcherContract;
+use Heritage\Contracts\Support\Arrayable;
+use Heritage\Events\Dispatcher;
+use Heritage\Log\Events\MessageLogged;
+use Heritage\Log\Logger;
+use Mockery;
+use Monolog\Handler\TestHandler;
+use Monolog\Level;
+use Monolog\Logger as Monolog;
+use PHPUnit\Framework\TestCase;
+use RuntimeException;
+
+class LogLoggerTest extends TestCase
+{
+    public function testMethodsPassErrorAdditionsToMonolog()
+    {
+        $monolog = Mockery::mock(Monolog::class);
+        $monolog->expects('isHandling')->with('error')->andReturn(true);
+        $monolog->expects('error')->with('foo', []);
+        $writer = new Logger($monolog);
+
+        $writer->error('foo');
+    }
+
+    public function testContextIsAddedToAllSubsequentLogs()
+    {
+        $monolog = Mockery::mock(Monolog::class);
+        $writer = new Logger($monolog);
+        $writer->withContext(['bar' => 'baz']);
+
+        $monolog->expects('isHandling')->with('error')->andReturn(true);
+        $monolog->expects('error')->with('foo', ['bar' => 'baz']);
+
+        $writer->error('foo');
+    }
+
+    public function testContextIsFlushed()
+    {
+        $monolog = Mockery::mock(Monolog::class);
+        $writer = new Logger($monolog);
+        $writer->withContext(['bar' => 'baz']);
+        $writer->withoutContext();
+
+        $monolog->expects('isHandling')->with('error')->andReturn(true);
+        $monolog->expects('error')->with('foo', []);
+
+        $writer->error('foo');
+    }
+
+    public function testContextKeysCanBeRemovedForSubsequentLogs()
+    {
+        $monolog = Mockery::mock(Monolog::class);
+        $writer = new Logger($monolog);
+        $writer->withContext(['bar' => 'baz', 'forget' => 'me']);
+        $writer->withoutContext(['forget']);
+
+        $monolog->expects('isHandling')->with('error')->andReturn(true);
+        $monolog->expects('error')->with('foo', ['bar' => 'baz']);
+
+        $writer->error('foo');
+    }
+
+    public function testLoggerFiresEventsDispatcher()
+    {
+        $monolog = Mockery::mock(Monolog::class);
+        $monolog->expects('isHandling')->with('error')->andReturn(true);
+        $monolog->expects('error')->with('foo', []);
+        $writer = new Logger($monolog, $events = new Dispatcher);
+
+        $events->listen(MessageLogged::class, function ($event) {
+            $_SERVER['__log.level'] = $event->level;
+            $_SERVER['__log.message'] = $event->message;
+            $_SERVER['__log.context'] = $event->context;
+        });
+
+        $writer->error('foo');
+        $this->assertTrue(isset($_SERVER['__log.level']));
+        $this->assertSame('error', $_SERVER['__log.level']);
+        unset($_SERVER['__log.level']);
+        $this->assertTrue(isset($_SERVER['__log.message']));
+        $this->assertSame('foo', $_SERVER['__log.message']);
+        unset($_SERVER['__log.message']);
+        $this->assertTrue(isset($_SERVER['__log.context']));
+        $this->assertSame([], $_SERVER['__log.context']);
+        unset($_SERVER['__log.context']);
+    }
+
+    public function testListenShortcutFailsWithNoDispatcher()
+    {
+        $this->expectExceptionObject(new RuntimeException('Events dispatcher has not been set.'));
+
+        $writer = new Logger(Mockery::mock(Monolog::class));
+        $writer->listen(function () {
+            //
+        });
+    }
+
+    public function testListenShortcut()
+    {
+        $events = Mockery::mock(DispatcherContract::class);
+        $writer = new Logger(Mockery::mock(Monolog::class), $events);
+
+        $callback = function () {
+            return 'success';
+        };
+        $events->expects('listen')->with(MessageLogged::class, $callback);
+
+        $writer->listen($callback);
+    }
+
+    public function testComplexContextManipulation()
+    {
+        $monolog = Mockery::mock(Monolog::class);
+        $writer = new Logger($monolog);
+
+        $writer->withContext(['user_id' => 123, 'action' => 'login']);
+        $writer->withContext(['ip' => '127.0.0.1', 'timestamp' => '1986-10-29']);
+        $writer->withoutContext(['timestamp']);
+
+        $monolog->expects('isHandling')->with('info')->andReturn(true);
+        $monolog->expects('info')->with('User action', [
+            'user_id' => 123,
+            'action' => 'login',
+            'ip' => '127.0.0.1',
+        ]);
+
+        $writer->info('User action');
+    }
+
+    public function testSkipsSerializationWhenLogLevelNotHandled()
+    {
+        $monolog = new Monolog('test');
+        $monolog->pushHandler(new TestHandler(Level::Error));
+
+        $writer = new Logger($monolog);
+
+        $arrayable = new class implements Arrayable
+        {
+            public bool $wasCalled = false;
+
+            public function toArray(): array
+            {
+                $this->wasCalled = true;
+
+                return ['serialized' => 'data'];
+            }
+        };
+
+        $writer->debug($arrayable);
+
+        $this->assertFalse($arrayable->wasCalled);
+    }
+
+    public function testSerializesWhenLogLevelIsHandled()
+    {
+        $monolog = new Monolog('test');
+        $handler = new TestHandler(Level::Debug);
+        $monolog->pushHandler($handler);
+
+        $writer = new Logger($monolog);
+
+        $arrayable = new class implements Arrayable
+        {
+            public bool $wasCalled = false;
+
+            public function toArray(): array
+            {
+                $this->wasCalled = true;
+
+                return ['serialized' => 'data'];
+            }
+        };
+
+        $writer->debug($arrayable);
+
+        $this->assertTrue($arrayable->wasCalled);
+        $this->assertTrue($handler->hasDebugRecords());
+    }
+}

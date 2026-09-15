@@ -1,0 +1,56 @@
+{
+    "name": "heritage/cache",
+    "description": "The Heritage Cache package.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Muath R Abu Ouda",
+            "email": "muathrabuouda@hotmail.com",
+            "role": "Vision Leader of Ugarit"
+        },
+        {
+            "name": "Taylor Otwell",
+            "email": "taylor@laravel.com",
+            "role": "Original Creator & Primary Developer"
+        }
+    ],
+    "homepage": "https://ugarit.com",
+    "support": {
+        "issues": "https://github.com/ugarit/framework/issues",
+        "source": "https://github.com/ugarit/framework"
+    },
+    "require": {
+        "php": "^8.3",
+        "heritage/collections": "^1.00.00",
+        "heritage/contracts": "^1.00.00",
+        "heritage/macroable": "^1.00.00",
+        "heritage/support": "^1.00.00"
+    },
+    "provide": {
+        "psr/simple-cache-implementation": "1.0 || 2.0 || 3.0"
+    },
+    "suggest": {
+        "ext-apcu": "Required to use the APC cache driver.",
+        "ext-filter": "Required to use the DynamoDb cache driver.",
+        "ext-memcached": "Required to use the memcache cache driver.",
+        "heritage/database": "Required to use the database cache driver (^13.0).",
+        "heritage/filesystem": "Required to use the file cache driver (^13.0).",
+        "heritage/redis": "Required to use the redis cache driver (^13.0).",
+        "symfony/cache": "Required to use PSR-6 cache bridge (^7.4 || ^8.0)."
+    },
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "Heritage\\Cache\\": ""
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "13.0.x-dev"
+        }
+    },
+    "version": "1.00.00"
+}

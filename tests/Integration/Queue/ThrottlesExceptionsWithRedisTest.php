@@ -1,0 +1,234 @@
+<?php
+
+namespace Heritage\Tests\Integration\Queue;
+
+use Exception;
+use Heritage\Bus\Dispatcher;
+use Heritage\Bus\Queueable;
+use Heritage\Contracts\Debug\ExceptionHandler;
+use Heritage\Contracts\Queue\Job;
+use Heritage\Foundation\Testing\Concerns\InteractsWithRedis;
+use Heritage\Queue\CallQueuedHandler;
+use Heritage\Queue\InteractsWithQueue;
+use Heritage\Queue\Middleware\ThrottlesExceptionsWithRedis;
+use Heritage\Support\Str;
+use Mockery;
+use Orchestra\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use RuntimeException;
+
+#[RequiresPhpExtension('redis')]
+class ThrottlesExceptionsWithRedisTest extends TestCase
+{
+    use InteractsWithRedis;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->setUpRedis();
+    }
+
+    protected function tearDown(): void
+    {
+        $this->tearDownRedis();
+
+        parent::tearDown();
+    }
+
+    public function testCircuitIsOpenedForJobErrors()
+    {
+        $this->assertJobWasReleasedImmediately(CircuitBreakerWithRedisTestJob::class, $key = Str::random());
+        $this->assertJobWasReleasedImmediately(CircuitBreakerWithRedisTestJob::class, $key);
+        $this->assertJobWasReleasedWithDelay(CircuitBreakerWithRedisTestJob::class, $key);
+    }
+
+    public function testCircuitStaysClosedForSuccessfulJobs()
+    {
+        $this->assertJobRanSuccessfully(CircuitBreakerWithRedisSuccessfulJob::class, $key = Str::random());
+        $this->assertJobRanSuccessfully(CircuitBreakerWithRedisSuccessfulJob::class, $key);
+        $this->assertJobRanSuccessfully(CircuitBreakerWithRedisSuccessfulJob::class, $key);
+    }
+
+    public function testCircuitResetsAfterSuccess()
+    {
+        $this->assertJobWasReleasedImmediately(CircuitBreakerWithRedisTestJob::class, $key = Str::random());
+        $this->assertJobRanSuccessfully(CircuitBreakerWithRedisSuccessfulJob::class, $key);
+        $this->assertJobWasReleasedImmediately(CircuitBreakerWithRedisTestJob::class, $key);
+        $this->assertJobWasReleasedImmediately(CircuitBreakerWithRedisTestJob::class, $key);
+        $this->assertJobWasReleasedWithDelay(CircuitBreakerWithRedisTestJob::class, $key);
+    }
+
+    protected function assertJobWasReleasedImmediately($class, $key)
+    {
+        $class::$handled = false;
+        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+
+        $job = Mockery::mock(Job::class);
+
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('release')->with(0);
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
+
+        $instance->call($job, [
+            'command' => serialize($command = new $class($key)),
+        ]);
+
+        $this->assertTrue($class::$handled);
+    }
+
+    protected function assertJobWasReleasedWithDelay($class, $key)
+    {
+        $class::$handled = false;
+        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+
+        $job = Mockery::mock(Job::class);
+
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('release')->withArgs(function ($delay) {
+            // The delay is the remainder of the decay window, less wall clock
+            // seconds elapsed since the first exception opened the circuit.
+            return $delay >= 590 && $delay <= 610;
+        });
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
+
+        $instance->call($job, [
+            'command' => serialize($command = new $class($key)),
+        ]);
+
+        $this->assertFalse($class::$handled);
+    }
+
+    protected function assertJobRanSuccessfully($class, $key)
+    {
+        $class::$handled = false;
+        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+
+        $job = Mockery::mock(Job::class);
+
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
+
+        $instance->call($job, [
+            'command' => serialize($command = new $class($key)),
+        ]);
+
+        $this->assertTrue($class::$handled);
+    }
+
+    public function testReportingExceptions()
+    {
+        $this->spy(ExceptionHandler::class)
+            ->expects('report')
+            ->times(2)
+            ->with(Mockery::type(RuntimeException::class));
+
+        $job = new class
+        {
+            public function release()
+            {
+                return $this;
+            }
+        };
+        $next = function () {
+            throw new RuntimeException('Whoops!');
+        };
+
+        $middleware = new ThrottlesExceptionsWithRedis();
+
+        $middleware->report();
+        $middleware->handle($job, $next);
+
+        $middleware->report(fn () => true);
+        $middleware->handle($job, $next);
+
+        $middleware->report(fn () => false);
+        $middleware->handle($job, $next);
+    }
+
+    public function testItCanBackoffUsingException()
+    {
+        $job = new class
+        {
+            public $releasedAfter;
+
+            public function release($delay)
+            {
+                $this->releasedAfter = $delay;
+
+                return $this;
+            }
+        };
+        $expectedException = new RuntimeException('Whoops!');
+        $receivedException = null;
+        $next = function () use ($expectedException) {
+            throw $expectedException;
+        };
+
+        $middleware = (new ThrottlesExceptionsWithRedis())->backoff(function ($throwable) use (&$receivedException) {
+            $receivedException = $throwable;
+
+            return 5;
+        });
+
+        $result = $middleware->handle($job, $next);
+
+        $this->assertSame($job, $result);
+        $this->assertSame($expectedException, $receivedException);
+        $this->assertSame(300, $job->releasedAfter);
+    }
+}
+
+class CircuitBreakerWithRedisTestJob
+{
+    use InteractsWithQueue, Queueable;
+
+    public static $handled = false;
+
+    public $key;
+
+    public function __construct($key)
+    {
+        $this->key = $key;
+    }
+
+    public function handle()
+    {
+        static::$handled = true;
+
+        throw new Exception;
+    }
+
+    public function middleware()
+    {
+        return [(new ThrottlesExceptionsWithRedis(2, 10 * 60))->by($this->key)];
+    }
+}
+
+class CircuitBreakerWithRedisSuccessfulJob
+{
+    use InteractsWithQueue, Queueable;
+
+    public static $handled = false;
+
+    public $key;
+
+    public function __construct($key)
+    {
+        $this->key = $key;
+    }
+
+    public function handle()
+    {
+        static::$handled = true;
+    }
+
+    public function middleware()
+    {
+        return [(new ThrottlesExceptionsWithRedis(2, 10 * 60))->by($this->key)];
+    }
+}

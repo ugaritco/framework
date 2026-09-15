@@ -1,0 +1,36 @@
+<?php
+
+namespace Heritage\Tests\Support;
+
+use Heritage\Config\Repository;
+use Heritage\Container\Container;
+use Heritage\Support\Fluent;
+use Heritage\Support\Traits\CapsuleManagerTrait;
+use Mockery;
+use PHPUnit\Framework\TestCase;
+
+class SupportCapsuleManagerTraitTest extends TestCase
+{
+    use CapsuleManagerTrait;
+
+    public function testSetupContainerForCapsule()
+    {
+        $this->container = null;
+        $app = new Container;
+
+        $this->setupContainer($app);
+        $this->assertEquals($app, $this->getContainer());
+        $this->assertInstanceOf(Fluent::class, $app['config']);
+    }
+
+    public function testSetupContainerForCapsuleWhenConfigIsBound()
+    {
+        $this->container = null;
+        $app = new Container;
+        $app['config'] = Mockery::mock(Repository::class);
+
+        $this->setupContainer($app);
+        $this->assertEquals($app, $this->getContainer());
+        $this->assertInstanceOf(Repository::class, $app['config']);
+    }
+}

@@ -1,0 +1,61 @@
+{
+    "name": "heritage/console",
+    "description": "The Heritage Console package.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Muath R Abu Ouda",
+            "email": "muathrabuouda@hotmail.com",
+            "role": "Vision Leader of Ugarit"
+        },
+        {
+            "name": "Taylor Otwell",
+            "email": "taylor@laravel.com",
+            "role": "Original Creator & Primary Developer"
+        }
+    ],
+    "homepage": "https://ugarit.com",
+    "support": {
+        "issues": "https://github.com/ugarit/framework/issues",
+        "source": "https://github.com/ugarit/framework"
+    },
+    "require": {
+        "php": "^8.3",
+        "ext-mbstring": "*",
+        "heritage/collections": "^1.00.00",
+        "heritage/contracts": "^1.00.00",
+        "heritage/macroable": "^1.00.00",
+        "heritage/reflection": "^1.00.00",
+        "heritage/support": "^1.00.00",
+        "heritage/view": "^1.00.00",
+        "ugarit/prompts": "^1.00.00",
+        "nunomaduro/termwind": "^2.0",
+        "symfony/console": "^7.4.0 || ^8.0.0",
+        "symfony/polyfill-php84": "^1.37",
+        "symfony/process": "^7.4.5 || ^8.0.5"
+    },
+    "suggest": {
+        "ext-pcntl": "Required to use signal trapping.",
+        "dragonmantank/cron-expression": "Required to use scheduler (^3.3.2).",
+        "guzzlehttp/guzzle": "Required to use the ping methods on schedules (^7.8 || ^8.0).",
+        "heritage/bus": "Required to use the scheduled job dispatcher (^13.0).",
+        "heritage/container": "Required to use the scheduler (^13.0).",
+        "heritage/filesystem": "Required to use the generator command (^13.0).",
+        "heritage/queue": "Required to use closures for scheduled jobs (^13.0)."
+    },
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "Heritage\\Console\\": ""
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "13.0.x-dev"
+        }
+    },
+    "version": "1.00.00"
+}

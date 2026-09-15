@@ -1,0 +1,341 @@
+<?php
+
+namespace Heritage\Tests\Integration\Queue;
+
+use Heritage\Bus\Queueable;
+use Heritage\Contracts\Cache\Repository;
+use Heritage\Contracts\Queue\ShouldBeUnique;
+use Heritage\Contracts\Queue\ShouldQueue;
+use Heritage\Foundation\Bus\Dispatchable;
+use Heritage\Queue\Attributes\Queue as QueueAttribute;
+use Heritage\Queue\Events\JobQueued;
+use Heritage\Queue\Events\JobQueueing;
+use Heritage\Queue\InteractsWithQueue;
+use Heritage\Support\Facades\Bus;
+use Heritage\Support\Facades\Config;
+use Orchestra\Testbench\Attributes\WithMigration;
+
+#[WithMigration]
+#[WithMigration('queue')]
+class JobDispatchingTest extends QueueTestCase
+{
+    protected function setUp(): void
+    {
+        $this->beforeApplicationDestroyed(function () {
+            Job::$ran = false;
+            Job::$value = null;
+        });
+
+        parent::setUp();
+    }
+
+    public function testJobCanUseCustomMethodsAfterDispatch()
+    {
+        Job::dispatch('test')->replaceValue('new-test');
+
+        $this->runQueueWorkerCommand(['--stop-when-empty' => true]);
+
+        $this->assertTrue(Job::$ran);
+        $this->assertSame('new-test', Job::$value);
+    }
+
+    public function testDispatchesConditionallyWithBoolean()
+    {
+        Job::dispatchIf(false, 'test')->replaceValue('new-test');
+
+        $this->runQueueWorkerCommand(['--stop-when-empty' => true]);
+
+        $this->assertFalse(Job::$ran);
+        $this->assertNull(Job::$value);
+
+        Job::dispatchIf(true, 'test')->replaceValue('new-test');
+
+        $this->runQueueWorkerCommand(['--stop-when-empty' => true]);
+
+        $this->assertTrue(Job::$ran);
+        $this->assertSame('new-test', Job::$value);
+    }
+
+    public function testDispatchesConditionallyWithClosure()
+    {
+        Job::dispatchIf(fn ($job) => $job instanceof Job ? 0 : 1, 'test')->replaceValue('new-test');
+
+        $this->runQueueWorkerCommand(['--stop-when-empty' => true]);
+
+        $this->assertFalse(Job::$ran);
+
+        Job::dispatchIf(fn ($job) => $job instanceof Job ? 1 : 0, 'test')->replaceValue('new-test');
+
+        $this->runQueueWorkerCommand(['--stop-when-empty' => true]);
+
+        $this->assertTrue(Job::$ran);
+    }
+
+    public function testDoesNotDispatchConditionallyWithBoolean()
+    {
+        Job::dispatchUnless(true, 'test')->replaceValue('new-test');
+
+        $this->runQueueWorkerCommand(['--stop-when-empty' => true]);
+
+        $this->assertFalse(Job::$ran);
+        $this->assertNull(Job::$value);
+
+        Job::dispatchUnless(false, 'test')->replaceValue('new-test');
+
+        $this->runQueueWorkerCommand(['--stop-when-empty' => true]);
+
+        $this->assertTrue(Job::$ran);
+        $this->assertSame('new-test', Job::$value);
+    }
+
+    public function testDoesNotDispatchConditionallyWithClosure()
+    {
+        Job::dispatchUnless(fn ($job) => $job instanceof Job ? 1 : 0, 'test')->replaceValue('new-test');
+
+        $this->runQueueWorkerCommand(['--stop-when-empty' => true]);
+
+        $this->assertFalse(Job::$ran);
+
+        Job::dispatchUnless(fn ($job) => $job instanceof Job ? 0 : 1, 'test')->replaceValue('new-test');
+
+        $this->runQueueWorkerCommand(['--stop-when-empty' => true]);
+
+        $this->assertTrue(Job::$ran);
+    }
+
+    public function testUniqueJobLockIsReleasedForJobDispatchedAfterResponse()
+    {
+        // get initial terminatingCallbacks
+        $terminatingCallbacksReflectionProperty = (new \ReflectionObject($this->app))->getProperty('terminatingCallbacks');
+        $startTerminatingCallbacks = $terminatingCallbacksReflectionProperty->getValue($this->app);
+
+        UniqueJob::dispatchAfterResponse('test');
+        $this->assertFalse(
+            $this->getJobLock(UniqueJob::class, 'test')
+        );
+
+        $this->app->terminate();
+        $this->assertTrue(UniqueJob::$ran);
+
+        $terminatingCallbacksReflectionProperty->setValue($this->app, $startTerminatingCallbacks);
+
+        UniqueJob::$ran = false;
+        UniqueJob::dispatch('test')->afterResponse();
+        $this->app->terminate();
+        $this->assertTrue(UniqueJob::$ran);
+
+        // acquire job lock and confirm that job is not dispatched after response
+        $this->assertTrue(
+            $this->getJobLock(UniqueJob::class, 'test')
+        );
+        $terminatingCallbacksReflectionProperty->setValue($this->app, $startTerminatingCallbacks);
+        UniqueJob::$ran = false;
+        UniqueJob::dispatch('test')->afterResponse();
+        $this->app->terminate();
+        $this->assertFalse(UniqueJob::$ran);
+
+        // confirm that dispatchAfterResponse also does not run
+        UniqueJob::dispatchAfterResponse('test');
+        $this->app->terminate();
+        $this->assertFalse(UniqueJob::$ran);
+    }
+
+    public function testQueueMayBeNullForJobQueueingAndJobQueuedEvent()
+    {
+        Config::set('queue.default', 'database');
+        $events = [];
+        $this->app['events']->listen(function (JobQueueing $e) use (&$events) {
+            $events[] = $e;
+        });
+        $this->app['events']->listen(function (JobQueued $e) use (&$events) {
+            $events[] = $e;
+        });
+
+        MyTestDispatchableJob::dispatch();
+        dispatch(function () {
+            //
+        });
+
+        $this->assertCount(4, $events);
+        $this->assertInstanceOf(JobQueueing::class, $events[0]);
+        $this->assertNull($events[0]->queue);
+        $this->assertInstanceOf(JobQueued::class, $events[1]);
+        $this->assertNull($events[1]->queue);
+        $this->assertInstanceOf(JobQueueing::class, $events[2]);
+        $this->assertNull($events[2]->queue);
+        $this->assertInstanceOf(JobQueued::class, $events[3]);
+        $this->assertNull($events[3]->queue);
+    }
+
+    public function testQueuedClosureCanBeNamed()
+    {
+        Config::set('queue.default', 'database');
+        $events = [];
+        $this->app['events']->listen(function (JobQueued $e) use (&$events) {
+            $events[] = $e;
+        });
+
+        dispatch(function () {
+            //
+        })->name('custom name');
+
+        $this->assertCount(1, $events);
+        $this->assertInstanceOf(JobQueued::class, $events[0]);
+        $this->assertSame('custom name', $events[0]->job->name);
+        $this->assertStringContainsString('custom name', $events[0]->job->displayName());
+    }
+
+    public function testCanDisableDispatchingAfterResponse()
+    {
+        Job::dispatchAfterResponse('test');
+
+        $this->assertFalse(Job::$ran);
+
+        $this->app->terminate();
+
+        $this->assertTrue(Job::$ran);
+
+        Bus::withoutDispatchingAfterResponses();
+
+        Job::$ran = false;
+        Job::dispatchAfterResponse('test');
+
+        $this->assertTrue(Job::$ran);
+
+        $this->app->terminate();
+
+        Bus::withDispatchingAfterResponses();
+
+        Job::$ran = false;
+        Job::dispatchAfterResponse('test');
+
+        $this->assertFalse(Job::$ran);
+
+        $this->app->terminate();
+
+        $this->assertTrue(Job::$ran);
+    }
+
+    public function testQueueAttributeWithEnumNormalizesToStringInJobQueuedEvent()
+    {
+        Config::set('queue.default', 'database');
+        $events = [];
+        $this->app['events']->listen(function (JobQueueing $e) use (&$events) {
+            $events[] = $e;
+        });
+        $this->app['events']->listen(function (JobQueued $e) use (&$events) {
+            $events[] = $e;
+        });
+
+        JobWithEnumQueueAttribute::dispatch();
+
+        $this->assertCount(2, $events);
+        $this->assertInstanceOf(JobQueueing::class, $events[0]);
+        $this->assertSame('default', $events[0]->queue);
+        $this->assertInstanceOf(JobQueued::class, $events[1]);
+        $this->assertSame('default', $events[1]->queue);
+    }
+
+    public function testQueueAttributeOnTraitIsResolved()
+    {
+        Config::set('queue.default', 'database');
+        $events = [];
+        $this->app['events']->listen(function (JobQueued $e) use (&$events) {
+            $events[] = $e;
+        });
+
+        JobWithTraitQueueAttribute::dispatch();
+
+        $this->assertCount(1, $events);
+        $this->assertSame('notifications', $events[0]->queue);
+    }
+
+    public function testClassQueueAttributeTakesPrecedenceOverTrait()
+    {
+        Config::set('queue.default', 'database');
+        $events = [];
+        $this->app['events']->listen(function (JobQueued $e) use (&$events) {
+            $events[] = $e;
+        });
+
+        JobWithClassQueueAttributeOverridingTrait::dispatch();
+
+        $this->assertCount(1, $events);
+        $this->assertSame('high', $events[0]->queue);
+    }
+
+    /**
+     * Helpers.
+     */
+    private function getJobLock($job, $value = null)
+    {
+        return $this->app->get(Repository::class)->lock('ugarit_unique_job:'.$job.':'.$value, 10)->get();
+    }
+}
+
+class Job implements ShouldQueue
+{
+    use Dispatchable, Queueable;
+
+    public static $ran = false;
+    public static $usedQueue = null;
+    public static $usedConnection = null;
+    public static $value = null;
+
+    public function __construct($value)
+    {
+        static::$value = $value;
+    }
+
+    public function handle()
+    {
+        static::$ran = true;
+    }
+
+    public function replaceValue($value)
+    {
+        static::$value = $value;
+    }
+}
+
+class UniqueJob extends Job implements ShouldBeUnique
+{
+    use InteractsWithQueue;
+
+    public function uniqueId()
+    {
+        return self::$value;
+    }
+}
+
+class MyTestDispatchableJob implements ShouldQueue
+{
+    use Dispatchable;
+}
+
+enum JobDispatchingTestQueueEnum: string
+{
+    case DEFAULT = 'default';
+}
+
+#[QueueAttribute(JobDispatchingTestQueueEnum::DEFAULT)]
+class JobWithEnumQueueAttribute implements ShouldQueue
+{
+    use Dispatchable;
+}
+
+#[QueueAttribute('notifications')]
+trait JobDispatchingTestQueueTrait
+{
+}
+
+class JobWithTraitQueueAttribute implements ShouldQueue
+{
+    use Dispatchable, JobDispatchingTestQueueTrait;
+}
+
+#[QueueAttribute('high')]
+class JobWithClassQueueAttributeOverridingTrait implements ShouldQueue
+{
+    use Dispatchable, JobDispatchingTestQueueTrait;
+}

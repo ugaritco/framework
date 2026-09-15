@@ -1,0 +1,843 @@
+<?php
+
+namespace Heritage\Tests\Bus;
+
+use Carbon\CarbonImmutable;
+use Heritage\Bus\Batch;
+use Heritage\Bus\Batchable;
+use Heritage\Bus\BatchFactory;
+use Heritage\Bus\DatabaseBatchRepository;
+use Heritage\Bus\Dispatcher;
+use Heritage\Bus\Events\BatchCanceled;
+use Heritage\Bus\Events\BatchFinished;
+use Heritage\Bus\Events\BatchStarted;
+use Heritage\Bus\PendingBatch;
+use Heritage\Bus\Queueable;
+use Heritage\Container\Container;
+use Heritage\Contracts\Bus\Dispatcher as BusDispatcher;
+use Heritage\Contracts\Events\Dispatcher as EventDispatcher;
+use Heritage\Contracts\Queue\Factory;
+use Heritage\Contracts\Queue\Queue as QueueContract;
+use Heritage\Contracts\Queue\ShouldQueue;
+use Heritage\Database\Capsule\Manager as DB;
+use Heritage\Database\Eloquent\Model;
+use Heritage\Database\PostgresConnection;
+use Heritage\Database\Query\Builder;
+use Heritage\Foundation\Bus\Dispatchable;
+use Heritage\Foundation\Bus\PendingChain;
+use Heritage\Queue\CallQueuedClosure;
+use Heritage\Support\Carbon;
+use Heritage\Support\Facades\Bus;
+use Heritage\Support\Facades\Facade;
+use Heritage\Support\Facades\Queue;
+use Mockery;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
+use RuntimeException;
+
+class BusBatchTest extends TestCase
+{
+    protected function setUp(): void
+    {
+        $db = new DB;
+
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ]);
+
+        $db->bootEloquent();
+        $db->setAsGlobal();
+
+        if (! Facade::getFacadeApplication()) {
+            $container = new Container;
+            Facade::setFacadeApplication($container);
+
+            $queue = Mockery::mock(Factory::class);
+            $container->instance(Factory::class, $queue);
+            $container->alias(Factory::class, 'queue');
+
+            $dispatcher = Mockery::mock(Dispatcher::class, [$container]);
+
+            $dispatcher->shouldReceive('batch')->zeroOrMoreTimes()->andReturnUsing(function ($jobs) {
+                $pendingBatch = Mockery::mock(PendingBatch::class);
+                $pendingBatch->expects('name')->andReturnSelf();
+                $pendingBatch->shouldReceive('dispatch')->zeroOrMoreTimes()->andReturn(Mockery::mock(Batch::class));
+
+                return $pendingBatch;
+            })->byDefault();
+
+            $dispatcher->shouldReceive('chain')->zeroOrMoreTimes()->andReturnUsing(function ($jobs) {
+                $pendingChain = Mockery::mock(PendingChain::class, [$jobs, \stdClass::class]);
+                $pendingChain->shouldReceive('dispatch')->zeroOrMoreTimes()->andReturn(Mockery::mock(Batch::class));
+
+                return $pendingChain;
+            })->byDefault();
+
+            $container->instance(BusDispatcher::class, $dispatcher);
+            $container->alias(BusDispatcher::class, 'bus');
+        }
+
+        $this->createSchema();
+
+        $_SERVER['__finally.count'] = 0;
+        $_SERVER['__progress.count'] = 0;
+        $_SERVER['__then.count'] = 0;
+        $_SERVER['__catch.count'] = 0;
+    }
+
+    /**
+     * Setup the database schema.
+     *
+     * @return void
+     */
+    public function createSchema()
+    {
+        $this->schema()->create('job_batches', function ($table) {
+            $table->string('id')->primary();
+            $table->string('name');
+            $table->integer('total_jobs');
+            $table->integer('pending_jobs');
+            $table->integer('failed_jobs');
+            $table->text('failed_job_ids');
+            $table->text('options')->nullable();
+            $table->integer('cancelled_at')->nullable();
+            $table->integer('created_at');
+            $table->integer('finished_at')->nullable();
+        });
+    }
+
+    /**
+     * Tear down the database schema.
+     */
+    protected function tearDown(): void
+    {
+        if (Facade::getFacadeApplication()) {
+            Facade::setFacadeApplication(null);
+        }
+
+        Container::setInstance(null);
+
+        unset($_SERVER['__finally.batch'], $_SERVER['__progress.batch'], $_SERVER['__then.batch'], $_SERVER['__catch.batch'], $_SERVER['__catch.exception']);
+
+        $this->schema()->drop('job_batches');
+    }
+
+    public function test_jobs_can_be_added_to_the_batch()
+    {
+        $queue = Mockery::mock(Factory::class);
+
+        $batch = $this->createTestBatch($queue);
+
+        $job = new class
+        {
+            use Batchable;
+        };
+
+        $secondJob = new class
+        {
+            use Batchable;
+        };
+
+        $thirdJob = function () {
+        };
+
+        $connection = Mockery::mock(QueueContract::class);
+        $queue->expects('connection')
+            ->with('test-connection')
+            ->andReturn($connection);
+
+        $connection->expects('bulk')->with(Mockery::on(function ($args) use ($job, $secondJob) {
+            return
+                $args[0] == $job &&
+                $args[1] == $secondJob &&
+                $args[2] instanceof CallQueuedClosure
+                && is_string($args[2]->batchId);
+        }), '', 'test-queue');
+
+        $batch = $batch->add([$job, $secondJob, $thirdJob]);
+
+        $this->assertEquals(3, $batch->totalJobs);
+        $this->assertEquals(3, $batch->pendingJobs);
+        $this->assertIsString($job->batchId);
+        $this->assertInstanceOf(CarbonImmutable::class, $batch->createdAt);
+    }
+
+    public function test_jobs_can_be_added_to_pending_batch()
+    {
+        $batch = new PendingBatch(new Container, collect());
+        $this->assertCount(0, $batch->jobs);
+
+        $job = new class
+        {
+            use Batchable;
+        };
+        $batch->add([$job]);
+        $this->assertCount(1, $batch->jobs);
+
+        $secondJob = new class
+        {
+            use Batchable;
+
+            public $anotherProperty;
+        };
+        $batch->add($secondJob);
+        $this->assertCount(2, $batch->jobs);
+    }
+
+    public function test_jobs_can_be_added_to_the_pending_batch_from_iterable()
+    {
+        $batch = new PendingBatch(new Container, collect());
+        $this->assertCount(0, $batch->jobs);
+
+        $count = 3;
+        $generator = function (int $jobsCount) {
+            for ($i = 0; $i < $jobsCount; $i++) {
+                yield new class
+                {
+                    use Batchable;
+                };
+            }
+        };
+
+        $batch->add($generator($count));
+        $this->assertCount($count, $batch->jobs);
+    }
+
+    public function test_processed_jobs_can_be_calculated()
+    {
+        $queue = Mockery::mock(Factory::class);
+
+        $batch = $this->createTestBatch($queue);
+
+        $batch->totalJobs = 10;
+        $batch->pendingJobs = 4;
+
+        $this->assertEquals(6, $batch->processedJobs());
+        $this->assertEquals(60, $batch->progress());
+    }
+
+    public function test_successful_jobs_can_be_recorded()
+    {
+        $queue = Mockery::mock(Factory::class);
+
+        $batch = $this->createTestBatch($queue);
+
+        $job = new class
+        {
+            use Batchable;
+        };
+
+        $secondJob = new class
+        {
+            use Batchable;
+        };
+
+        $connection = Mockery::mock(QueueContract::class);
+        $queue->expects('connection')
+            ->with('test-connection')
+            ->andReturn($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([$job, $secondJob]);
+        $this->assertEquals(2, $batch->pendingJobs);
+
+        $batch->recordSuccessfulJob('test-id');
+        $batch->recordSuccessfulJob('test-id');
+
+        $this->assertInstanceOf(Batch::class, $_SERVER['__finally.batch']);
+        $this->assertInstanceOf(Batch::class, $_SERVER['__progress.batch']);
+        $this->assertInstanceOf(Batch::class, $_SERVER['__then.batch']);
+
+        $batch = $batch->fresh();
+        $this->assertEquals(0, $batch->pendingJobs);
+        $this->assertTrue($batch->finished());
+        $this->assertEquals(1, $_SERVER['__finally.count']);
+        $this->assertEquals(2, $_SERVER['__progress.count']);
+        $this->assertEquals(1, $_SERVER['__then.count']);
+    }
+
+    public function test_batch_finished_event_is_dispatched()
+    {
+        $events = Mockery::mock(EventDispatcher::class);
+        Container::getInstance()->instance(EventDispatcher::class, $events);
+
+        $queue = Mockery::mock(Factory::class);
+        $batch = $this->createTestBatch($queue);
+
+        $job = new class
+        {
+            use Batchable;
+        };
+
+        $connection = Mockery::mock(QueueContract::class);
+        $queue->expects('connection')
+            ->with('test-connection')
+            ->andReturn($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([$job]);
+
+        $events->expects('dispatch')->with(Mockery::on(function ($event) use ($batch) {
+            return $event instanceof BatchStarted && $event->batch === $batch;
+        }));
+
+        $events->expects('dispatch')->with(Mockery::on(function ($event) use ($batch) {
+            return $event instanceof BatchFinished && $event->batch === $batch;
+        }));
+
+        $batch->recordSuccessfulJob('test-id');
+    }
+
+    public function test_batch_started_event_is_dispatched()
+    {
+        $events = Mockery::mock(EventDispatcher::class);
+        Container::getInstance()->instance(EventDispatcher::class, $events);
+
+        $queue = Mockery::mock(Factory::class);
+        $batch = $this->createTestBatch($queue);
+
+        $job = new class
+        {
+            use Batchable;
+        };
+
+        $secondJob = new class
+        {
+            use Batchable;
+        };
+
+        $connection = Mockery::mock(QueueContract::class);
+        $queue->expects('connection')
+            ->with('test-connection')
+            ->andReturn($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([$job, $secondJob]);
+
+        $events->expects('dispatch')->with(Mockery::on(function ($event) use ($batch) {
+            return $event instanceof BatchStarted && $event->batch === $batch;
+        }));
+
+        $events->expects('dispatch')->with(Mockery::on(function ($event) {
+            return $event instanceof BatchFinished;
+        }));
+
+        $batch->recordSuccessfulJob('test-id-1');
+        $batch->recordSuccessfulJob('test-id-2');
+    }
+
+    public function test_batch_started_event_is_dispatched_when_first_job_fails()
+    {
+        $events = Mockery::mock(EventDispatcher::class);
+        Container::getInstance()->instance(EventDispatcher::class, $events);
+
+        $queue = Mockery::mock(Factory::class);
+        $batch = $this->createTestBatch($queue, $allowFailures = true);
+
+        $job = new class
+        {
+            use Batchable;
+        };
+
+        $secondJob = new class
+        {
+            use Batchable;
+        };
+
+        $connection = Mockery::mock(QueueContract::class);
+        $queue->expects('connection')
+            ->with('test-connection')
+            ->andReturn($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([$job, $secondJob]);
+
+        $events->expects('dispatch')->with(Mockery::on(function ($event) use ($batch) {
+            return $event instanceof BatchStarted && $event->batch === $batch;
+        }));
+
+        $batch->recordFailedJob('test-id-1', new RuntimeException('Something went wrong.'));
+        $batch->recordFailedJob('test-id-2', new RuntimeException('Something else went wrong.'));
+    }
+
+    public function test_failed_jobs_can_be_recorded_while_not_allowing_failures()
+    {
+        $queue = Mockery::mock(Factory::class);
+
+        $batch = $this->createTestBatch($queue, $allowFailures = false);
+
+        $job = new class
+        {
+            use Batchable;
+        };
+
+        $secondJob = new class
+        {
+            use Batchable;
+        };
+
+        $connection = Mockery::mock(QueueContract::class);
+        $queue->expects('connection')
+            ->with('test-connection')
+            ->andReturn($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([$job, $secondJob]);
+        $this->assertEquals(2, $batch->pendingJobs);
+
+        $batch->recordFailedJob('test-id', new RuntimeException('Something went wrong.'));
+        $batch->recordFailedJob('test-id', new RuntimeException('Something else went wrong.'));
+
+        $this->assertInstanceOf(Batch::class, $_SERVER['__finally.batch']);
+        $this->assertFalse(isset($_SERVER['__then.batch']));
+
+        $batch = $batch->fresh();
+        $this->assertEquals(2, $batch->pendingJobs);
+        $this->assertEquals(2, $batch->failedJobs);
+        $this->assertTrue($batch->finished());
+        $this->assertTrue($batch->cancelled());
+        $this->assertEquals(1, $_SERVER['__finally.count']);
+        $this->assertEquals(0, $_SERVER['__progress.count']);
+        $this->assertEquals(1, $_SERVER['__catch.count']);
+        $this->assertSame('Something went wrong.', $_SERVER['__catch.exception']->getMessage());
+    }
+
+    public function test_failed_jobs_can_be_recorded_while_allowing_failures()
+    {
+        $queue = Mockery::mock(Factory::class);
+
+        $batch = $this->createTestBatch($queue, $allowFailures = true);
+
+        $job = new class
+        {
+            use Batchable;
+        };
+
+        $secondJob = new class
+        {
+            use Batchable;
+        };
+
+        $connection = Mockery::mock(QueueContract::class);
+        $queue->expects('connection')
+            ->with('test-connection')
+            ->andReturn($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([$job, $secondJob]);
+        $this->assertEquals(2, $batch->pendingJobs);
+
+        $batch->recordFailedJob('test-id', new RuntimeException('Something went wrong.'));
+        $batch->recordFailedJob('test-id', new RuntimeException('Something else went wrong.'));
+
+        // While allowing failures this batch never actually completes...
+        $this->assertFalse(isset($_SERVER['__then.batch']));
+
+        $batch = $batch->fresh();
+        $this->assertEquals(2, $batch->pendingJobs);
+        $this->assertEquals(2, $batch->failedJobs);
+        $this->assertFalse($batch->finished());
+        $this->assertFalse($batch->cancelled());
+        $this->assertEquals(1, $_SERVER['__catch.count']);
+        $this->assertEquals(2, $_SERVER['__progress.count']);
+        $this->assertSame('Something went wrong.', $_SERVER['__catch.exception']->getMessage());
+    }
+
+    public function test_pending_batch_filters_out_falsy_jobs()
+    {
+        $job = new class
+        {
+            use Batchable;
+        };
+
+        $secondJob = new class
+        {
+            use Batchable;
+        };
+
+        $jobsWithNulls = collect([$job, null, $secondJob, [], 0, '', false]);
+
+        $batch = new PendingBatch(new Container, $jobsWithNulls);
+
+        $this->assertCount(2, $batch->jobs);
+        $this->assertTrue($batch->jobs->contains($job));
+        $this->assertTrue($batch->jobs->contains($secondJob));
+    }
+
+    public function test_failure_callbacks_execute_correctly(): void
+    {
+        $queue = Mockery::mock(Factory::class);
+
+        $repository = new DatabaseBatchRepository(new BatchFactory($queue), DB::connection(), 'job_batches');
+
+        $pendingBatch = (new PendingBatch(new Container, collect()))
+            ->allowFailures([
+                static fn (Batch $batch, $e): true => $_SERVER['__failure1.invoked'] = true,
+                function (Batch $batch, $e) {
+                    $_SERVER['__failure2.invoked'] = true;
+                },
+                function (Batch $batch, $e) {
+                    $_SERVER['__failure3.batch'] = $batch;
+                    $_SERVER['__failure3.exception'] = $e;
+                    $_SERVER['__failure3.batch_id'] = $batch->id;
+                    $_SERVER['__failure3.batch_class'] = get_class($batch);
+                    $_SERVER['__failure3.exception_class'] = get_class($e);
+                    $_SERVER['__failure3.exception_message'] = $e->getMessage();
+                    $_SERVER['__failure3.param_count'] = func_num_args();
+                },
+            ])
+            ->onConnection('test-connection')
+            ->onQueue('test-queue');
+
+        $batch = $repository->store($pendingBatch);
+
+        $job = new class
+        {
+            use Batchable;
+        };
+
+        $connection = Mockery::mock(QueueContract::class);
+        $queue->expects('connection')
+            ->with('test-connection')
+            ->andReturn($connection);
+
+        $connection->expects('bulk');
+
+        $batch = $batch->add([$job]);
+
+        $_SERVER['__failure1.invoked'] = false;
+        $_SERVER['__failure2.invoked'] = false;
+        $_SERVER['__failure3.batch'] = null;
+        $_SERVER['__failure3.exception'] = null;
+
+        $batch->recordFailedJob('test-id', new RuntimeException('Comprehensive callback test.'));
+
+        $this->assertTrue($_SERVER['__failure1.invoked']);
+        $this->assertTrue($_SERVER['__failure2.invoked']);
+        $this->assertInstanceOf(Batch::class, $_SERVER['__failure3.batch']);
+        $this->assertSame('Comprehensive callback test.', $_SERVER['__failure3.exception']->getMessage());
+        $this->assertSame($batch->id, $_SERVER['__failure3.batch_id']);
+        $this->assertSame(Batch::class, $_SERVER['__failure3.batch_class']);
+        $this->assertSame(RuntimeException::class, $_SERVER['__failure3.exception_class']);
+        $this->assertEquals(2, $_SERVER['__failure3.param_count']);
+    }
+
+    public function test_batch_can_be_cancelled()
+    {
+        $queue = Mockery::mock(Factory::class);
+
+        $batch = $this->createTestBatch($queue);
+
+        $batch->cancel();
+
+        $batch = $batch->fresh();
+
+        $this->assertTrue($batch->cancelled());
+    }
+
+    public function test_batch_cancelled_event_is_dispatched()
+    {
+        $events = Mockery::mock(EventDispatcher::class);
+        Container::getInstance()->instance(EventDispatcher::class, $events);
+
+        $queue = Mockery::mock(Factory::class);
+        $batch = $this->createTestBatch($queue);
+
+        $exception = new RuntimeException('Something went wrong.');
+
+        $events->expects('dispatch')->with(Mockery::on(function ($event) use ($batch, $exception) {
+            return $event instanceof BatchCanceled
+                && $event->batch->id === $batch->id
+                && $event->exception === $exception;
+        }));
+
+        $batch->cancel($exception);
+    }
+
+    public function test_batch_can_be_deleted()
+    {
+        $queue = Mockery::mock(Factory::class);
+
+        $batch = $this->createTestBatch($queue);
+
+        $batch->delete();
+
+        $batch = $batch->fresh();
+
+        $this->assertNull($batch);
+    }
+
+    public function test_batch_state_can_be_inspected()
+    {
+        $queue = Mockery::mock(Factory::class);
+
+        $batch = $this->createTestBatch($queue);
+
+        $this->assertFalse($batch->finished());
+        $batch->finishedAt = Carbon::now();
+        $this->assertTrue($batch->finished());
+
+        $batch->options['progress'] = [];
+        $this->assertFalse($batch->hasProgressCallbacks());
+        $batch->options['progress'] = [1];
+        $this->assertTrue($batch->hasProgressCallbacks());
+
+        $batch->options['then'] = [];
+        $this->assertFalse($batch->hasThenCallbacks());
+        $batch->options['then'] = [1];
+        $this->assertTrue($batch->hasThenCallbacks());
+
+        $this->assertFalse($batch->allowsFailures());
+        $batch->options['allowFailures'] = true;
+        $this->assertTrue($batch->allowsFailures());
+
+        $this->assertFalse($batch->hasFailures());
+        $batch->failedJobs = 1;
+        $this->assertTrue($batch->hasFailures());
+
+        $batch->options['catch'] = [];
+        $this->assertFalse($batch->hasCatchCallbacks());
+        $batch->options['catch'] = [1];
+        $this->assertTrue($batch->hasCatchCallbacks());
+
+        $this->assertFalse($batch->cancelled());
+        $batch->cancelledAt = Carbon::now();
+        $this->assertTrue($batch->cancelled());
+
+        $this->assertIsString(json_encode($batch));
+    }
+
+    public function test_chain_can_be_added_to_batch()
+    {
+        $queue = Mockery::mock(Factory::class);
+
+        $batch = $this->createTestBatch($queue);
+
+        $chainHeadJob = new ChainHeadJob;
+
+        $secondJob = new SecondTestJob;
+
+        $thirdJob = new ThirdTestJob;
+
+        $connection = Mockery::mock(QueueContract::class);
+        $queue->expects('connection')
+            ->with('test-connection')
+            ->andReturn($connection);
+
+        $connection->expects('bulk')->with(Mockery::on(function ($args) use ($chainHeadJob, $secondJob, $thirdJob) {
+            return
+                $args[0] == $chainHeadJob
+                && serialize($secondJob) == $args[0]->chained[0]
+                && serialize($thirdJob) == $args[0]->chained[1];
+        }), '', 'test-queue');
+
+        $batch = $batch->add([
+            [$chainHeadJob, $secondJob, $thirdJob],
+        ]);
+
+        $this->assertEquals(3, $batch->totalJobs);
+        $this->assertEquals(3, $batch->pendingJobs);
+        $this->assertSame('test-queue', $chainHeadJob->chainQueue);
+        $this->assertIsString($chainHeadJob->batchId);
+        $this->assertIsString($secondJob->batchId);
+        $this->assertIsString($thirdJob->batchId);
+        $this->assertInstanceOf(CarbonImmutable::class, $batch->createdAt);
+    }
+
+    public function test_chained_jobs_in_batch_preserve_their_queue_when_batch_has_no_queue()
+    {
+        $queue = Mockery::mock(Factory::class);
+
+        $repository = new DatabaseBatchRepository(new BatchFactory($queue), DB::connection(), 'job_batches');
+
+        // Create a batch WITHOUT onQueue — this is the key difference
+        $pendingBatch = (new PendingBatch(new Container, collect()))
+            ->onConnection('test-connection');
+
+        $batch = $repository->store($pendingBatch);
+
+        $firstJob = (new ChainHeadJob)->onQueue('custom-queue');
+        $secondJob = (new SecondTestJob)->onQueue('custom-queue');
+
+        $connection = Mockery::mock(QueueContract::class);
+        $queue->expects('connection')
+            ->with('test-connection')
+            ->andReturn($connection);
+
+        $connection->expects('bulk')->with(Mockery::on(function ($args) {
+            return true;
+        }), '', null);
+
+        $batch->add([
+            [$firstJob, $secondJob],
+        ]);
+
+        // Both jobs had ->onQueue('custom-queue') set before batching.
+        // The second job retains its queue, but the first job's queue
+        // is wiped to null by Batch::add() calling allOnQueue(null).
+        $this->assertSame('custom-queue', $secondJob->queue);
+        $this->assertSame('custom-queue', $firstJob->queue);
+    }
+
+    public function test_chained_closure_after_multiple_batches_is_properly_dispatched()
+    {
+        Queue::fake();
+
+        $TestBatchJob = new class
+        {
+            use Batchable;
+
+            public function handle()
+            {
+            }
+        };
+
+        Bus::chain([
+            Bus::batch([$TestBatchJob])->name('Batch 1'),
+            Bus::batch([$TestBatchJob])->name('Batch 2'),
+            function () {
+            },
+        ])->dispatch();
+
+        $this->assertTrue(true);
+    }
+
+    public function test_options_serialization_on_postgres()
+    {
+        $pendingBatch = (new PendingBatch(new Container, collect()))
+            ->onQueue('test-queue');
+
+        $connection = Mockery::spy(PostgresConnection::class);
+        $builder = Mockery::spy(Builder::class);
+
+        $connection->expects('table')->times(2)->andReturn($builder);
+        $builder->expects('useWritePdo')->andReturnSelf();
+        $builder->expects('where')->andReturnSelf();
+
+        $repository = new DatabaseBatchRepository(
+            new BatchFactory(Mockery::mock(Factory::class)), $connection, 'job_batches'
+        );
+
+        $repository->store($pendingBatch);
+
+        $builder->shouldHaveReceived('insert')
+            ->withArgs(function ($argument) use ($pendingBatch) {
+                return unserialize(base64_decode($argument['options'])) === $pendingBatch->options;
+            });
+
+        $builder->shouldHaveReceived('first');
+    }
+
+    #[DataProvider('serializedOptions')]
+    public function test_options_unserialize_on_postgres($serialize, $options)
+    {
+        $factory = Mockery::mock(BatchFactory::class);
+
+        $connection = Mockery::spy(PostgresConnection::class);
+
+        $connection->expects('table->useWritePdo->where->first')
+            ->andReturn($m = (object) [
+                'id' => '',
+                'name' => '',
+                'total_jobs' => '',
+                'pending_jobs' => '',
+                'failed_jobs' => '',
+                'failed_job_ids' => '[]',
+                'options' => $serialize,
+                'created_at' => Carbon::now()->getTimestamp(),
+                'cancelled_at' => null,
+                'finished_at' => null,
+            ]);
+
+        $batch = (new DatabaseBatchRepository($factory, $connection, 'job_batches'));
+
+        $factory->expects('make')
+            ->withSomeOfArgs($batch, '', '', '', '', '', '', $options);
+
+        $batch->find('1');
+    }
+
+    /**
+     * @return array
+     */
+    public static function serializedOptions()
+    {
+        $options = [1, 2];
+
+        return [
+            [serialize($options), $options],
+            [base64_encode(serialize($options)), $options],
+        ];
+    }
+
+    protected function createTestBatch($queue, $allowFailures = false)
+    {
+        $repository = new DatabaseBatchRepository(new BatchFactory($queue), DB::connection(), 'job_batches');
+
+        $pendingBatch = (new PendingBatch(new Container, collect()))
+            ->progress(function (Batch $batch) {
+                $_SERVER['__progress.batch'] = $batch;
+                $_SERVER['__progress.count']++;
+            })
+            ->then(function (Batch $batch) {
+                $_SERVER['__then.batch'] = $batch;
+                $_SERVER['__then.count']++;
+            })
+            ->catch(function (Batch $batch, $e) {
+                $_SERVER['__catch.batch'] = $batch;
+                $_SERVER['__catch.exception'] = $e;
+                $_SERVER['__catch.count']++;
+            })
+            ->finally(function (Batch $batch) {
+                $_SERVER['__finally.batch'] = $batch;
+                $_SERVER['__finally.count']++;
+            })
+            ->allowFailures($allowFailures)
+            ->onConnection('test-connection')
+            ->onQueue('test-queue');
+
+        return $repository->store($pendingBatch);
+    }
+
+    /**
+     * Get a database connection instance.
+     *
+     * @return \Heritage\Database\Connection
+     */
+    protected function connection()
+    {
+        return Model::getConnectionResolver()->connection();
+    }
+
+    /**
+     * Get a schema builder instance.
+     *
+     * @return \Heritage\Database\Schema\Builder
+     */
+    protected function schema()
+    {
+        return $this->connection()->getSchemaBuilder();
+    }
+}
+
+class ChainHeadJob implements ShouldQueue
+{
+    use Batchable, Dispatchable, Queueable;
+}
+
+class SecondTestJob implements ShouldQueue
+{
+    use Batchable, Dispatchable, Queueable;
+}
+
+class ThirdTestJob implements ShouldQueue
+{
+    use Batchable, Dispatchable, Queueable;
+}

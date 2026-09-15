@@ -1,0 +1,96 @@
+<?php
+
+namespace Heritage\Http\Client;
+
+use GuzzleHttp\Utils;
+
+/**
+ * @mixin \Heritage\Http\Client\Factory
+ */
+class Pool
+{
+    /**
+     * The factory instance.
+     *
+     * @var \Heritage\Http\Client\Factory
+     */
+    protected $factory;
+
+    /**
+     * The handler function for the Guzzle client.
+     *
+     * @var callable
+     */
+    protected $handler;
+
+    /**
+     * The pool of requests.
+     *
+     * @var array<array-key, \Heritage\Http\Client\PendingRequest>
+     */
+    protected $pool = [];
+
+    /**
+     * Create a new requests pool.
+     *
+     * @param  \Heritage\Http\Client\Factory|null  $factory
+     */
+    public function __construct(?Factory $factory = null)
+    {
+        $this->factory = $factory ?: new Factory();
+        $this->handler = Utils::chooseHandler();
+    }
+
+    /**
+     * Add a request to the pool with a numeric index.
+     *
+     * @return \Heritage\Http\Client\PendingRequest|\GuzzleHttp\Promise\Promise
+     */
+    public function newRequest()
+    {
+        return $this->pool[] = $this->asyncRequest();
+    }
+
+    /**
+     * Add a request to the pool with a key.
+     *
+     * @param  string  $key
+     * @return \Heritage\Http\Client\PendingRequest
+     */
+    public function as(string $key)
+    {
+        return $this->pool[$key] = $this->asyncRequest();
+    }
+
+    /**
+     * Retrieve a new async pending request.
+     *
+     * @return \Heritage\Http\Client\PendingRequest
+     */
+    protected function asyncRequest()
+    {
+        return $this->factory->setHandler($this->handler)->async();
+    }
+
+    /**
+     * Retrieve the requests in the pool.
+     *
+     * @return array<array-key, \Heritage\Http\Client\PendingRequest>
+     */
+    public function getRequests()
+    {
+        return $this->pool;
+    }
+
+    /**
+     * Add a request to the pool with a numeric index and forward the method call to the request.
+     *
+     * @param  string  $method
+     * @param  array  $parameters
+     * @return \Heritage\Http\Client\PendingRequest|\GuzzleHttp\Promise\Promise
+     */
+    public function __call($method, $parameters)
+    {
+        return $this->newRequest()->{$method}(...$parameters);
+    }
+}

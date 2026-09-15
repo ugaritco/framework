@@ -1,0 +1,132 @@
+<?php
+
+namespace Heritage\Tests\Integration\Queue;
+
+use Heritage\Bus\Dispatcher;
+use Heritage\Bus\Queueable;
+use Heritage\Contracts\Queue\Job;
+use Heritage\Queue\CallQueuedHandler;
+use Heritage\Queue\InteractsWithQueue;
+use Heritage\Queue\Middleware\Skip;
+use Ugarit\SerializableClosure\SerializableClosure;
+use Mockery;
+use Orchestra\Testbench\TestCase;
+
+class SkipMiddlewareTest extends TestCase
+{
+    public function testJobIsSkippedWhenConditionIsTrue()
+    {
+        $job = new SkipTestJob(skip: true);
+
+        $this->assertJobWasSkipped($job);
+    }
+
+    public function testJobIsSkippedWhenConditionIsTrueUsingClosure()
+    {
+        $job = new SkipTestJob(skip: new SerializableClosure(fn () => true));
+
+        $this->assertJobWasSkipped($job);
+    }
+
+    public function testJobIsNotSkippedWhenConditionIsFalse()
+    {
+        $job = new SkipTestJob(skip: false);
+
+        $this->assertJobRanSuccessfully($job);
+    }
+
+    public function testJobIsNotSkippedWhenConditionIsFalseUsingClosure()
+    {
+        $job = new SkipTestJob(skip: new SerializableClosure(fn () => false));
+
+        $this->assertJobRanSuccessfully($job);
+    }
+
+    public function testJobIsNotSkippedWhenConditionIsTrueWithUnless()
+    {
+        $job = new SkipTestJob(skip: true, useUnless: true);
+
+        $this->assertJobRanSuccessfully($job);
+    }
+
+    public function testJobIsNotSkippedWhenConditionIsTrueWithUnlessUsingClosure()
+    {
+        $job = new SkipTestJob(skip: new SerializableClosure(fn () => true), useUnless: true);
+
+        $this->assertJobRanSuccessfully($job);
+    }
+
+    public function testJobIsSkippedWhenConditionIsFalseWithUnless()
+    {
+        $job = new SkipTestJob(skip: false, useUnless: true);
+
+        $this->assertJobWasSkipped($job);
+    }
+
+    public function testJobIsSkippedWhenConditionIsFalseWithUnlessUsingClosure()
+    {
+        $job = new SkipTestJob(skip: new SerializableClosure(fn () => false), useUnless: true);
+
+        $this->assertJobWasSkipped($job);
+    }
+
+    protected function assertJobRanSuccessfully(SkipTestJob $class)
+    {
+        $this->assertJobHandled(class: $class, expectedHandledValue: true);
+    }
+
+    protected function assertJobWasSkipped(SkipTestJob $class)
+    {
+        $this->assertJobHandled(class: $class, expectedHandledValue: false);
+    }
+
+    protected function assertJobHandled(SkipTestJob $class, bool $expectedHandledValue)
+    {
+        $class::$handled = false;
+        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+
+        $job = Mockery::mock(Job::class);
+
+        $job->expects('hasFailed')->andReturn(false);
+        $job->shouldReceive('isReleased')->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
+
+        $instance->call($job, [
+            'command' => serialize($class),
+        ]);
+
+        $this->assertEquals($expectedHandledValue, $class::$handled);
+    }
+}
+
+class SkipTestJob
+{
+    use InteractsWithQueue, Queueable;
+
+    public static $handled = false;
+
+    public function __construct(
+        protected bool|SerializableClosure $skip,
+        protected bool $useUnless = false,
+    ) {
+    }
+
+    public function handle(): void
+    {
+        static::$handled = true;
+    }
+
+    public function middleware(): array
+    {
+        $skip = $this->skip instanceof SerializableClosure
+            ? $this->skip->getClosure()
+            : $this->skip;
+
+        if ($this->useUnless) {
+            return [Skip::unless($skip)];
+        }
+
+        return [Skip::when($skip)];
+    }
+}

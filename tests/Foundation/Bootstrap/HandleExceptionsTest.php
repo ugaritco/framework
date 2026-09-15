@@ -1,0 +1,438 @@
+<?php
+
+namespace Heritage\Tests\Foundation\Bootstrap;
+
+use Error;
+use ErrorException;
+use Heritage\Config\Repository as Config;
+use Heritage\Foundation\Application;
+use Heritage\Foundation\Bootstrap\HandleExceptions;
+use Heritage\Log\LogManager;
+use Heritage\Support\Env;
+use Mockery;
+use Monolog\Handler\NullHandler;
+use PHPUnit\Framework\TestCase;
+use ReflectionClass;
+use RuntimeException;
+
+class HandleExceptionsTest extends TestCase
+{
+    protected $app;
+    protected $config;
+
+    protected function setUp(): void
+    {
+        $this->app = Mockery::mock(Application::setInstance(new Application));
+
+        $this->app->instance('config', $this->config = new Config());
+    }
+
+    protected function handleExceptions()
+    {
+        return tap(new HandleExceptions(), function ($instance) {
+            (new ReflectionClass($instance))->getProperty('app')->setValue($instance, $this->app);
+        });
+    }
+
+    protected function tearDown(): void
+    {
+        Application::setInstance(null);
+        HandleExceptions::flushState($this);
+    }
+
+    public function testPhpDeprecations()
+    {
+        $logger = Mockery::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $logger->expects('channel')->with('deprecations')->andReturnSelf();
+        $logger->expects('warning')->with(sprintf('%s in %s on line %s',
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        ));
+
+        $this->handleExceptions()->handleError(
+            E_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        );
+    }
+
+    public function testPhpDeprecationsWithStackTraces()
+    {
+        $logger = Mockery::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $this->config->set('logging.deprecations', [
+            'channel' => 'null',
+            'trace' => true,
+        ]);
+
+        $logger->expects('channel')->with('deprecations')->andReturnSelf();
+        $logger->expects('warning')->with(
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            Mockery::on(function (array $context) {
+                $exception = $context['exception'] ?? null;
+
+                return $exception instanceof \ErrorException
+                    && $exception->getSeverity() === E_DEPRECATED
+                    && $exception->getFile() === '/home/user/ugarit/routes/web.php'
+                    && $exception->getLine() === 17
+                    && $exception->getTrace();
+            })
+        );
+
+        $this->handleExceptions()->handleError(
+            E_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        );
+    }
+
+    public function testNullValueAsChannelUsesNullDriver()
+    {
+        $logger = Mockery::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $this->config->set('logging.deprecations', [
+            'channel' => null,
+            'trace' => false,
+        ]);
+
+        $logger->expects('channel')->with('deprecations')->andReturnSelf();
+        $logger->expects('warning')->with(sprintf('%s in %s on line %s',
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        ));
+
+        $this->handleExceptions()->handleError(
+            E_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        );
+
+        $this->assertEquals([
+            'driver' => 'monolog',
+            'handler' => NullHandler::class,
+        ], $this->config->get('logging.channels.deprecations'));
+    }
+
+    public function testUserDeprecations()
+    {
+        $logger = Mockery::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $logger->expects('channel')->with('deprecations')->andReturnSelf();
+        $logger->expects('warning')->with(sprintf('%s in %s on line %s',
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        ));
+
+        $this->handleExceptions()->handleError(
+            E_USER_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        );
+    }
+
+    public function testUserDeprecationsWithStackTraces()
+    {
+        $logger = Mockery::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $this->config->set('logging.deprecations', [
+            'channel' => 'null',
+            'trace' => true,
+        ]);
+
+        $logger->expects('channel')->with('deprecations')->andReturnSelf();
+        $logger->expects('warning')->with(
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            Mockery::on(function (array $context) {
+                $exception = $context['exception'] ?? null;
+
+                return $exception instanceof \ErrorException
+                    && $exception->getSeverity() === E_USER_DEPRECATED
+                    && $exception->getFile() === '/home/user/ugarit/routes/web.php'
+                    && $exception->getLine() === 17
+                    && $exception->getTrace();
+            })
+        );
+
+        $this->handleExceptions()->handleError(
+            E_USER_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        );
+    }
+
+    public function testErrors()
+    {
+        $logger = Mockery::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+
+        $logger->shouldNotReceive('channel');
+        $logger->shouldNotReceive('warning');
+
+        $this->expectExceptionObject(new ErrorException('Something went wrong'));
+
+        $this->handleExceptions()->handleError(
+            E_ERROR,
+            'Something went wrong',
+            '/home/user/ugarit/src/Providers/AppServiceProvider.php',
+            17
+        );
+    }
+
+    public function testEnsuresDeprecationsDriver()
+    {
+        $logger = Mockery::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $logger->expects('channel')->andReturnSelf();
+        $logger->expects('warning');
+
+        $this->config->set('logging.channels.stack', [
+            'driver' => 'stack',
+            'channels' => ['single'],
+            'ignore_exceptions' => false,
+        ]);
+        $this->config->set('logging.deprecations', 'stack');
+
+        $this->handleExceptions()->handleError(
+            E_USER_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        );
+
+        $this->assertEquals(
+            [
+                'driver' => 'stack',
+                'channels' => ['single'],
+                'ignore_exceptions' => false,
+            ],
+            $this->config->get('logging.channels.deprecations')
+        );
+    }
+
+    public function testEnsuresNullDeprecationsDriver()
+    {
+        $logger = Mockery::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $logger->expects('channel')->andReturnSelf();
+        $logger->expects('warning');
+
+        $this->handleExceptions()->handleError(
+            E_USER_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        );
+
+        $this->assertEquals(
+            NullHandler::class,
+            $this->config->get('logging.channels.deprecations.handler')
+        );
+    }
+
+    public function testEnsuresNullLogDriver()
+    {
+        $logger = Mockery::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $logger->expects('channel')->andReturnSelf();
+        $logger->expects('warning');
+
+        $this->handleExceptions()->handleError(
+            E_USER_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        );
+
+        $this->assertEquals(
+            NullHandler::class,
+            $this->config->get('logging.channels.deprecations.handler')
+        );
+    }
+
+    public function testDoNotOverrideExistingNullLogDriver()
+    {
+        $logger = Mockery::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $logger->expects('channel')->andReturnSelf();
+        $logger->expects('warning');
+
+        $this->config->set('logging.channels.null', [
+            'driver' => 'monolog',
+            'handler' => CustomNullHandler::class,
+        ]);
+
+        $this->handleExceptions()->handleError(
+            E_USER_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        );
+
+        $this->assertEquals(
+            CustomNullHandler::class,
+            $this->config->get('logging.channels.deprecations.handler')
+        );
+    }
+
+    public function testNoDeprecationsDriverIfNoDeprecationsHereSend()
+    {
+        $this->assertEquals(null, $this->config->get('logging.deprecations'));
+        $this->assertEquals(null, $this->config->get('logging.channels.deprecations'));
+    }
+
+    public function testIgnoreDeprecationIfLoggerUnresolvable()
+    {
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $this->handleExceptions()->handleError(
+            E_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        );
+    }
+
+    public function testIgnoreDeprecationIfLoggingFails()
+    {
+        $logger = Mockery::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $logger->expects('channel')->with('deprecations')->andThrow(new Error('Class "Monolog\Logger" not found'));
+
+        $this->handleExceptions()->handleError(
+            E_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        );
+    }
+
+    public function testItIgnoreDeprecationLoggingWhenRunningUnitTests()
+    {
+        $resolved = false;
+        $this->app->bind(LogManager::class, function () use (&$resolved) {
+            $resolved = true;
+
+            throw new RuntimeException();
+        });
+        $this->app->expects('runningUnitTests')->andReturn(true);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $this->handleExceptions()->handleError(
+            E_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        );
+
+        $this->assertFalse($resolved);
+    }
+
+    public function testItCanForceViaConfigDeprecationLoggingWhenRunningUnitTests()
+    {
+        $logger = Mockery::mock(LogManager::class);
+        $logger->expects('channel')->andReturnSelf();
+        $logger->expects('warning');
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(true);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        Env::getRepository()->set('LOG_DEPRECATIONS_WHILE_TESTING', true);
+
+        $this->handleExceptions()->handleError(
+            E_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/ugarit/routes/web.php',
+            17
+        );
+    }
+
+    public function testForgetApp()
+    {
+        $instance = $this->handleExceptions();
+
+        $appResolver = fn () => (new ReflectionClass($instance))->getProperty('app')->getValue($instance);
+
+        $this->assertNotNull($appResolver());
+
+        HandleExceptions::forgetApp();
+
+        $this->assertNull($appResolver());
+    }
+
+    public function testHandlerForgetsPreviousApp()
+    {
+        $instance = $this->handleExceptions();
+
+        $appResolver = fn () => (new ReflectionClass($instance))->getProperty('app')->getValue($instance);
+
+        $this->assertSame($this->app, $appResolver());
+
+        $instance->bootstrap($newApp = tap(Mockery::mock(Application::class), function ($app) {
+            $app->expects('environment')->andReturn(true);
+        }));
+
+        $this->assertNotSame($this->app, $appResolver());
+        $this->assertSame($newApp, $appResolver());
+    }
+
+    public function testDeprecationErrorsAreIgnoredWhenAppIsNull()
+    {
+        $instance = $this->handleExceptions();
+
+        HandleExceptions::forgetApp();
+
+        // Should not throw when static::$app is null (e.g., during Octane request marshaling)
+        $instance->handleError(
+            E_USER_DEPRECATED,
+            'Directly setting property "request" of "Heritage\Http\Request" is deprecated',
+            '/vendor/symfony/http-foundation/Request.php',
+            100
+        );
+
+        $this->assertTrue(true);
+    }
+}
+
+class CustomNullHandler extends NullHandler
+{
+}

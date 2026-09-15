@@ -1,0 +1,48 @@
+{
+    "name": "heritage/bus",
+    "description": "The Heritage Bus package.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Muath R Abu Ouda",
+            "email": "muathrabuouda@hotmail.com",
+            "role": "Vision Leader of Ugarit"
+        },
+        {
+            "name": "Taylor Otwell",
+            "email": "taylor@laravel.com",
+            "role": "Original Creator & Primary Developer"
+        }
+    ],
+    "homepage": "https://ugarit.com",
+    "support": {
+        "issues": "https://github.com/ugarit/framework/issues",
+        "source": "https://github.com/ugarit/framework"
+    },
+    "require": {
+        "php": "^8.3",
+        "heritage/collections": "^1.00.00",
+        "heritage/conditionable": "^1.00.00",
+        "heritage/contracts": "^1.00.00",
+        "heritage/pipeline": "^1.00.00",
+        "heritage/support": "^1.00.00"
+    },
+    "suggest": {
+        "heritage/queue": "Required to use closures when chaining jobs (^13.0)."
+    },
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "Heritage\\Bus\\": ""
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "13.0.x-dev"
+        }
+    },
+    "version": "1.00.00"
+}

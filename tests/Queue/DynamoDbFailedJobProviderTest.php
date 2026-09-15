@@ -1,0 +1,173 @@
+<?php
+
+namespace Heritage\Tests\Queue;
+
+use Aws\DynamoDb\DynamoDbClient;
+use Carbon\CarbonImmutable;
+use DateTimeInterface;
+use Exception;
+use Heritage\Queue\Failed\DynamoDbFailedJobProvider;
+use Heritage\Support\Carbon;
+use Heritage\Support\Str;
+use Mockery;
+use PHPUnit\Framework\TestCase;
+
+class DynamoDbFailedJobProviderTest extends TestCase
+{
+    public function testCanProperlyLogFailedJob()
+    {
+        $uuid = Str::orderedUuid();
+
+        Str::createUuidsUsing(function () use ($uuid) {
+            return $uuid;
+        });
+
+        Carbon::setTestNow($now = CarbonImmutable::now());
+
+        $exception = new Exception('Something went wrong.');
+
+        $dynamoDbClient = Mockery::mock(DynamoDbClient::class);
+
+        $dynamoDbClient->expects('putItem')->with([
+            'TableName' => 'table',
+            'Item' => [
+                'application' => ['S' => 'application'],
+                'uuid' => ['S' => (string) $uuid],
+                'connection' => ['S' => 'connection'],
+                'queue' => ['S' => 'queue'],
+                'payload' => ['S' => json_encode(['uuid' => (string) $uuid])],
+                'exception' => ['S' => (string) $exception],
+                'failed_at' => ['N' => (string) $now->getTimestamp()],
+                'expires_at' => ['N' => (string) $now->addWeek()->getTimestamp()],
+            ],
+        ]);
+
+        $provider = new DynamoDbFailedJobProvider($dynamoDbClient, 'application', 'table');
+
+        $provider->log('connection', 'queue', json_encode(['uuid' => (string) $uuid]), $exception);
+
+        Str::createUuidsNormally();
+    }
+
+    public function testCanRetrieveAllFailedJobs()
+    {
+        $dynamoDbClient = Mockery::mock(DynamoDbClient::class);
+
+        $time = time();
+
+        $dynamoDbClient->expects('query')->with([
+            'TableName' => 'table',
+            'Select' => 'ALL_ATTRIBUTES',
+            'KeyConditionExpression' => 'application = :application',
+            'ExpressionAttributeValues' => [
+                ':application' => ['S' => 'application'],
+            ],
+            'ScanIndexForward' => false,
+        ])->andReturn([
+            'Items' => [
+                [
+                    'application' => ['S' => 'application'],
+                    'uuid' => ['S' => 'uuid'],
+                    'connection' => ['S' => 'connection'],
+                    'queue' => ['S' => 'queue'],
+                    'payload' => ['S' => 'payload'],
+                    'exception' => ['S' => 'exception'],
+                    'failed_at' => ['N' => (string) $time],
+                    'expires_at' => ['N' => (string) $time],
+                ],
+            ],
+        ]);
+
+        $provider = new DynamoDbFailedJobProvider($dynamoDbClient, 'application', 'table');
+
+        $response = $provider->all();
+
+        $this->assertEquals([
+            (object) [
+                'id' => 'uuid',
+                'connection' => 'connection',
+                'queue' => 'queue',
+                'payload' => 'payload',
+                'exception' => 'exception',
+                'failed_at' => Carbon::createFromTimestamp($time)->format(DateTimeInterface::ISO8601),
+            ],
+        ], $response);
+    }
+
+    public function testASingleJobCanBeFound()
+    {
+        $dynamoDbClient = Mockery::mock(DynamoDbClient::class);
+
+        $time = time();
+
+        $dynamoDbClient->expects('getItem')->with([
+            'TableName' => 'table',
+            'Key' => [
+                'application' => ['S' => 'application'],
+                'uuid' => ['S' => 'id'],
+            ],
+        ])->andReturn([
+            'Item' => [
+                'application' => ['S' => 'application'],
+                'uuid' => ['S' => 'uuid'],
+                'connection' => ['S' => 'connection'],
+                'queue' => ['S' => 'queue'],
+                'payload' => ['S' => 'payload'],
+                'exception' => ['S' => 'exception'],
+                'failed_at' => ['N' => (string) $time],
+                'expires_at' => ['N' => (string) $time],
+            ],
+        ]);
+
+        $provider = new DynamoDbFailedJobProvider($dynamoDbClient, 'application', 'table');
+
+        $response = $provider->find('id');
+
+        $this->assertEquals(
+            (object) [
+                'id' => 'uuid',
+                'connection' => 'connection',
+                'queue' => 'queue',
+                'payload' => 'payload',
+                'exception' => 'exception',
+                'failed_at' => Carbon::createFromTimestamp($time)->format(DateTimeInterface::ISO8601),
+            ], $response
+        );
+    }
+
+    public function testNullIsReturnedIfJobNotFound()
+    {
+        $dynamoDbClient = Mockery::mock(DynamoDbClient::class);
+
+        $dynamoDbClient->expects('getItem')->with([
+            'TableName' => 'table',
+            'Key' => [
+                'application' => ['S' => 'application'],
+                'uuid' => ['S' => 'id'],
+            ],
+        ])->andReturn([]);
+
+        $provider = new DynamoDbFailedJobProvider($dynamoDbClient, 'application', 'table');
+
+        $response = $provider->find('id');
+
+        $this->assertNull($response);
+    }
+
+    public function testJobsCanBeDeleted()
+    {
+        $dynamoDbClient = Mockery::mock(DynamoDbClient::class);
+
+        $dynamoDbClient->expects('deleteItem')->with([
+            'TableName' => 'table',
+            'Key' => [
+                'application' => ['S' => 'application'],
+                'uuid' => ['S' => 'id'],
+            ],
+        ])->andReturn([]);
+
+        $provider = new DynamoDbFailedJobProvider($dynamoDbClient, 'application', 'table');
+
+        $provider->forget('id');
+    }
+}

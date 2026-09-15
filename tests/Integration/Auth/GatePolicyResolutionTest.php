@@ -1,0 +1,141 @@
+<?php
+
+namespace Heritage\Tests\Integration\Auth;
+
+use Heritage\Auth\Access\Events\GateEvaluated;
+use Heritage\Database\Eloquent\Attributes\UsePolicy;
+use Heritage\Database\Eloquent\Model;
+use Heritage\Support\Facades\Event;
+use Heritage\Support\Facades\Gate;
+use Heritage\Tests\Integration\Auth\Fixtures\AuthenticationTestUser;
+use Heritage\Tests\Integration\Auth\Fixtures\Models\Policies\Nested\SubTestUserPolicy;
+use Heritage\Tests\Integration\Auth\Fixtures\Policies\AuthenticationTestUserPolicy;
+use Heritage\Tests\Integration\Auth\Fixtures\Policies\Nested\TopTestUserPolicy;
+use Orchestra\Testbench\TestCase;
+
+class GatePolicyResolutionTest extends TestCase
+{
+    public function testGateEvaluationEventIsFired()
+    {
+        Event::fake();
+
+        Gate::check('foo');
+
+        Event::assertDispatched(GateEvaluated::class);
+    }
+
+    public function testPolicyCanBeGuessedUsingClassConventions()
+    {
+        $this->assertInstanceOf(
+            AuthenticationTestUserPolicy::class,
+            Gate::getPolicyFor(AuthenticationTestUser::class)
+        );
+
+        $this->assertInstanceOf(
+            AuthenticationTestUserPolicy::class,
+            Gate::getPolicyFor(Fixtures\Models\AuthenticationTestUser::class)
+        );
+
+        $this->assertNull(
+            Gate::getPolicyFor(static::class)
+        );
+    }
+
+    public function testPolicyCanBeGuessedForParallelClassHierarchies()
+    {
+        $this->assertInstanceOf(
+            TopTestUserPolicy::class,
+            Gate::getPolicyFor(Fixtures\Models\Nested\TopTestUser::class)
+        );
+
+        $this->assertInstanceOf(
+            SubTestUserPolicy::class,
+            Gate::getPolicyFor(Fixtures\Models\Nested\SubTestUser::class)
+        );
+    }
+
+    public function testPolicyCanBeGuessedUsingCallback()
+    {
+        Gate::guessPolicyNamesUsing(function () {
+            return AuthenticationTestUserPolicy::class;
+        });
+
+        $this->assertInstanceOf(
+            AuthenticationTestUserPolicy::class,
+            Gate::getPolicyFor(AuthenticationTestUser::class)
+        );
+    }
+
+    public function testPolicyCanBeGuessedMultipleTimes()
+    {
+        Gate::guessPolicyNamesUsing(function () {
+            return [
+                'App\\Policies\\TestUserPolicy',
+                AuthenticationTestUserPolicy::class,
+            ];
+        });
+
+        $this->assertInstanceOf(
+            AuthenticationTestUserPolicy::class,
+            Gate::getPolicyFor(AuthenticationTestUser::class)
+        );
+    }
+
+    public function testPolicyCanBeGivenByAttribute(): void
+    {
+        Gate::guessPolicyNamesUsing(fn () => [AuthenticationTestUserPolicy::class]);
+
+        $this->assertInstanceOf(PostPolicy::class, Gate::getPolicyFor(Post::class));
+    }
+
+    public function testPolicyGivenByAttributeIsInheritedByChildClasses(): void
+    {
+        $this->assertInstanceOf(PostPolicy::class, Gate::getPolicyFor(ChildPost::class));
+        $this->assertInstanceOf(PostPolicy::class, Gate::getPolicyFor(GrandchildPost::class));
+    }
+
+    public function testPolicyGivenByAttributeOnChildClassOverridesParentAttribute(): void
+    {
+        $this->assertInstanceOf(AudioPostPolicy::class, Gate::getPolicyFor(AudioPost::class));
+    }
+
+    public function testRegisteredPolicyTakesPrecedenceOverInheritedAttribute(): void
+    {
+        Gate::policy(ChildPost::class, AudioPostPolicy::class);
+
+        $this->assertInstanceOf(AudioPostPolicy::class, Gate::getPolicyFor(ChildPost::class));
+    }
+
+    public function testGuessedPolicyTakesPrecedenceOverInheritedAttribute(): void
+    {
+        Gate::guessPolicyNamesUsing(fn () => [AuthenticationTestUserPolicy::class]);
+
+        $this->assertInstanceOf(AuthenticationTestUserPolicy::class, Gate::getPolicyFor(ChildPost::class));
+    }
+}
+
+#[UsePolicy(PostPolicy::class)]
+class Post extends Model
+{
+}
+
+class ChildPost extends Post
+{
+}
+
+class GrandchildPost extends ChildPost
+{
+}
+
+#[UsePolicy(AudioPostPolicy::class)]
+class AudioPost extends Post
+{
+}
+
+class PostPolicy
+{
+}
+
+class AudioPostPolicy
+{
+}

@@ -1,0 +1,74 @@
+<?php
+
+namespace Heritage\Tests\Integration\Queue;
+
+use Heritage\Bus\Batchable;
+use Heritage\Bus\Dispatcher;
+use Heritage\Bus\Queueable;
+use Heritage\Contracts\Queue\Job;
+use Heritage\Queue\CallQueuedHandler;
+use Heritage\Queue\InteractsWithQueue;
+use Heritage\Queue\Middleware\SkipIfBatchCancelled;
+use Mockery;
+use Orchestra\Testbench\TestCase;
+
+class SkipIfBatchCancelledTest extends TestCase
+{
+    public function testJobsAreSkippedOnceBatchIsCancelled()
+    {
+        [$beforeCancelled] = (new SkipCancelledBatchableTestJob())->withFakeBatch();
+        [$afterCancelled] = (new SkipCancelledBatchableTestJob())->withFakeBatch(
+            cancelledAt: \Carbon\CarbonImmutable::now()
+        );
+
+        $this->assertJobRanSuccessfully($beforeCancelled);
+        $this->assertJobWasSkipped($afterCancelled);
+    }
+
+    protected function assertJobRanSuccessfully($class)
+    {
+        $this->assertJobHandled($class, true);
+    }
+
+    protected function assertJobWasSkipped($class)
+    {
+        $this->assertJobHandled($class, false);
+    }
+
+    protected function assertJobHandled($class, $expectedHandledValue)
+    {
+        $class::$handled = false;
+        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+
+        $job = Mockery::mock(Job::class);
+
+        $job->expects('uuid')->andReturn('simple-test-uuid');
+        $job->expects('hasFailed')->andReturn(false);
+        $job->shouldReceive('isReleased')->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
+
+        $instance->call($job, [
+            'command' => serialize($command = $class),
+        ]);
+
+        $this->assertEquals($expectedHandledValue, $class::$handled);
+    }
+}
+
+class SkipCancelledBatchableTestJob
+{
+    use Batchable, InteractsWithQueue, Queueable;
+
+    public static $handled = false;
+
+    public function handle()
+    {
+        static::$handled = true;
+    }
+
+    public function middleware()
+    {
+        return [new SkipIfBatchCancelled];
+    }
+}

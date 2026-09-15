@@ -1,0 +1,272 @@
+<?php
+
+namespace Heritage\Tests\Queue;
+
+use Exception;
+use Heritage\Container\Container;
+use Heritage\Contracts\Events\Dispatcher;
+use Heritage\Contracts\Queue\QueueableEntity;
+use Heritage\Contracts\Queue\ShouldBeUnique;
+use Heritage\Contracts\Queue\ShouldQueue;
+use Heritage\Contracts\Queue\ShouldQueueAfterCommit;
+use Heritage\Database\DatabaseTransactionsManager;
+use Heritage\Queue\InteractsWithQueue;
+use Heritage\Queue\Jobs\SyncJob;
+use Heritage\Queue\SyncQueue;
+use LogicException;
+use Mockery;
+use PHPUnit\Framework\TestCase;
+
+class QueueSyncQueueTest extends TestCase
+{
+    protected function tearDown(): void
+    {
+        Container::setInstance(null);
+    }
+
+    public function testPushShouldFireJobInstantly()
+    {
+        unset($_SERVER['__sync.test']);
+
+        $sync = new SyncQueue;
+        $container = new Container;
+        $sync->setContainer($container);
+
+        $sync->push(SyncQueueTestHandler::class, ['foo' => 'bar']);
+        $this->assertInstanceOf(SyncJob::class, $_SERVER['__sync.test'][0]);
+        $this->assertEquals(['foo' => 'bar'], $_SERVER['__sync.test'][1]);
+    }
+
+    public function testFailedJobGetsHandledWhenAnExceptionIsThrown()
+    {
+        unset($_SERVER['__sync.failed']);
+
+        $sync = new SyncQueue;
+        $container = new Container;
+        Container::setInstance($container);
+        $events = Mockery::mock(Dispatcher::class);
+        $events->expects('dispatch')->times(4);
+        $container->instance('events', $events);
+        $container->instance(Dispatcher::class, $events);
+        $sync->setContainer($container);
+
+        try {
+            $sync->push(FailingSyncQueueTestHandler::class, ['foo' => 'bar']);
+        } catch (Exception) {
+            $this->assertTrue($_SERVER['__sync.failed']);
+        }
+
+        Container::setInstance();
+    }
+
+    public function testFailedJobHasAccessToJobInstance()
+    {
+        unset($_SERVER['__sync.failed']);
+
+        $sync = new SyncQueue;
+        $container = new Container;
+        $container->bind(\Heritage\Contracts\Events\Dispatcher::class, \Heritage\Events\Dispatcher::class);
+        $container->bind(\Heritage\Contracts\Bus\Dispatcher::class, \Heritage\Bus\Dispatcher::class);
+        $container->bind(\Heritage\Contracts\Container\Container::class, \Heritage\Container\Container::class);
+        $sync->setContainer($container);
+
+        SyncQueue::createPayloadUsing(function ($connection, $queue, $payload) {
+            return ['data' => ['extra' => 'extraValue']];
+        });
+
+        try {
+            $sync->push(new FailingSyncQueueJob());
+        } catch (LogicException) {
+            $this->assertSame('extraValue', $_SERVER['__sync.failed']);
+        }
+    }
+
+    public function testCreatesPayloadObject()
+    {
+        $sync = new SyncQueue;
+        $container = new Container;
+        $container->bind(\Heritage\Contracts\Events\Dispatcher::class, \Heritage\Events\Dispatcher::class);
+        $container->bind(\Heritage\Contracts\Bus\Dispatcher::class, \Heritage\Bus\Dispatcher::class);
+        $container->bind(\Heritage\Contracts\Container\Container::class, \Heritage\Container\Container::class);
+        $sync->setContainer($container);
+
+        SyncQueue::createPayloadUsing(function ($connection, $queue, $payload) {
+            return ['data' => ['extra' => 'extraValue']];
+        });
+
+        try {
+            $sync->push(new SyncQueueJob());
+        } catch (LogicException $e) {
+            $this->assertSame('extraValue', $e->getMessage());
+        }
+    }
+
+    public function testItAddsATransactionCallbackForAfterCommitJobs()
+    {
+        $sync = new SyncQueue;
+        $container = new Container;
+        $container->bind(\Heritage\Contracts\Container\Container::class, \Heritage\Container\Container::class);
+        $transactionManager = Mockery::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('addCallback')->andReturn(null);
+        $transactionManager->shouldNotReceive('addCallbackForRollback');
+        $container->instance('db.transactions', $transactionManager);
+
+        $sync->setContainer($container);
+        $sync->push(new SyncQueueAfterCommitJob());
+    }
+
+    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
+    {
+        $sync = new SyncQueue;
+        $container = new Container;
+        $container->bind(\Heritage\Contracts\Container\Container::class, \Heritage\Container\Container::class);
+        $transactionManager = Mockery::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('addCallback')->andReturn(null);
+        $transactionManager->shouldNotReceive('addCallbackForRollback');
+        $container->instance('db.transactions', $transactionManager);
+
+        $sync->setContainer($container);
+        $sync->push(new SyncQueueAfterCommitInterfaceJob());
+    }
+
+    public function testItAddsATransactionCallbackForAfterCommitUniqueJobs()
+    {
+        $sync = new SyncQueue;
+        $container = new Container;
+        $container->bind(\Heritage\Contracts\Container\Container::class, \Heritage\Container\Container::class);
+        $transactionManager = Mockery::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('addCallback')->andReturn(null);
+        $transactionManager->expects('addCallbackForRollback')->andReturn(null);
+        $container->instance('db.transactions', $transactionManager);
+
+        $sync->setContainer($container);
+        $sync->push(new SyncQueueAfterCommitUniqueJob());
+    }
+
+    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
+    {
+        $sync = new SyncQueue;
+        $container = new Container;
+        $container->bind(\Heritage\Contracts\Container\Container::class, \Heritage\Container\Container::class);
+        $transactionManager = Mockery::mock(DatabaseTransactionsManager::class);
+        $transactionManager->expects('addCallback')->andReturn(null);
+        $transactionManager->expects('addCallbackForRollback')->andReturn(null);
+        $container->instance('db.transactions', $transactionManager);
+
+        $sync->setContainer($container);
+        $sync->push(new SyncQueueAfterCommitInterfaceUniqueJob());
+    }
+}
+
+class SyncQueueTestEntity implements QueueableEntity
+{
+    public function getQueueableId()
+    {
+        return 1;
+    }
+
+    public function getQueueableConnection()
+    {
+        //
+    }
+
+    public function getQueueableRelations()
+    {
+        //
+    }
+}
+
+class SyncQueueTestHandler
+{
+    public function fire($job, $data)
+    {
+        $_SERVER['__sync.test'] = func_get_args();
+    }
+}
+
+class FailingSyncQueueTestHandler
+{
+    public function fire($job, $data)
+    {
+        throw new Exception;
+    }
+
+    public function failed()
+    {
+        $_SERVER['__sync.failed'] = true;
+    }
+}
+
+class FailingSyncQueueJob implements ShouldQueue
+{
+    use InteractsWithQueue;
+
+    public function handle()
+    {
+        throw new LogicException();
+    }
+
+    public function failed()
+    {
+        $payload = $this->job->payload();
+
+        $_SERVER['__sync.failed'] = $payload['data']['extra'];
+    }
+}
+
+class SyncQueueJob implements ShouldQueue
+{
+    use InteractsWithQueue;
+
+    public function handle()
+    {
+        throw new LogicException($this->getValueFromJob('extra'));
+    }
+
+    public function getValueFromJob($key)
+    {
+        $payload = $this->job->payload();
+
+        return $payload['data'][$key] ?? null;
+    }
+}
+
+class SyncQueueAfterCommitJob
+{
+    use InteractsWithQueue;
+
+    public $afterCommit = true;
+
+    public function handle()
+    {
+    }
+}
+
+class SyncQueueAfterCommitInterfaceJob implements ShouldQueueAfterCommit
+{
+    use InteractsWithQueue;
+
+    public function handle()
+    {
+    }
+}
+
+class SyncQueueAfterCommitUniqueJob implements ShouldBeUnique
+{
+    use InteractsWithQueue;
+
+    public $afterCommit = true;
+
+    public function handle()
+    {
+    }
+}
+
+class SyncQueueAfterCommitInterfaceUniqueJob implements ShouldBeUnique, ShouldQueueAfterCommit
+{
+    use InteractsWithQueue;
+
+    public function handle()
+    {
+    }
+}

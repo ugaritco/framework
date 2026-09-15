@@ -1,0 +1,73 @@
+<?php
+
+namespace Heritage\Tests\Http;
+
+use Heritage\Database\Eloquent\Model;
+use Heritage\Http\Resources\Json\JsonResource;
+use Heritage\Http\Resources\MissingValue;
+use Mockery;
+use PHPUnit\Framework\TestCase;
+
+class JsonResourceTest extends TestCase
+{
+    public function testJsonResourceNullAttributes()
+    {
+        $model = new class extends Model {
+        };
+
+        $model->setAttribute('relation_sum_column', null);
+        $model->setAttribute('relation_count', null);
+        $model->setAttribute('relation_exists', null);
+
+        $resource = new JsonResource($model);
+
+        $this->assertNotInstanceOf(MissingValue::class, $resource->whenAggregated('relation', 'column', 'sum'));
+        $this->assertNotInstanceOf(MissingValue::class, $resource->whenCounted('relation'));
+        $this->assertNotInstanceOf(MissingValue::class, $resource->whenExistsLoaded('relation'));
+
+        $this->assertNull($resource->whenAggregated('relation', 'column', 'sum'));
+        $this->assertNull($resource->whenCounted('relation'));
+        $this->assertNull($resource->whenExistsLoaded('relation'));
+    }
+
+    public function testJsonResourceToJsonSucceedsWithPriorErrors(): void
+    {
+        $model = new class extends Model {
+        };
+
+        $resource = Mockery::mock(JsonResource::class, ['resource' => $model])
+            ->makePartial()
+            ->expects('jsonSerialize')->andReturn(['foo' => 'bar'])
+            ->getMock();
+
+        // Simulate a JSON error
+        json_decode('{');
+        $this->assertNotSame(JSON_ERROR_NONE, json_last_error());
+
+        $this->assertSame('{"foo":"bar"}', $resource->toJson(JSON_THROW_ON_ERROR));
+    }
+
+    public function testJsonResourceToPrettyPrint(): void
+    {
+        $model = new class extends Model {
+        };
+
+        $resource = Mockery::mock(JsonResource::class, ['resource' => $model])
+            ->makePartial()
+            ->expects('jsonSerialize')->times(3)->andReturn(['foo' => 'bar', 'bar' => 'foo', 'number' => 123])
+            ->getMock();
+
+        $results = $resource->toPrettyJson();
+        $expected = $resource->toJson(JSON_PRETTY_PRINT);
+
+        $this->assertJsonStringEqualsJsonString($expected, $results);
+        $this->assertSame($expected, $results);
+        $this->assertStringContainsString("\n", $results);
+        $this->assertStringContainsString('    ', $results);
+
+        $results = $resource->toPrettyJson(JSON_NUMERIC_CHECK);
+        $this->assertStringContainsString("\n", $results);
+        $this->assertStringContainsString('    ', $results);
+        $this->assertStringContainsString('"number": 123', $results);
+    }
+}

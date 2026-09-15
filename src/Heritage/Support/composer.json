@@ -1,0 +1,73 @@
+{
+    "name": "heritage/support",
+    "description": "The Heritage Support package.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Muath R Abu Ouda",
+            "email": "muathrabuouda@hotmail.com",
+            "role": "Vision Leader of Ugarit"
+        },
+        {
+            "name": "Taylor Otwell",
+            "email": "taylor@laravel.com",
+            "role": "Original Creator & Primary Developer"
+        }
+    ],
+    "homepage": "https://ugarit.com",
+    "support": {
+        "issues": "https://github.com/ugarit/framework/issues",
+        "source": "https://github.com/ugarit/framework"
+    },
+    "require": {
+        "php": "^8.3",
+        "ext-ctype": "*",
+        "ext-filter": "*",
+        "ext-mbstring": "*",
+        "doctrine/inflector": "^2.0",
+        "heritage/collections": "^1.00.00",
+        "heritage/conditionable": "^1.00.00",
+        "heritage/contracts": "^1.00.00",
+        "heritage/macroable": "^1.00.00",
+        "heritage/reflection": "^1.00.00",
+        "nesbot/carbon": "^3.8.4",
+        "symfony/polyfill-php85": "^1.36",
+        "voku/portable-ascii": "^2.0.2"
+    },
+    "replace": {
+        "spatie/once": "*"
+    },
+    "conflict": {
+        "tightenco/collect": "<5.5.33"
+    },
+    "suggest": {
+        "heritage/filesystem": "Required to use the Composer class (^13.0).",
+        "ugarit/serializable-closure": "Required to use the once function (^2.0.10).",
+        "league/commonmark": "Required to use Str::markdown() and Stringable::markdown() (^2.7).",
+        "league/uri": "Required to use the Uri class (^7.5.1).",
+        "ramsey/uuid": "Required to use Str::uuid() (^4.7).",
+        "symfony/process": "Required to use the Composer class (^7.4 || ^8.0).",
+        "symfony/uid": "Required to use Str::ulid() (^7.4 || ^8.0).",
+        "symfony/var-dumper": "Required to use the dd function (^7.4 || ^8.0).",
+        "vlucas/phpdotenv": "Required to use the Env class and env helper (^5.6.1)."
+    },
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "Heritage\\Support\\": ""
+        },
+        "files": [
+            "functions.php",
+            "helpers.php"
+        ]
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "13.0.x-dev"
+        }
+    },
+    "version": "1.00.00"
+}
