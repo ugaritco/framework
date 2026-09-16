@@ -141,6 +141,7 @@
         "heritage/translation": "self.version",
         "heritage/validation": "self.version",
         "heritage/view": "self.version",
+        "laravel/framework": "13.32.0",
         "spatie/once": "*"
     },
     "conflict": {
