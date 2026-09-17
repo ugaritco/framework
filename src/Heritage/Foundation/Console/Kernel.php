@@ -222,7 +222,9 @@ class Kernel implements KernelContract
             return;
         }
 
-        $this->commandStartedAt->setTimezone($this->app['config']->get('app.timezone') ?? 'UTC');
+        $timezone = $this->app->bound('config') ? ($this->app['config']->get('app.timezone') ?? 'UTC') : 'UTC';
+
+        $this->commandStartedAt->setTimezone($timezone);
 
         foreach ($this->commandLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
             $end ??= Carbon::now();

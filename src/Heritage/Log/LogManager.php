@@ -600,7 +600,9 @@ class LogManager implements LoggerInterface
      */
     protected function configurationFor($name)
     {
-        return $this->app['config']["logging.channels.{$name}"];
+        return $this->app->bound('config')
+            ? $this->app['config']["logging.channels.{$name}"]
+            : null;
     }
 
     /**
@@ -610,7 +612,9 @@ class LogManager implements LoggerInterface
      */
     public function getDefaultDriver()
     {
-        return $this->app['config']['logging.default'];
+        return $this->app->bound('config')
+            ? $this->app['config']['logging.default']
+            : null;
     }
 
     /**
