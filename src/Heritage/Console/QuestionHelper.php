@@ -66,7 +66,7 @@ class QuestionHelper extends SymfonyQuestionHelper
             }
         }
 
-        $output->write('<options=bold>❯ </>');
+        $output->write('Windows' === PHP_OS_FAMILY ? '<options=bold>> </>' : '<options=bold>❯ </>');
     }
 
     /**
