@@ -130,7 +130,7 @@ class PackageManifest
         $ignoreAll = in_array('*', $ignore = $this->packagesToIgnore());
 
         $this->write((new Collection($packages))->mapWithKeys(function ($package) {
-            return [$this->format($package['name']) => $package['extra']['ugarit'] ?? []];
+            return [$this->format($package['name']) => $package['extra']['ugarit'] ?? $package['extra']['heritage'] ?? []];
         })->each(function ($configuration) use (&$ignore) {
             $ignore = array_merge($ignore, $configuration['dont-discover'] ?? []);
         })->reject(function ($configuration, $package) use ($ignore, $ignoreAll) {
