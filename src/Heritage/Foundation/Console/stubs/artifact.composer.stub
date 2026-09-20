@@ -1,0 +1,31 @@
+{
+    "name": "ugarit-artifacts/{{ name }}",
+    "description": "{{ description }}",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Muath R Abu Ouda",
+            "email": "muathrabuouda@hotmail.com",
+            "role": "Vision Leader of Ugarit"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "ugarit/framework": "^1.00.00"
+    },
+    "autoload": {
+        "psr-4": {
+            "Ugarit\\Artifacts\\{{ StudlyName }}\\": "src/",
+            "Ugarit\\Artifacts\\{{ StudlyName }}\\Database\\Factories\\": "database/factories/",
+            "Ugarit\\Artifacts\\{{ StudlyName }}\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "extra": {
+        "ugarit": {
+            "providers": [
+                "Ugarit\\Artifacts\\{{ StudlyName }}\\Providers\\{{ StudlyName }}ServiceProvider"
+            ]
+        }
+    }
+}
