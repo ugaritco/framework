@@ -1,0 +1,23 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+/**
+ * Feature: {{ class }}
+ *
+ * Encapsulates the application workflow and orchestration logic for this feature.
+ */
+class {{ class }}
+{
+    /**
+     * Execute the feature workflow.
+     *
+     * @return mixed
+     */
+    public function handle()
+    {
+        //
+    }
+}
