@@ -33,8 +33,12 @@ namespace Heritage\Support\Facades;
  * @method static array getForeignKeys(string $table)
  * @method static void table(string $table, \Closure $callback)
  * @method static void create(string $table, \Closure $callback)
+ * @method static void createWithTranslation(string $table, \Closure $callback, (\Closure(\Heritage\Database\Schema\Blueprint): void)|string|array|null $translationCallback = null, ?string $translationTable = null, ?string $foreignKey = null, ?string $localeColumn = 'locale')
  * @method static void drop(string $table)
  * @method static void dropIfExists(string $table)
+ * @method static void dropWithTranslation(string $table, ?string $translationTable = null)
+ * @method static void dropIfExistsWithTranslation(string $table, ?string $translationTable = null)
+
  * @method static void dropColumns(string $table, string|array $columns)
  * @method static void dropAllTables()
  * @method static void dropAllViews()

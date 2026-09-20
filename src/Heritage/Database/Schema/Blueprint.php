@@ -94,6 +94,14 @@ class Blueprint
     protected $state;
 
     /**
+     * Whether the blueprint is currently inside a translatable column group.
+     *
+     * @var bool
+     */
+    protected $translatableGroup = false;
+
+
+    /**
      * Create a new schema blueprint.
      *
      * @param  \Heritage\Database\Connection  $connection
@@ -1859,8 +1867,12 @@ class Blueprint
      * @param  \Heritage\Database\Schema\ColumnDefinition  $definition
      * @return \Heritage\Database\Schema\ColumnDefinition
      */
-    protected function addColumnDefinition($definition)
+     public function addColumnDefinition($definition)
     {
+        if ($this->translatableGroup && $definition instanceof ColumnDefinition) {
+            $definition->translation(true);
+        }
+
         $this->columns[] = $definition;
 
         if (! $this->creating()) {
@@ -1875,6 +1887,7 @@ class Blueprint
 
         return $definition;
     }
+
 
     /**
      * Add the columns from the callback after the given column.
@@ -2032,4 +2045,51 @@ class Blueprint
     {
         return $this->connection->getSchemaBuilder()::$defaultTimePrecision;
     }
+
+    /**
+     * Define a group of translatable columns for the translation table.
+     *
+     * @param  \Closure(self): void  $callback
+     * @return $this
+     */
+    public function translation(Closure $callback)
+    {
+        return $this->translatable($callback);
+    }
+
+    /**
+     * Define a group of translatable columns for the translation table.
+     *
+     * @param  \Closure(self): void  $callback
+     * @return $this
+     */
+    public function translatable(Closure $callback)
+    {
+        $previous = $this->translatableGroup;
+
+        $this->translatableGroup = true;
+
+        try {
+            $callback($this);
+        } finally {
+            $this->translatableGroup = $previous;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Set the column definitions on the blueprint.
+     *
+     * @param  \Heritage\Database\Schema\ColumnDefinition[]  $columns
+     * @return $this
+     */
+    public function setColumns(array $columns)
+    {
+        $this->columns = $columns;
+
+        return $this;
+    }
 }
+
+

@@ -34,9 +34,56 @@ use Heritage\Support\Fluent;
  * @method $this using(string|\Heritage\Contracts\Database\Query\Expression $expression) Specify a casting expression when changing the column type (PostgreSQL)
  * @method $this useCurrent() Set the TIMESTAMP column to use CURRENT_TIMESTAMP as default value
  * @method $this useCurrentOnUpdate() Set the TIMESTAMP column to use CURRENT_TIMESTAMP when updating (MySQL)
+ * @method $this translation(bool $value = true) Mark the column as translatable for the translation table
+ * @method $this translatable(bool $value = true) Mark the column as translatable for the translation table
+ * @method $this translate(bool $value = true) Mark the column as translatable for the translation table
  * @method $this virtualAs(string|\Heritage\Contracts\Database\Query\Expression $expression) Create a virtual generated column (MySQL/PostgreSQL/SQLite)
  */
 class ColumnDefinition extends Fluent
 {
-    //
+    /**
+     * Mark the column as a translatable column (stored in the translation table).
+     *
+     * @param  bool  $value
+     * @return $this
+     */
+    public function translation(bool $value = true)
+    {
+        $this->attributes['translation'] = $value;
+
+        return $this;
+    }
+
+    /**
+     * Mark the column as a translatable column (stored in the translation table).
+     *
+     * @param  bool  $value
+     * @return $this
+     */
+    public function translatable(bool $value = true)
+    {
+        return $this->translation($value);
+    }
+
+    /**
+     * Mark the column as a translatable column (stored in the translation table).
+     *
+     * @param  bool  $value
+     * @return $this
+     */
+    public function translate(bool $value = true)
+    {
+        return $this->translation($value);
+    }
+
+    /**
+     * Determine if the column is marked as translatable.
+     *
+     * @return bool
+     */
+    public function isTranslation(): bool
+    {
+        return (bool) ($this->get('translation') || $this->get('translatable') || $this->get('translate'));
+    }
 }
+

@@ -57,18 +57,19 @@ class MigrationCreator
      * @param  string  $path
      * @param  string|null  $table
      * @param  bool  $create
+     * @param  bool  $translatable
      * @return string
      *
      * @throws \Exception
      */
-    public function create($name, $path, $table = null, $create = false)
+    public function create($name, $path, $table = null, $create = false, $translatable = false)
     {
         $this->ensureMigrationDoesntAlreadyExist($name, $path);
 
         // First we will get the stub file for the migration, which serves as a type
         // of template for the migration. Once we have those we will populate the
         // various place-holders, save the file, and run the post create event.
-        $stub = $this->getStub($table, $create);
+        $stub = $this->getStub($table, $create, $translatable);
 
         $path = $this->getCollisionFreePath($name, $path);
 
@@ -115,11 +116,16 @@ class MigrationCreator
      *
      * @param  string|null  $table
      * @param  bool  $create
+     * @param  bool  $translatable
      * @return string
      */
-    protected function getStub($table, $create)
+    protected function getStub($table, $create, $translatable = false)
     {
-        if (is_null($table)) {
+        if ($translatable) {
+            $stub = $this->files->exists($customPath = $this->customStubPath.'/migration.create.translation.stub')
+                ? $customPath
+                : $this->stubPath().'/migration.create.translation.stub';
+        } elseif (is_null($table)) {
             $stub = $this->files->exists($customPath = $this->customStubPath.'/migration.stub')
                 ? $customPath
                 : $this->stubPath().'/migration.stub';
@@ -135,6 +141,7 @@ class MigrationCreator
 
         return $this->files->get($stub);
     }
+
 
     /**
      * Populate the place-holders in the migration stub.

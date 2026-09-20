@@ -6,6 +6,7 @@ use Closure;
 use Heritage\Container\Container;
 use Heritage\Database\Connection;
 use Heritage\Database\PostgresConnection;
+use Heritage\Support\Str;
 use Heritage\Support\Traits\Macroable;
 use InvalidArgumentException;
 use LogicException;
@@ -525,6 +526,180 @@ class Builder
             $callback($blueprint);
         }));
     }
+
+    /**
+     * Create a new table and its corresponding translation table on the schema.
+     *
+     * @param  string  $table
+     * @param  \Closure(\Heritage\Database\Schema\Blueprint): void  $callback
+     * @param  (\Closure(\Heritage\Database\Schema\Blueprint): void)|string|array|null  $translationCallback
+     * @param  string|null  $translationTable
+     * @param  string|null  $foreignKey
+     * @param  string|null  $localeColumn
+     * @return void
+     */
+    public function createWithTranslation(
+        $table,
+        Closure $callback,
+        Closure|string|array|null $translationCallback = null,
+        ?string $translationTable = null,
+        ?string $foreignKey = null,
+        ?string $localeColumn = 'locale'
+    ) {
+        $options = [];
+
+        if (is_array($translationCallback)) {
+            $options = $translationCallback;
+            $translationCallback = null;
+        } elseif (is_string($translationCallback)) {
+            $translationTable = $translationCallback;
+            $translationCallback = null;
+        }
+
+        [$schema, $tableName] = $this->parseSchemaAndTable($table);
+        $defaultTranslationName = Str::singular($tableName).'_translations';
+
+        $translationTable = $translationTable ?? $options['table'] ?? (isset($schema) ? "{$schema}.{$defaultTranslationName}" : $defaultTranslationName);
+        $foreignKey = $foreignKey ?? $options['foreign_key'] ?? Str::singular($tableName).'_id';
+        $localeColumn = $localeColumn ?? $options['locale_column'] ?? 'locale';
+        $localeLength = $options['locale_length'] ?? 10;
+        $includeTimestamps = $options['timestamps'] ?? false;
+
+        // 1. Build the main table blueprint first to collect all column definitions
+        $mainBlueprint = $this->createBlueprint($table);
+        $mainBlueprint->create();
+
+        $callback($mainBlueprint);
+
+        // 2. Identify and extract translation columns
+        /** @var \Heritage\Database\Schema\ColumnDefinition[] $translationColumns */
+        $translationColumns = [];
+
+        foreach ($mainBlueprint->getColumns() as $column) {
+            if ($column instanceof ColumnDefinition && $column->isTranslation()) {
+                $translationColumns[] = $column;
+            }
+        }
+
+        // Remove translation columns from the main table blueprint
+        foreach ($translationColumns as $column) {
+            $mainBlueprint->removeColumn($column->name);
+        }
+
+        // 3. Determine the primary key type and name of the main table
+        $primaryKeyType = 'id';
+        $primaryKeyName = 'id';
+
+        foreach ($mainBlueprint->getColumns() as $column) {
+            if ($column->autoIncrement || $column->primary || $column->name === 'id') {
+                $primaryKeyName = $column->name;
+                if ($column->type === 'uuid') {
+                    $primaryKeyType = 'uuid';
+                } elseif ($column->type === 'ulid') {
+                    $primaryKeyType = 'ulid';
+                } elseif ($column->type === 'integer') {
+                    $primaryKeyType = 'integer';
+                }
+                break;
+            }
+        }
+
+        // 4. Build and execute the main table
+        $this->build($mainBlueprint);
+
+        // 5. Build and execute the translation table
+        $this->create($translationTable, function (Blueprint $tableBlueprint) use (
+            $table,
+            $translationColumns,
+            $primaryKeyType,
+            $primaryKeyName,
+            $foreignKey,
+            $localeColumn,
+            $localeLength,
+            $translationCallback,
+            $includeTimestamps
+        ) {
+            // Primary key on translation table
+            if ($primaryKeyType === 'uuid') {
+                $tableBlueprint->uuid('id')->primary();
+                $tableBlueprint->foreignUuid($foreignKey)->constrained($table, $primaryKeyName)->cascadeOnDelete();
+            } elseif ($primaryKeyType === 'ulid') {
+                $tableBlueprint->ulid('id')->primary();
+                $tableBlueprint->foreignUlid($foreignKey)->constrained($table, $primaryKeyName)->cascadeOnDelete();
+            } elseif ($primaryKeyType === 'integer') {
+                $tableBlueprint->increments('id');
+                $tableBlueprint->unsignedInteger($foreignKey);
+                $tableBlueprint->foreign($foreignKey)->references($primaryKeyName)->on($table)->cascadeOnDelete();
+            } else {
+                $tableBlueprint->id();
+                $tableBlueprint->foreignId($foreignKey)->constrained($table, $primaryKeyName)->cascadeOnDelete();
+            }
+
+            // Locale column
+            $tableBlueprint->string($localeColumn, $localeLength)->index();
+
+            // Add all translated columns
+            foreach ($translationColumns as $column) {
+                $clonedAttributes = $column->getAttributes();
+                unset(
+                    $clonedAttributes['translation'],
+                    $clonedAttributes['translatable'],
+                    $clonedAttributes['translate'],
+                    $clonedAttributes['after']
+                );
+
+                $clonedColumn = new ColumnDefinition($clonedAttributes);
+                $tableBlueprint->addColumnDefinition($clonedColumn);
+            }
+
+            // Compound unique index ensuring one translation per locale
+            $tableBlueprint->unique([$foreignKey, $localeColumn]);
+
+            if ($includeTimestamps) {
+                $tableBlueprint->timestamps();
+            }
+
+            // Optional extra customizations on the translation table
+            if ($translationCallback instanceof Closure) {
+                $translationCallback($tableBlueprint);
+            }
+        });
+    }
+
+    /**
+     * Drop a table and its translation table from the schema.
+     *
+     * @param  string  $table
+     * @param  string|null  $translationTable
+     * @return void
+     */
+    public function dropWithTranslation($table, ?string $translationTable = null)
+    {
+        [$schema, $tableName] = $this->parseSchemaAndTable($table);
+        $defaultTranslationName = Str::singular($tableName).'_translations';
+        $translationTable = $translationTable ?? (isset($schema) ? "{$schema}.{$defaultTranslationName}" : $defaultTranslationName);
+
+        $this->dropIfExists($translationTable);
+        $this->drop($table);
+    }
+
+    /**
+     * Drop a table and its translation table from the schema if they exist.
+     *
+     * @param  string  $table
+     * @param  string|null  $translationTable
+     * @return void
+     */
+    public function dropIfExistsWithTranslation($table, ?string $translationTable = null)
+    {
+        [$schema, $tableName] = $this->parseSchemaAndTable($table);
+        $defaultTranslationName = Str::singular($tableName).'_translations';
+        $translationTable = $translationTable ?? (isset($schema) ? "{$schema}.{$defaultTranslationName}" : $defaultTranslationName);
+
+        $this->dropIfExists($translationTable);
+        $this->dropIfExists($table);
+    }
+
 
     /**
      * Drop a table from the schema.

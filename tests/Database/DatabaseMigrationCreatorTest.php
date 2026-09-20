@@ -81,6 +81,20 @@ class DatabaseMigrationCreatorTest extends TestCase
         $creator->create('create_bar', 'foo', 'baz', true);
     }
 
+    public function testTableCreationWithTranslationMigrationStoresMigrationFile()
+    {
+        $creator = $this->getCreator();
+        $creator->method('getDatePrefix')->willReturn('foo');
+        $creator->getFilesystem()->expects('exists')->with('stubs/migration.create.translation.stub')->andReturn(false);
+        $creator->getFilesystem()->expects('get')->with($creator->stubPath().'/migration.create.translation.stub')->andReturn('return new class DummyTable');
+        $creator->getFilesystem()->expects('ensureDirectoryExists')->with('foo');
+        $creator->getFilesystem()->expects('put')->with('foo/foo_create_bar.php', 'return new class baz');
+        $creator->getFilesystem()->expects('glob')->with('foo/*.php')->andReturn(['foo/foo_create_bar.php']);
+        $creator->getFilesystem()->expects('requireOnce')->with('foo/foo_create_bar.php');
+
+        $creator->create('create_bar', 'foo', 'baz', true, true);
+    }
+
     public function testTableUpdateMigrationWontCreateDuplicateClass()
     {
         $this->expectExceptionObject(new InvalidArgumentException('A MigrationCreatorFakeMigration class already exists.'));

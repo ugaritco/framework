@@ -1,6 +1,15 @@
-# Release Notes for 13.x
+# Release Notes for 1.x
 
-## [Unreleased](https://github.com/ugarit/framework/compare/v13.31.0...13.x)
+## [v1.00.16](https://github.com/ugarit/framework/compare/v1.00.15...v1.00.16) - 2026-09-20
+
+* feat(schema): add `Schema::createWithTranslation`, `dropWithTranslation`, and `dropIfExistsWithTranslation` for automatic dual-table translation schemas
+* feat(schema): add `->translation()`, `->translatable()`, and `->translate()` column modifiers on Blueprint
+* feat(schema): add `$table->translation(Closure)` and `$table->translatable(Closure)` column grouping on Blueprint
+* feat(console): add `-t`, `--trans`, `--translation`, and `--translatable` options to `make:migration` command
+* feat(migrations): add `migration.create.translation.stub` template with default unique `slug` and nullable translatable `description`
+
+## [Unreleased](https://github.com/ugarit/framework/compare/v1.00.15...main)
+
 
 ## [v13.31.0](https://github.com/ugarit/framework/compare/v13.30.1...v13.31.0) - 2026-09-08
 

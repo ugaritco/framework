@@ -112,8 +112,43 @@ class DatabaseMigrationMakeCommandTest extends TestCase
         $this->runCommand($command, ['name' => 'create_foo', '--path' => 'vendor/ugarit-package/migrations', '--create' => 'users']);
     }
 
+    public function testTranslatableOptionGivesCreatorProperArguments()
+    {
+        $creator = Mockery::mock(MigrationCreator::class);
+        $command = new MigrateMakeCommand(
+            $creator,
+            Mockery::mock(Composer::class)->shouldIgnoreMissing()
+        );
+        $app = new Application;
+        $app->useDatabasePath(__DIR__);
+        $command->setUgarit($app);
+        $creator->expects('create')
+            ->with('create_posts_table', __DIR__.DIRECTORY_SEPARATOR.'migrations', 'posts', true, true)
+            ->andReturn(__DIR__.'/Fixtures/migrations/2021_04_23_110457_create_posts_table.php');
+
+        $this->runCommand($command, ['name' => 'create_posts_table', '--trans' => true]);
+    }
+
+    public function testTranslatableShortOptionGivesCreatorProperArguments()
+    {
+        $creator = Mockery::mock(MigrationCreator::class);
+        $command = new MigrateMakeCommand(
+            $creator,
+            Mockery::mock(Composer::class)->shouldIgnoreMissing()
+        );
+        $app = new Application;
+        $app->useDatabasePath(__DIR__);
+        $command->setUgarit($app);
+        $creator->expects('create')
+            ->with('create_posts_table', __DIR__.DIRECTORY_SEPARATOR.'migrations', 'posts', true, true)
+            ->andReturn(__DIR__.'/Fixtures/migrations/2021_04_23_110457_create_posts_table.php');
+
+        $this->runCommand($command, ['name' => 'create_posts_table', '--trans' => true]);
+    }
+
     protected function runCommand($command, $input = [])
     {
         return $command->run(new ArrayInput($input), new NullOutput);
     }
 }
+

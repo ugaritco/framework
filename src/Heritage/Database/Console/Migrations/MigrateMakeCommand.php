@@ -21,7 +21,10 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
         {--table= : The table to migrate}
         {--path= : The location where the migration file should be created}
         {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}
-        {--fullpath : Output the full path of the migration (Deprecated)}';
+        {--fullpath : Output the full path of the migration (Deprecated)}
+        {--t|trans : Create a new migration with a translation table}
+        {--translation : Create a new migration with a translation table}
+        {--translatable : Create a new migration with a translation table}';
 
     /**
      * The console command description.
@@ -76,6 +79,10 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
 
         $create = $this->input->getOption('create') ?: false;
 
+        $translatable = $this->input->getOption('trans')
+            || $this->input->getOption('translation')
+            || $this->input->getOption('translatable');
+
         // If no table was given as an option but a create option is given then we
         // will use the "create" option as the table name. This allows the devs
         // to pass a table name into this option as a short-cut for creating.
@@ -85,17 +92,25 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
             $create = true;
         }
 
-        // Next, we will attempt to guess the table name if this the migration has
-        // "create" in the name. This will allow us to provide a convenient way
-        // of creating migrations that create new tables for the application.
-        if (! $table) {
+        // If translatable option is set, we treat it as table creation if not updating
+        if ($translatable && ! $table) {
+            [$table, $guessedCreate] = TableGuesser::guess($name);
+            $create = true;
+        } elseif (! $table) {
+            // Next, we will attempt to guess the table name if this the migration has
+            // "create" in the name. This will allow us to provide a convenient way
+            // of creating migrations that create new tables for the application.
             [$table, $create] = TableGuesser::guess($name);
+        }
+
+        if ($translatable) {
+            $create = true;
         }
 
         // Now we are ready to write the migration out to disk. Once we've written
         // the migration out, we will dump-autoload for the entire framework to
         // make sure that the migrations are registered by the class loaders.
-        $this->writeMigration($name, $table, $create);
+        $this->writeMigration($name, $table, $create, $translatable);
     }
 
     /**
@@ -104,12 +119,13 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
      * @param  string  $name
      * @param  string  $table
      * @param  bool  $create
+     * @param  bool  $translatable
      * @return void
      */
-    protected function writeMigration($name, $table, $create)
+    protected function writeMigration($name, $table, $create, $translatable = false)
     {
         $file = $this->creator->create(
-            $name, $this->getMigrationPath(), $table, $create
+            $name, $this->getMigrationPath(), $table, $create, $translatable
         );
 
         if (windows_os()) {
@@ -118,6 +134,7 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
 
         $this->components->info(sprintf('Migration [%s] created successfully.', $file));
     }
+
 
     /**
      * Get migration path (either specified by '--path' option or default location).

@@ -1,0 +1,31 @@
+<?php
+
+use Heritage\Database\Migrations\Migration;
+use Heritage\Database\Schema\Blueprint;
+use Heritage\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::createWithTranslation('{{ table }}', function (Blueprint $table) {
+            $table->id();
+            $table->string('slug')->unique();
+            $table->string('name')->translation();
+            $table->text('description')->nullable()->translation();
+            $table->timestamps();
+        });
+
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExistsWithTranslation('{{ table }}');
+    }
+};
