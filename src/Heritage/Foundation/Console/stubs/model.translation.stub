@@ -1,0 +1,9 @@
+<?php
+
+namespace {{ namespace }};
+
+{{ factoryImport }}use Heritage\Database\Eloquent\ModelTranslation;
+
+class {{ class }} extends ModelTranslation
+{
+{{ factory }}}
