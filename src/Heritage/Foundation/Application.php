@@ -877,7 +877,138 @@ class Application extends Container implements ApplicationContract, CachesConfig
         (new ProviderRepository($this, new Filesystem, $this->getCachedServicesPath()))
             ->load($providers->collapse()->toArray());
 
+        $this->registerArtifactProviders();
+
         $this->fireAppCallbacks($this->registeredCallbacks);
+    }
+
+    /**
+     * Register modular artifact service providers.
+     *
+     * @return void
+     */
+    public function registerArtifactProviders(): void
+    {
+        $config = $this->make('config');
+
+        if (! $config->get('artifacts.enabled', true)) {
+            return;
+        }
+
+        $registered = [];
+
+        // 1. Explicitly configured providers in config/artifacts.php
+        $configuredProviders = (array) $config->get('artifacts.providers', []);
+        foreach ($configuredProviders as $provider) {
+            if (class_exists($provider) && ! in_array($provider, $registered, true)) {
+                $this->register($provider);
+                $registered[] = $provider;
+            }
+        }
+
+        // 2. Discover and register providers from the artifacts directory
+        if ($config->get('artifacts.autodiscovery', true)) {
+            $this->discoverAndRegisterArtifacts($registered);
+        }
+    }
+
+    /**
+     * Discover and register modular artifacts located in the artifacts directory.
+     *
+     * @param  array<string>  $registered
+     * @return void
+     */
+    protected function discoverAndRegisterArtifacts(array &$registered): void
+    {
+        $artifactsPath = $this->make('config')->get('artifacts.path', $this->basePath('artifacts'));
+
+        if (! is_dir($artifactsPath)) {
+            return;
+        }
+
+        $artifactsConfig = (array) ($this->make('config')->get('artifacts.artifacts') ?? $this->make('config')->get('artifacts.modules', []));
+
+        // Autoloader fallback for modular artifacts located in artifacts/
+        spl_autoload_register(function (string $class) use ($artifactsPath): void {
+            if (! str_starts_with($class, 'Ugarit\\Artifacts\\')) {
+                return;
+            }
+
+            $relative = substr($class, strlen('Ugarit\\Artifacts\\'));
+            $parts = explode('\\', $relative);
+            $artifactName = $parts[0];
+            $subPath = implode(DIRECTORY_SEPARATOR, array_slice($parts, 1)) . '.php';
+
+            $candidates = [
+                $artifactsPath . DIRECTORY_SEPARATOR . $artifactName . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . $subPath,
+                $artifactsPath . DIRECTORY_SEPARATOR . strtolower($artifactName) . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . $subPath,
+                $artifactsPath . DIRECTORY_SEPARATOR . $artifactName . DIRECTORY_SEPARATOR . $subPath,
+                $artifactsPath . DIRECTORY_SEPARATOR . strtolower($artifactName) . DIRECTORY_SEPARATOR . $subPath,
+            ];
+
+            foreach ($candidates as $candidate) {
+                if (file_exists($candidate)) {
+                    require_once $candidate;
+                    return;
+                }
+            }
+        });
+
+        $items = scandir($artifactsPath);
+        if ($items === false) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+
+            $moduleDir = $artifactsPath . DIRECTORY_SEPARATOR . $item;
+            if (! is_dir($moduleDir)) {
+                continue;
+            }
+
+            // Check if artifact is explicitly disabled in config
+            if (isset($artifactsConfig[$item]) && $artifactsConfig[$item] === false) {
+                continue;
+            }
+
+            $providersToRegister = [];
+
+            // Case A: art.php exists (Ugarit ADA Standard)
+            $artFile = $moduleDir . DIRECTORY_SEPARATOR . 'art.php';
+            if (file_exists($artFile)) {
+                $art = require $artFile;
+                if (is_object($art)) {
+                    $artifactId = $art->id ?? $item;
+                    if (isset($artifactsConfig[$artifactId]) && $artifactsConfig[$artifactId] === false) {
+                        continue;
+                    }
+                    if (isset($art->providers) && is_array($art->providers)) {
+                        $providersToRegister = array_merge($providersToRegister, $art->providers);
+                    }
+                }
+            }
+
+            // Case B: composer.json exists
+            $composerFile = $moduleDir . DIRECTORY_SEPARATOR . 'composer.json';
+            if (file_exists($composerFile)) {
+                $content = json_decode((string) file_get_contents($composerFile), true);
+                $ugaritProviders = $content['extra']['ugarit']['providers'] ?? [];
+                if (is_array($ugaritProviders)) {
+                    $providersToRegister = array_merge($providersToRegister, $ugaritProviders);
+                }
+            }
+
+            // Register discovered providers
+            foreach ($providersToRegister as $provider) {
+                if (! in_array($provider, $registered, true) && class_exists($provider)) {
+                    $this->register($provider);
+                    $registered[] = $provider;
+                }
+            }
+        }
     }
 
     /**

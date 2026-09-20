@@ -1,5 +1,12 @@
 # Release Notes for 1.x
 
+## [v1.00.17](https://github.com/ugarit/framework/compare/v1.00.16...v1.00.17) - 2026-09-20
+
+* feat(foundation): integrate `registerArtifactProviders` and `discoverAndRegisterArtifacts` directly into `Heritage\Foundation\Application` Kernel
+* feat(foundation): automatically discover and register modular artifact service providers from `artifacts/` via `art.php` and `composer.json`
+* feat(foundation): add runtime SPL autoloader fallback for `Ugarit\Artifacts\*` namespace
+* feat(support): add `Heritage\Support\Artifact` base class for Artifact-Driven Architecture (ADA)
+
 ## [v1.00.16](https://github.com/ugarit/framework/compare/v1.00.15...v1.00.16) - 2026-09-20
 
 * feat(schema): add `Schema::createWithTranslation`, `dropWithTranslation`, and `dropIfExistsWithTranslation` for automatic dual-table translation schemas
