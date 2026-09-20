@@ -2,10 +2,8 @@
 
 namespace {{ namespace }};
 
-{{ factoryImport }}
-use Heritage\Database\Eloquent\Model;
+{{ factoryImport }}{{ translationImport }}use Heritage\Database\Eloquent\Model;
 
 class {{ class }} extends Model
 {
-    {{ factory }}
-}
+{{ factory }}{{ translation }}}

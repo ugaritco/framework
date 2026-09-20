@@ -1,6 +1,141 @@
 # Release Notes for 1.x
 
-## [v1.00.18](https://github.com/ugarit/framework/compare/v1.00.17...v1.00.18) - 2026-09-21
+## [v1.00.45](https://github.com/ugarit/framework/compare/v1.00.44...v1.00.45) - 2026-09-24
+
+* release: ecosystem milestone release v1.00.45 with unified design system and modular ADA architecture
+* feat(docs): add comprehensive documentation for Artifact-Driven Architecture in `docs/artifacts.md`
+* feat(docs): add comprehensive documentation for Eloquent model translations in `docs/eloquent-translations.md`
+* feat(docs): add comprehensive documentation for Ugarit Design System in `docs/design-system.md`
+* chore: synchronize all starter kit environments with the latest framework kernel
+
+## [v1.00.44](https://github.com/ugarit/framework/compare/v1.00.43...v1.00.44) - 2026-09-24
+
+* test(starter-kits): verify production build pipeline across lab environments (`lab/react`, `lab/vue`)
+* perf(build): validate 0 broken imports and 0 unresolved CSS token references
+* chore: clean up temporary build artifacts and lockfiles
+
+## [v1.00.43](https://github.com/ugarit/framework/compare/v1.00.42...v1.00.43) - 2026-09-23
+
+* build(vite): disable `pluginTimings` diagnostics in `vite.config.ts` rolldown options
+* fix(vite): resolve asset bundling warnings in starter kits
+* chore(config): standardize vite configurations across React, Vue, and Svelte starter kits
+
+## [v1.00.42](https://github.com/ugarit/framework/compare/v1.00.41...v1.00.42) - 2026-09-23
+
+* feat(i18n): integrate modular geography and internationalization artifacts in starter kits
+* feat(i18n): add comprehensive locale and country datasets in `artifacts/geography/` and `artifacts/i18n/`
+* feat(config): register `config/locale.php` in starter kits and application templates
+
+## [v1.00.41](https://github.com/ugarit/framework/compare/v1.00.40...v1.00.41) - 2026-09-23
+
+* feat(starter-kits): synchronize primitives and semantic design system across 18 starter kit targets
+* feat(scripts): provide `sync-to-starter-kits.mjs` synchronization pipeline
+* feat(scripts): introduce `verify-imports.js` for recursive token validation
+
+## [v1.00.40](https://github.com/ugarit/framework/compare/v1.00.39...v1.00.40) - 2026-09-23
+
+* refactor(starter-kits): streamline `app.css` into standard 21-line entry bridge across all kits
+* chore(styles): remove redundant CSS overrides from starter kit templates
+
+## [v1.00.39](https://github.com/ugarit/framework/compare/v1.00.38...v1.00.39) - 2026-09-22
+
+* feat(design-system): add Tailwind CSS v4 semantic theme bridge with `@theme inline`
+* feat(tokens): expose semantic colors, charts, and surfaces to Tailwind utility classes
+
+## [v1.00.38](https://github.com/ugarit/framework/compare/v1.00.37...v1.00.38) - 2026-09-22
+
+* refactor(design-system): purge legacy `application.css` and `ats.css` stylesheets
+* refactor(design-system): remove redundant `radius.css` and `motion.css` from semantic layer
+
+## [v1.00.37](https://github.com/ugarit/framework/compare/v1.00.36...v1.00.37) - 2026-09-22
+
+* feat(design-system): implement 17 semantic typography utility classes in `semantic/type/`
+* feat(type): add utility classes for `hero`, `display`, `title-*`, `heading-*`, `body-*`, `label-*`, `caption-*`, and `overline`
+
+## [v1.00.36](https://github.com/ugarit/framework/compare/v1.00.35...v1.00.36) - 2026-09-22
+
+* feat(design-system): add semantic action, stroke, status, icon, and overlay tokens
+* feat(tokens): add contextual interactive state tokens (`--action-primary-hover`, `--action-primary-active`)
+
+## [v1.00.35](https://github.com/ugarit/framework/compare/v1.00.34...v1.00.35) - 2026-09-22
+
+* feat(design-system): add semantic text and typography hierarchy tokens (`--text-primary`, `--text-secondary`, `--text-muted`, `--text-disabled`)
+
+## [v1.00.34](https://github.com/ugarit/framework/compare/v1.00.33...v1.00.34) - 2026-09-22
+
+* feat(design-system): add semantic surface and background role tokens (`--surface-page`, `--surface-card`, `--surface-elevated`, `--surface-overlay`)
+
+## [v1.00.33](https://github.com/ugarit/framework/compare/v1.00.32...v1.00.33) - 2026-09-22
+
+* feat(design-system): implement light and dark mode foundations with 8 chart tokens (`--chart-1` through `--chart-8`)
+* feat(theme): ensure accessible contrast ratios in dark mode for all semantic categories
+
+## [v1.00.32](https://github.com/ugarit/framework/compare/v1.00.31...v1.00.32) - 2026-09-21
+
+* feat(design-system): add Tailwind CSS v4 primitives theme bridge with `@theme inline`
+* feat(tokens): expose fluid radii, spaces, and color palettes to Tailwind utility classes
+
+## [v1.00.31](https://github.com/ugarit/framework/compare/v1.00.30...v1.00.31) - 2026-09-21
+
+* feat(design-system): introduce elevation layers, backdrop blur, and layout z-index tokens
+* feat(elevation): add 6-level layered box-shadow primitives
+
+## [v1.00.30](https://github.com/ugarit/framework/compare/v1.00.29...v1.00.30) - 2026-09-21
+
+* feat(design-system): introduce border styles, standardized opacity levels (`faint`, `subtle`, `muted`, `strong`, `intense`), and fluid motion tokens with `prefers-reduced-motion`
+
+## [v1.00.29](https://github.com/ugarit/framework/compare/v1.00.28...v1.00.29) - 2026-09-21
+
+* feat(design-system): implement fluid border radius tokens with `--radius: var(--radius-soft)` standard control curve
+* feat(tokens): add named scale (`sharp`, `hairline`, `subtle`, `soft`, `rounded`, `pill`, `circle`)
+
+## [v1.00.28](https://github.com/ugarit/framework/compare/v1.00.27...v1.00.28) - 2026-09-21
+
+* feat(design-system): add fluid spatial scale (`--space-*`) and component dimension tokens (`--size-*`) using viewport clamp formulas
+
+## [v1.00.27](https://github.com/ugarit/framework/compare/v1.00.26...v1.00.27) - 2026-09-21
+
+* feat(design-system): add fluid typography primitives with 17 clamp-based roles (`--text-*-size`, `--text-*-weight`, `--text-*-leading`, `--text-*-tracking`)
+
+## [v1.00.26](https://github.com/ugarit/framework/compare/v1.00.25...v1.00.26) - 2026-09-21
+
+* feat(design-system): introduce primitives color palettes with 10 comprehensive HSL scales (Purple, Lilac, Blue, Emerald, Amber, Rose, Cyan, Slate, Neutral, Slate-Neutral) and substrate tokens
+
+## [v1.00.25](https://github.com/ugarit/framework/compare/v1.00.24...v1.00.25) - 2026-09-20
+
+* feat(database): introduce `ArtifactSeeder` base contract and recursive `ModuleSeeder` pipeline
+* feat(database): auto-register artifact migration and seeder paths in `DatabaseServiceProvider`
+
+## [v1.00.24](https://github.com/ugarit/framework/compare/v1.00.23...v1.00.24) - 2026-09-20
+
+* feat(eloquent): implement `HasTranslation` concern and `ModelTranslation` base entity for native dual-table multilingual models
+* feat(eloquent): add locale fallback handling and dynamic translation relationship resolution
+
+## [v1.00.23](https://github.com/ugarit/framework/compare/v1.00.22...v1.00.23) - 2026-09-20
+
+* refactor(generators): enhance `GeneratorCommand` with modular path resolution and dynamic `Ugarit\Artifacts\*` namespace deduction
+* feat(generators): support `--artifact` option on `make:model`, `make:migration`, `make:factory`, and `make:seeder`
+
+## [v1.00.22](https://github.com/ugarit/framework/compare/v1.00.21...v1.00.22) - 2026-09-20
+
+* feat(generators): add `FeatureMakeCommand` for vertical slice architecture scaffolding
+* feat(stubs): implement feature class stub with cross-module interaction capabilities
+
+## [v1.00.21](https://github.com/ugarit/framework/compare/v1.00.20...v1.00.21) - 2026-09-20
+
+* feat(generators): add `ServiceMakeCommand` and `UseCaseMakeCommand` for domain business workflows
+* feat(stubs): implement invokable use case and transactional domain service stubs
+
+## [v1.00.20](https://github.com/ugarit/framework/compare/v1.00.19...v1.00.20) - 2026-09-20
+
+* feat(generators): add `DtoMakeCommand` for strongly-typed Data Transfer Objects
+* feat(stubs): implement pure PHP 8.4 readonly DTO stub templates
+
+## [v1.00.19](https://github.com/ugarit/framework/compare/v1.00.18...v1.00.19) - 2026-09-20
+
+* feat(generators): introduce `ArtifactMakeCommand` for modular package scaffolding
+* feat(stubs): provide isolated `art.php`, `composer.json`, and dedicated `ServiceProvider` templates
+
 
 * feat(architecture): introduce 3-tier domain execution hierarchy:
   * `UseCase`: atomic single-record mutation/persistence unit

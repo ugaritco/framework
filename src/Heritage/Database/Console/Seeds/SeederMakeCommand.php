@@ -14,7 +14,9 @@ class SeederMakeCommand extends GeneratorCommand
      *
      * @var string
      */
-    protected $signature = 'make:seeder {name : The name of the seeder}';
+    protected $signature = 'make:seeder
+                    {name : The name of the seeder}
+                    {--artifact= : The target modular artifact name}';
 
     /**
      * The console command description.
@@ -73,6 +75,10 @@ class SeederMakeCommand extends GeneratorCommand
     {
         $name = str_replace('\\', '/', Str::replaceFirst($this->rootNamespace(), '', $name));
 
+        if ($artifact = $this->getArtifactOption()) {
+            return $this->ugarit->basePath("artifacts/{$artifact}/database/seeders/").$name.'.php';
+        }
+
         if (is_dir($this->ugarit->databasePath().'/seeds')) {
             return $this->ugarit->databasePath().'/seeds/'.$name.'.php';
         }
@@ -87,6 +93,12 @@ class SeederMakeCommand extends GeneratorCommand
      */
     protected function rootNamespace()
     {
+        if ($artifact = $this->getArtifactOption()) {
+            $studly = Str::studly($artifact);
+
+            return "Ugarit\\Artifacts\\{$studly}\\Database\\Seeders\\";
+        }
+
         return 'Database\Seeders\\';
     }
 }

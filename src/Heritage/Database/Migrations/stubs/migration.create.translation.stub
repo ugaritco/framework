@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Heritage\Database\Migrations\Migration;
 use Heritage\Database\Schema\Blueprint;
 use Heritage\Support\Facades\Schema;
@@ -12,13 +14,24 @@ return new class extends Migration
     public function up(): void
     {
         Schema::createWithTranslation('{{ table }}', function (Blueprint $table) {
+            // Primary unique identifier
             $table->id();
+
+            // Unique URL-friendly slug identifier
             $table->string('slug')->unique();
+
+            // Localized multilingual display denomination
             $table->string('name')->translation();
+
+            // Localized multilingual detailed description or content
             $table->text('description')->nullable()->translation();
+
+            // Soft deletion timestamp for auditing and data safety
+            $table->softDeletes();
+
+            // Record creation and update timestamps
             $table->timestamps();
         });
-
     }
 
     /**

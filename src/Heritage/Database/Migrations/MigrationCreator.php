@@ -3,6 +3,7 @@
 namespace Heritage\Database\Migrations;
 
 use Closure;
+use Heritage\Database\Console\Migrations\TableGuesser;
 use Heritage\Filesystem\Filesystem;
 use Heritage\Support\Facades\Date;
 use Heritage\Support\Str;
@@ -65,6 +66,21 @@ class MigrationCreator
     public function create($name, $path, $table = null, $create = false, $translatable = false)
     {
         $this->ensureMigrationDoesntAlreadyExist($name, $path);
+
+        // Guarantee table name is resolved so placeholders are never left raw
+        if (empty($table)) {
+            [$guessedTable, $guessedCreate] = TableGuesser::guess($name) ?? [null, null];
+
+            if ($guessedTable) {
+                $table = $guessedTable;
+                $create = $create || $guessedCreate;
+            } else {
+                $cleanName = (string) preg_replace('/^create_/', '', $name);
+                $cleanName = (string) preg_replace('/_table$/', '', $cleanName);
+                $table = Str::snake(Str::pluralStudly($cleanName));
+                $create = true;
+            }
+        }
 
         // First we will get the stub file for the migration, which serves as a type
         // of template for the migration. Once we have those we will populate the
@@ -152,17 +168,15 @@ class MigrationCreator
      */
     protected function populateStub($stub, $table)
     {
-        // Here we will replace the table place-holders with the table specified by
-        // the developer, which is useful for quickly creating a tables creation
-        // or update migration from the console instead of typing it manually.
-        if (! is_null($table)) {
-            $stub = str_replace(
-                ['DummyTable', '{{ table }}', '{{table}}'],
-                $table, $stub
-            );
-        }
+        // Replace the table place-holders with the table specified by the developer
+        // or automatically inferred from migration name to prevent raw placeholders.
+        $table = (string) ($table ?: 'table');
 
-        return $stub;
+        return str_replace(
+            ['DummyTable', '{{ table }}', '{{table}}'],
+            $table,
+            $stub
+        );
     }
 
     /**

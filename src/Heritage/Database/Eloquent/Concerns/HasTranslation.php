@@ -233,7 +233,9 @@ trait HasTranslation
             return $translation;
         }
 
-        $fallbackLocale = function_exists('config') ? config('app.fallback_locale', 'en') : 'en';
+        $fallbackLocale = function_exists('config')
+            ? (config('locale.fallback_locale') ?? config('app.fallback_locale', 'en'))
+            : 'en';
         if ($fallbackLocale !== ($locale ?? $this->resolveCurrentLocale())) {
             return $this->translate($fallbackLocale);
         }
@@ -277,7 +279,9 @@ trait HasTranslation
             }
         }
 
-        $fallbackLocale = function_exists('config') ? config('app.fallback_locale', 'en') : 'en';
+        $fallbackLocale = function_exists('config')
+            ? (config('localization.fallback_locale') ?? config('app.fallback_locale', 'en'))
+            : 'en';
         if ($fallbackLocale !== $this->resolveCurrentLocale()) {
             $fallbackTranslation = $this->translate($fallbackLocale);
             if ($fallbackTranslation && isset($fallbackTranslation->{$key}) && $fallbackTranslation->{$key} !== '') {
@@ -293,6 +297,14 @@ trait HasTranslation
      */
     public function setTranslation(string $key, mixed $value, ?string $locale = null): static
     {
+        if (is_array($value) && $locale === null) {
+            foreach ($value as $loc => $val) {
+                $this->setTranslation($key, $val, (string) $loc);
+            }
+
+            return $this;
+        }
+
         $locale = $locale ?? $this->resolveCurrentLocale();
 
         if (! isset($this->pendingTranslations[$locale])) {
@@ -354,6 +366,21 @@ trait HasTranslation
 
         foreach ($this->pendingTranslations as $translation) {
             $translation->{$foreignKey} = $id;
+
+            if (! $translation->exists) {
+                $localeColumn = $this->resolveLocaleColumn($translation);
+                $existing = $translation->newQuery()
+                    ->where($foreignKey, $id)
+                    ->where($localeColumn, $translation->{$localeColumn})
+                    ->first();
+
+                if ($existing) {
+                    $existing->fill($translation->getAttributes());
+                    $existing->save();
+                    continue;
+                }
+            }
+
             $translation->save();
         }
 

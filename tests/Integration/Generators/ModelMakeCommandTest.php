@@ -18,6 +18,8 @@ class ModelMakeCommandTest extends TestCase
         'database/migrations/*_create_aaas_table.php',
         'database/migrations/*_create_foos_table.php',
         'database/migrations/*_create_xxxes_table.php',
+        'app/Models/FooTranslation.php',
+        'app/Models/Foo/BarTranslation.php',
         'database/seeders/FooSeeder.php',
         'tests/Feature/Models/FooTest.php',
     ];
@@ -277,5 +279,73 @@ class ModelMakeCommandTest extends TestCase
             ->assertExitCode(0)
             ->expectsConfirmation('Do you want to generate additional components for the model?', 'yes')
             ->expectsQuestion('Would you like any of the following?', []);
+    }
+
+    public function testItCanGenerateModelFileWithTranslationOption()
+    {
+        $this->scribe('make:model', ['name' => 'Foo', '--translation' => true])
+            ->assertExitCode(0);
+
+        $this->assertFileContains([
+            'namespace App\Models;',
+            'use Heritage\Database\Eloquent\Concerns\HasTranslation;',
+            'use Heritage\Database\Eloquent\Model;',
+            'class Foo extends Model',
+            'use HasTranslation;',
+            'protected array $translatable = [',
+        ], 'app/Models/Foo.php');
+
+        $this->assertFileContains([
+            'namespace App\Models;',
+            'use Heritage\Database\Eloquent\ModelTranslation;',
+            'class FooTranslation extends ModelTranslation',
+        ], 'app/Models/FooTranslation.php');
+    }
+
+    public function testItCanGenerateModelFileWithTranslationAndMigrationOption()
+    {
+        $this->scribe('make:model', ['name' => 'Foo', '--translation' => true, '--migration' => true])
+            ->assertExitCode(0);
+
+        $this->assertFileContains([
+            'namespace App\Models;',
+            'use Heritage\Database\Eloquent\Concerns\HasTranslation;',
+            'use Heritage\Database\Eloquent\Model;',
+            'class Foo extends Model',
+            'use HasTranslation;',
+        ], 'app/Models/Foo.php');
+
+        $this->assertFileContains([
+            'namespace App\Models;',
+            'use Heritage\Database\Eloquent\ModelTranslation;',
+            'class FooTranslation extends ModelTranslation',
+        ], 'app/Models/FooTranslation.php');
+
+        $this->assertMigrationFileContains([
+            'use Heritage\Database\Migrations\Migration;',
+            'return new class extends Migration',
+            'Schema::createWithTranslation(\'foos\', function (Blueprint $table) {',
+            'Schema::dropIfExistsWithTranslation(\'foos\');',
+        ], 'create_foos_table.php');
+    }
+
+    public function testItCanGenerateNestedModelFileWithTranslationOption()
+    {
+        $this->scribe('make:model', ['name' => 'Foo/Bar', '--translation' => true])
+            ->assertExitCode(0);
+
+        $this->assertFileContains([
+            'namespace App\Models\Foo;',
+            'use Heritage\Database\Eloquent\Concerns\HasTranslation;',
+            'use Heritage\Database\Eloquent\Model;',
+            'class Bar extends Model',
+            'use HasTranslation;',
+        ], 'app/Models/Foo/Bar.php');
+
+        $this->assertFileContains([
+            'namespace App\Models\Foo;',
+            'use Heritage\Database\Eloquent\ModelTranslation;',
+            'class BarTranslation extends ModelTranslation',
+        ], 'app/Models/Foo/BarTranslation.php');
     }
 }

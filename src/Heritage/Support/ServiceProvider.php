@@ -284,6 +284,26 @@ abstract class ServiceProvider
     }
 
     /**
+     * Register an artifact seeder class into the global Seeder registry.
+     *
+     * @param  string  $artifact
+     * @param  class-string<\Heritage\Database\Seeder>  $seederClass
+     * @return void
+     */
+    protected function registerArtifactSeeder($artifact, $seederClass)
+    {
+        \Heritage\Database\Seeder::registerArtifactSeeder($artifact, $seederClass);
+    }
+
+    /**
+     * @deprecated Use registerArtifactSeeder instead.
+     */
+    protected function registerModuleSeeder($module, $seederClass)
+    {
+        $this->registerArtifactSeeder($module, $seederClass);
+    }
+
+    /**
      * Register Eloquent model factory paths.
      *
      * @deprecated Will be removed in a future Ugarit version.

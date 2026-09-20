@@ -1010,6 +1010,15 @@ class Container implements ArrayAccess, ContainerContract
         $concrete = $this->resolveConcreteFromAttributes($reflected);
 
         if ($concrete === null) {
+            // Check if it is a repository interface/contract resolvable by convention via RepositoryFactory
+            if ($reflected->isInterface() && class_exists(\Heritage\Factories\RepositoryFactory::class)) {
+                $repoClass = \Heritage\Factories\RepositoryFactory::resolveClassName($abstract);
+                if ($repoClass) {
+                    $this->singleton($abstract, $repoClass);
+                    return $repoClass;
+                }
+            }
+
             if ($reflected->getAttributes(BindWhen::class) !== [] ||
                 ($this->environmentResolver === null && $reflected->getAttributes(Bind::class) !== [])) {
                 unset($this->checkedForAttributeBindings[$abstract]);

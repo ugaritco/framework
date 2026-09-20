@@ -23,8 +23,12 @@ class FoundationApplicationTest extends TestCase
         $app = new Application;
 
         $app['config'] = $config = Mockery::mock(Repository::class);
-        $config->expects('get')->with('app.locale')->andReturn('bar');
-        $config->expects('set')->with('app.locale', 'foo');
+        $config->shouldReceive('get')->with('locale.locale')->andReturn(null);
+        $config->shouldReceive('get')->with('locale.default_locale')->andReturn(null);
+        $config->shouldReceive('get')->with('app.locale', 'en')->andReturn('bar');
+        $config->shouldReceive('get')->with('app.locale')->andReturn('bar');
+        $config->shouldReceive('set')->with('locale.locale', 'foo');
+        $config->shouldReceive('set')->with('app.locale', 'foo');
         $app['translator'] = $trans = Mockery::mock(Translator::class);
         $trans->expects('setLocale')->with('foo');
         $app['events'] = $events = Mockery::mock(Dispatcher::class);

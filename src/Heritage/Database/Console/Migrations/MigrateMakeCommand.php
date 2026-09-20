@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Heritage\Database\Console\Migrations;
 
 use Heritage\Contracts\Console\PromptsForMissingInput;
@@ -7,6 +9,10 @@ use Heritage\Database\Migrations\MigrationCreator;
 use Heritage\Support\Composer;
 use Heritage\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
+
+use function Ugarit\Prompts\confirm;
+use function Ugarit\Prompts\select;
+use function Ugarit\Prompts\text;
 
 #[AsCommand(name: 'make:migration')]
 class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
@@ -24,7 +30,8 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
         {--fullpath : Output the full path of the migration (Deprecated)}
         {--t|trans : Create a new migration with a translation table}
         {--translation : Create a new migration with a translation table}
-        {--translatable : Create a new migration with a translation table}';
+        {--translatable : Create a new migration with a translation table}
+        {--artifact= : The target modular artifact for this migration}';
 
     /**
      * The console command description.
@@ -70,22 +77,52 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
      */
     public function handle()
     {
-        // It's possible for the developer to specify the tables to modify in this
-        // schema operation. The developer may also specify if this table needs
-        // to be freshly created so we can create the appropriate migrations.
         $name = Str::snake(trim($this->input->getArgument('name')));
 
         $table = $this->input->getOption('table');
 
         $create = $this->input->getOption('create') ?: false;
 
-        $translatable = $this->input->getOption('trans')
+        // Resolve target modular artifact
+        $artifact = $this->input->getOption('artifact');
+
+        if (! $artifact && $this->input->isInteractive()) {
+            $available = $this->getAvailableArtifacts();
+
+            if (! empty($available)) {
+                $artifact = select(
+                    label: 'Which artifact does this migration belong to?',
+                    options: $available,
+                );
+            } else {
+                $artifact = text(
+                    label: 'What is the target artifact name for this migration?',
+                    placeholder: 'e.g. catalog, identity',
+                    required: true,
+                );
+            }
+        }
+
+        if ($artifact) {
+            $this->input->setOption('artifact', $artifact);
+        }
+
+        // Resolve translatable status
+        $hasTranslatableOption = $this->input->getOption('trans')
             || $this->input->getOption('translation')
             || $this->input->getOption('translatable');
 
+        if (! $hasTranslatableOption && $this->input->isInteractive()) {
+            $translatable = confirm(
+                label: 'Should this migration support multilingual translations (Schema::createWithTranslation)?',
+                default: false,
+            );
+        } else {
+            $translatable = (bool) $hasTranslatableOption;
+        }
+
         // If no table was given as an option but a create option is given then we
-        // will use the "create" option as the table name. This allows the devs
-        // to pass a table name into this option as a short-cut for creating.
+        // will use the "create" option as the table name.
         if (! $table && is_string($create)) {
             $table = $create;
 
@@ -97,19 +134,23 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
             [$table, $guessedCreate] = TableGuesser::guess($name);
             $create = true;
         } elseif (! $table) {
-            // Next, we will attempt to guess the table name if this the migration has
-            // "create" in the name. This will allow us to provide a convenient way
-            // of creating migrations that create new tables for the application.
             [$table, $create] = TableGuesser::guess($name);
+        }
+
+        // Fallback: If table name could not be guessed, resolve it cleanly from the migration name
+        if (! $table) {
+            $cleanName = (string) preg_replace('/^create_/', '', $name);
+            $cleanName = (string) preg_replace('/_table$/', '', $cleanName);
+
+            $table = Str::snake(Str::pluralStudly($cleanName));
+            $create = true;
         }
 
         if ($translatable) {
             $create = true;
         }
 
-        // Now we are ready to write the migration out to disk. Once we've written
-        // the migration out, we will dump-autoload for the entire framework to
-        // make sure that the migrations are registered by the class loaders.
+        // Write the migration out to disk
         $this->writeMigration($name, $table, $create, $translatable);
     }
 
@@ -135,9 +176,8 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
         $this->components->info(sprintf('Migration [%s] created successfully.', $file));
     }
 
-
     /**
-     * Get migration path (either specified by '--path' option or default location).
+     * Get migration path (either specified by '--path' option, artifact, or default location).
      *
      * @return string
      */
@@ -149,15 +189,45 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
                 : $targetPath;
         }
 
+        $artifact = $this->input->getOption('artifact');
+
+        if ($artifact) {
+            $dir = $this->ugarit->basePath('artifacts/'.$artifact.'/database/migrations');
+
+            if (! is_dir($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+
+            return $dir;
+        }
+
         return parent::getMigrationPath();
+    }
+
+    /**
+     * Get the list of available modular artifacts.
+     *
+     * @return array<int, string>
+     */
+    protected function getAvailableArtifacts(): array
+    {
+        $artifactsPath = $this->ugarit->basePath('artifacts');
+
+        if (! is_dir($artifactsPath)) {
+            return [];
+        }
+
+        $dirs = array_filter(glob($artifactsPath.'/*'), 'is_dir');
+
+        return array_values(array_map('basename', $dirs));
     }
 
     /**
      * Prompt for missing input arguments using the returned questions.
      *
-     * @return array
+     * @return array<string, array<int, string>>
      */
-    protected function promptForMissingArgumentsUsing()
+    protected function promptForMissingArgumentsUsing(): array
     {
         return [
             'name' => ['What should the migration be named?', 'E.g. create_flights_table'],

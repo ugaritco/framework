@@ -1702,7 +1702,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function getLocale()
     {
-        return $this['config']->get('app.locale');
+        return $this['config']->get('locale.locale')
+            ?? $this['config']->get('locale.default_locale')
+            ?? $this['config']->get('app.locale', 'en');
     }
 
     /**
@@ -1722,7 +1724,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function getFallbackLocale()
     {
-        return $this['config']->get('app.fallback_locale');
+        return $this['config']->get('locale.fallback_locale')
+            ?? $this['config']->get('app.fallback_locale', 'en');
     }
 
     /**
@@ -1733,8 +1736,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function setLocale($locale)
     {
-        $previous = $this['config']->get('app.locale');
+        $previous = $this->getLocale();
 
+        $this['config']->set('locale.locale', $locale);
         $this['config']->set('app.locale', $locale);
 
         $this['translator']->setLocale($locale);
@@ -1750,6 +1754,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function setFallbackLocale($fallbackLocale)
     {
+        $this['config']->set('locale.fallback_locale', $fallbackLocale);
         $this['config']->set('app.fallback_locale', $fallbackLocale);
 
         $this['translator']->setFallback($fallbackLocale);

@@ -176,7 +176,7 @@ class AboutCommand extends Command
             'URL' => (new Stringable(config('app.url')))->replace(['http://', 'https://'], ''),
             'Maintenance Mode' => static::format($this->ugarit->isDownForMaintenance(), console: $formatEnabledStatus),
             'Timezone' => config('app.timezone'),
-            'Locale' => config('app.locale'),
+            'Locale' => $this->ugarit->getLocale(),
         ]);
 
         static::addToSection('Cache', fn () => [

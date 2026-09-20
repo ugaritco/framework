@@ -32,6 +32,7 @@ use Heritage\Database\Console\TableCommand as DatabaseTableCommand;
 use Heritage\Database\Console\WipeCommand;
 use Heritage\Foundation\Console\AboutCommand;
 use Heritage\Foundation\Console\ApiInstallCommand;
+use Heritage\Foundation\Console\ArtifactMakeCommand;
 use Heritage\Foundation\Console\BroadcastingInstallCommand;
 use Heritage\Foundation\Console\CastMakeCommand;
 use Heritage\Foundation\Console\ChannelListCommand;
@@ -49,6 +50,7 @@ use Heritage\Foundation\Console\DevCommand;
 use Heritage\Foundation\Console\DevListCommand;
 use Heritage\Foundation\Console\DocsCommand;
 use Heritage\Foundation\Console\DownCommand;
+use Heritage\Foundation\Console\DtoMakeCommand;
 use Heritage\Foundation\Console\EnumMakeCommand;
 use Heritage\Foundation\Console\EnvironmentCommand;
 use Heritage\Foundation\Console\EnvironmentDecryptCommand;
@@ -59,6 +61,7 @@ use Heritage\Foundation\Console\EventGenerateCommand;
 use Heritage\Foundation\Console\EventListCommand;
 use Heritage\Foundation\Console\EventMakeCommand;
 use Heritage\Foundation\Console\ExceptionMakeCommand;
+use Heritage\Foundation\Console\FeatureMakeCommand;
 use Heritage\Foundation\Console\InterfaceMakeCommand;
 use Heritage\Foundation\Console\JobMakeCommand;
 use Heritage\Foundation\Console\JobMiddlewareMakeCommand;
@@ -83,12 +86,14 @@ use Heritage\Foundation\Console\RouteListCommand;
 use Heritage\Foundation\Console\RuleMakeCommand;
 use Heritage\Foundation\Console\ScopeMakeCommand;
 use Heritage\Foundation\Console\ServeCommand;
+use Heritage\Foundation\Console\ServiceMakeCommand;
 use Heritage\Foundation\Console\StorageLinkCommand;
 use Heritage\Foundation\Console\StorageUnlinkCommand;
 use Heritage\Foundation\Console\StubPublishCommand;
 use Heritage\Foundation\Console\TestMakeCommand;
 use Heritage\Foundation\Console\TraitMakeCommand;
 use Heritage\Foundation\Console\UpCommand;
+use Heritage\Foundation\Console\UseCaseMakeCommand;
 use Heritage\Foundation\Console\VendorPublishCommand;
 use Heritage\Foundation\Console\ViewCacheCommand;
 use Heritage\Foundation\Console\ViewClearCommand;
@@ -196,6 +201,7 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
      */
     protected $devCommands = [
         'ApiInstall' => ApiInstallCommand::class,
+        'ArtifactMake' => ArtifactMakeCommand::class,
         'BroadcastingInstall' => BroadcastingInstallCommand::class,
         'CacheTable' => CacheTableCommand::class,
         'CastMake' => CastMakeCommand::class,
@@ -210,11 +216,13 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
         'Dev' => DevCommand::class,
         'DevList' => DevListCommand::class,
         'Docs' => DocsCommand::class,
+        'DtoMake' => DtoMakeCommand::class,
         'EnumMake' => EnumMakeCommand::class,
         'EventGenerate' => EventGenerateCommand::class,
         'EventMake' => EventMakeCommand::class,
         'ExceptionMake' => ExceptionMakeCommand::class,
         'FactoryMake' => FactoryMakeCommand::class,
+        'FeatureMake' => FeatureMakeCommand::class,
         'InterfaceMake' => InterfaceMakeCommand::class,
         'JobMake' => JobMakeCommand::class,
         'JobMiddlewareMake' => JobMiddlewareMakeCommand::class,
@@ -238,9 +246,11 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
         'SeederMake' => SeederMakeCommand::class,
         'SessionTable' => SessionTableCommand::class,
         'Serve' => ServeCommand::class,
+        'ServiceMake' => ServiceMakeCommand::class,
         'StubPublish' => StubPublishCommand::class,
         'TestMake' => TestMakeCommand::class,
         'TraitMake' => TraitMakeCommand::class,
+        'UseCaseMake' => UseCaseMakeCommand::class,
         'VendorPublish' => VendorPublishCommand::class,
         'ViewMake' => ViewMakeCommand::class,
     ];

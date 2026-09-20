@@ -17,7 +17,8 @@ class FactoryMakeCommand extends GeneratorCommand
      */
     protected $signature = 'make:factory
                     {name : The name of the factory}
-                    {--m|model= : The name of the model}';
+                    {--m|model= : The name of the model}
+                    {--artifact= : The target modular artifact name}';
 
     /**
      * The console command description.
@@ -72,9 +73,16 @@ class FactoryMakeCommand extends GeneratorCommand
 
         $model = class_basename($namespaceModel);
 
-        $namespace = $this->getNamespace(
-            Str::replaceFirst($this->rootNamespace(), 'Database\\Factories\\', $this->qualifyClass($this->getNameInput()))
-        );
+        $artifact = $this->getArtifactOption();
+
+        if ($artifact) {
+            $studly = Str::studly($artifact);
+            $namespace = "Ugarit\\Artifacts\\{$studly}\\Database\\Factories";
+        } else {
+            $namespace = $this->getNamespace(
+                Str::replaceFirst($this->rootNamespace(), 'Database\\Factories\\', $this->qualifyClass($this->getNameInput()))
+            );
+        }
 
         $replace = [
             '{{ factoryNamespace }}' => $namespace,
@@ -103,6 +111,10 @@ class FactoryMakeCommand extends GeneratorCommand
     {
         $name = (new Stringable($name))->replaceFirst($this->rootNamespace(), '')->finish('Factory')->value();
 
+        if ($artifact = $this->getArtifactOption()) {
+            return $this->ugarit->basePath("artifacts/{$artifact}/database/factories/").str_replace('\\', '/', $name).'.php';
+        }
+
         return $this->ugarit->databasePath().'/factories/'.str_replace('\\', '/', $name).'.php';
     }
 
@@ -122,6 +134,10 @@ class FactoryMakeCommand extends GeneratorCommand
 
         if (class_exists($modelName)) {
             return $modelName;
+        }
+
+        if ($this->getArtifactOption()) {
+            return $this->rootNamespace().'Models\\'.class_basename($name);
         }
 
         if (is_dir(app_path('Models/'))) {

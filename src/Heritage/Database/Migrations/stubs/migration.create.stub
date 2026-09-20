@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Heritage\Database\Migrations\Migration;
 use Heritage\Database\Schema\Blueprint;
 use Heritage\Support\Facades\Schema;
@@ -12,7 +14,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('{{ table }}', function (Blueprint $table) {
+            // Primary unique identifier
             $table->id();
+
+            // Soft deletion timestamp for auditing and data safety
+            $table->softDeletes();
+
+            // Record creation and update timestamps
             $table->timestamps();
         });
     }

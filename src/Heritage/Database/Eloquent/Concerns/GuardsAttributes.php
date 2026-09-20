@@ -66,6 +66,13 @@ trait GuardsAttributes
      */
     public function getFillable()
     {
+        if (method_exists($this, 'getTranslatable')) {
+            $translatable = $this->getTranslatable();
+            if (! empty($translatable)) {
+                return array_values(array_unique(array_merge($this->fillable, $translatable)));
+            }
+        }
+
         return $this->fillable;
     }
 

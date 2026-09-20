@@ -12,6 +12,7 @@ use Symfony\Component\Console\Completion\CompletionInput;
 use Symfony\Component\Console\Completion\CompletionSuggestions;
 use Symfony\Component\Console\Completion\Suggestion;
 use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Finder\Finder;
 
 abstract class GeneratorCommand extends Command implements PromptsForMissingInput
@@ -134,6 +135,8 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
             $this->addTestOptions();
         }
 
+        $this->addArtifactOptions();
+
         $this->files = $files;
     }
 
@@ -237,6 +240,10 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
             return $model;
         }
 
+        if ($this->getArtifactOption()) {
+            return $rootNamespace.'Models\\'.$model;
+        }
+
         return is_dir(app_path('Models'))
             ? $rootNamespace.'Models\\'.$model
             : $rootNamespace.$model;
@@ -305,6 +312,10 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
     protected function getPath($name)
     {
         $name = Str::replaceFirst($this->rootNamespace(), '', $name);
+
+        if ($artifact = $this->getArtifactOption()) {
+            return $this->ugarit->basePath("artifacts/{$artifact}/src").'/'.str_replace('\\', '/', $name).'.php';
+        }
 
         return $this->ugarit['path'].'/'.str_replace('\\', '/', $name).'.php';
     }
@@ -432,7 +443,46 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
      */
     protected function rootNamespace()
     {
+        if ($artifact = $this->getArtifactOption()) {
+            $studly = Str::studly($artifact);
+
+            return "Ugarit\\Artifacts\\{$studly}\\";
+        }
+
         return $this->ugarit->getNamespace();
+    }
+
+    /**
+     * Add modular artifact options to the command definition.
+     *
+     * @return void
+     */
+    protected function addArtifactOptions(): void
+    {
+        $definition = $this->getDefinition();
+
+        if (! $definition->hasOption('artifact')) {
+            $definition->addOption(new InputOption(
+                'artifact',
+                null,
+                InputOption::VALUE_OPTIONAL,
+                'The target modular artifact name'
+            ));
+        }
+    }
+
+    /**
+     * Get the specified modular artifact name, if any.
+     *
+     * @return string|null
+     */
+    protected function getArtifactOption(): ?string
+    {
+        if ($this->hasOption('artifact') && $this->option('artifact')) {
+            return (string) $this->option('artifact');
+        }
+
+        return null;
     }
 
     /**

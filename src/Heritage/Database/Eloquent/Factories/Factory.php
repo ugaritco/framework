@@ -1086,6 +1086,14 @@ abstract class Factory
     public static function resolveFactoryName(string $modelName)
     {
         $resolver = static::$factoryNameResolver ?? function (string $modelName) {
+            // Check for modular artifact or package convention: \Models\ -> \Database\Factories\
+            if (str_contains($modelName, '\\Models\\')) {
+                $factoryCandidate = str_replace('\\Models\\', '\\Database\\Factories\\', $modelName).'Factory';
+                if (class_exists($factoryCandidate)) {
+                    return $factoryCandidate;
+                }
+            }
+
             $appNamespace = static::appNamespace();
 
             $modelName = Str::startsWith($modelName, $appNamespace.'Models\\')

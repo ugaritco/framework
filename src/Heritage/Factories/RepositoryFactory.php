@@ -41,13 +41,55 @@ class RepositoryFactory
     }
 
     /**
+     * Resolve the concrete repository class name from the contract or interface name by convention.
+     *
+     * @param  string  $interface  Fully qualified interface or contract name.
+     * @return string|null Resolved repository class name, or null if unresolvable.
+     */
+    public static function resolveClassName(string $interface): ?string
+    {
+        // Check if the given identifier is already an existing concrete class
+        if (class_exists($interface)) {
+            return $interface;
+        }
+
+        if (! interface_exists($interface)) {
+            return null;
+        }
+
+        // Step 1: Strip 'Contract' or 'Interface' suffix (e.g. LocaleRepositoryContract -> LocaleRepository)
+        $base = preg_replace('/(Contract|Interface)$/', '', $interface);
+
+        // Step 2: Try mapping \Contracts\ to \Repositories\ (e.g. Artifacts\I18n\Contracts\... -> Artifacts\I18n\Repositories\...)
+        if (str_contains($base, '\\Contracts\\')) {
+            $candidate = str_replace('\\Contracts\\', '\\Repositories\\', $base);
+            if (class_exists($candidate)) {
+                return $candidate;
+            }
+        }
+
+        // Step 3: Try removing \Contracts namespace segment (e.g. App\Contracts\Repositories -> App\Repositories)
+        $candidate = str_replace('\\Contracts', '', $base);
+        if (class_exists($candidate)) {
+            return $candidate;
+        }
+
+        // Step 4: Check if the base name exists directly
+        if (class_exists($base)) {
+            return $base;
+        }
+
+        return null;
+    }
+
+    /**
      * Create and resolve a repository instance dynamically from an interface or class name.
      *
      * Resolution flow:
      * 1. Container check: If explicitly bound in the container, resolve directly.
      * 2. Concrete class check: If the passed identifier is a concrete class, resolve directly.
      * 3. Interface validation: Verify that the interface exists.
-     * 4. Convention mapping: Strip 'Interface' and '\Contracts' segment to derive concrete repository.
+     * 4. Convention mapping: Strip 'Contract'/'Interface' and '\Contracts' segment to derive concrete repository.
      * 5. Resolve the derived class with automatic dependency injection via the container.
      *
      * @param  string  $interface  Fully qualified interface or class name.
@@ -76,20 +118,23 @@ class RepositoryFactory
             throw new InvalidArgumentException("Interface or class [{$interface}] not found.");
         }
 
-        // Step 4: Apply naming convention to derive the repository class:
-        // A) Remove 'Interface' suffix (e.g., StatusRepositoryInterface -> StatusRepository)
-        $repositoryClass = str_replace('Interface', '', $interface);
-
-        // B) Remove '\Contracts' namespace segment if present (e.g., App\Contracts\Repositories -> App\Repositories)
-        $repositoryClass = str_replace('\\Contracts', '', $repositoryClass);
+        // Step 4: Resolve repository class name by convention
+        $repositoryClass = static::resolveClassName($interface);
 
         // Step 5: Check if the derived repository class exists
-        if (class_exists($repositoryClass)) {
+        if ($repositoryClass && class_exists($repositoryClass)) {
             // Resolve repository class through container, injecting Model and dependencies
-            return $this->container->make($repositoryClass);
+            $instance = $this->container->make($repositoryClass);
+
+            // Cache instance in container for subsequent singleton-like lookups
+            if (! $this->container->bound($interface)) {
+                $this->container->instance($interface, $instance);
+            }
+
+            return $instance;
         }
 
         // Throw exception when convention-based derivation cannot locate the target class
-        throw new InvalidArgumentException("Repository class [{$repositoryClass}] not found for interface [{$interface}].");
+        throw new InvalidArgumentException("Repository class for interface [{$interface}] could not be resolved by convention.");
     }
 }

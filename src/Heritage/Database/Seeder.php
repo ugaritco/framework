@@ -33,6 +33,20 @@ abstract class Seeder
     protected static $called = [];
 
     /**
+     * The registered artifact seeders registry.
+     *
+     * @var array<string, class-string<\Heritage\Database\Seeder>>
+     */
+    protected static array $artifactSeeders = [];
+
+    /**
+     * Backward-compatible alias for registered artifact seeders.
+     *
+     * @var array<string, class-string<\Heritage\Database\Seeder>>
+     */
+    protected static array $moduleSeeders = [];
+
+    /**
      * Run the given seeder class.
      *
      * @param  array|string  $class
@@ -189,5 +203,63 @@ abstract class Seeder
         }
 
         return $callback();
+    }
+
+    /**
+     * Register an artifact seeder in the global seeder registry.
+     *
+     * @param  string  $artifact
+     * @param  class-string<\Heritage\Database\Seeder>  $seederClass
+     * @return void
+     */
+    public static function registerArtifactSeeder(string $artifact, string $seederClass): void
+    {
+        static::$artifactSeeders[$artifact] = $seederClass;
+        static::$moduleSeeders[$artifact] = $seederClass;
+    }
+
+    /**
+     * Get all registered artifact seeders.
+     *
+     * @return array<string, class-string<\Heritage\Database\Seeder>>
+     */
+    public static function getArtifactSeeders(): array
+    {
+        return static::$artifactSeeders;
+    }
+
+    /**
+     * Get the seeder class registered for the given artifact.
+     *
+     * @param  string  $artifact
+     * @return class-string<\Heritage\Database\Seeder>|null
+     */
+    public static function getArtifactSeeder(string $artifact): ?string
+    {
+        return static::$artifactSeeders[$artifact] ?? null;
+    }
+
+    /**
+     * @deprecated Use registerArtifactSeeder instead.
+     */
+    public static function registerModuleSeeder(string $module, string $seederClass): void
+    {
+        static::registerArtifactSeeder($module, $seederClass);
+    }
+
+    /**
+     * @deprecated Use getArtifactSeeders instead.
+     */
+    public static function getModuleSeeders(): array
+    {
+        return static::getArtifactSeeders();
+    }
+
+    /**
+     * @deprecated Use getArtifactSeeder instead.
+     */
+    public static function getModuleSeeder(string $module): ?string
+    {
+        return static::getArtifactSeeder($module);
     }
 }

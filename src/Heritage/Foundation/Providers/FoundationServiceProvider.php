@@ -56,6 +56,9 @@ class FoundationServiceProvider extends AggregateServiceProvider
     public $singletons = [
         HttpFactory::class => HttpFactory::class,
         Vite::class => Vite::class,
+        \Heritage\Factories\RepositoryFactory::class => \Heritage\Factories\RepositoryFactory::class,
+        \Heritage\Factories\UseCaseFactory::class => \Heritage\Factories\UseCaseFactory::class,
+        \Heritage\Factories\ResponderFactory::class => \Heritage\Factories\ResponderFactory::class,
     ];
 
     /**
