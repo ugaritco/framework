@@ -1,0 +1,21 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+/**
+ * Class {{ class }}
+ *
+ * Provides specialized domain or application services.
+ */
+class {{ class }}
+{
+    /**
+     * Create a new service instance.
+     */
+    public function __construct()
+    {
+        //
+    }
+}
