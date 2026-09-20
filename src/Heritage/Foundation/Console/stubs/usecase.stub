@@ -1,0 +1,23 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+/**
+ * Class {{ class }}
+ *
+ * Encapsulates a distinct business domain operation or interactor.
+ */
+class {{ class }}
+{
+    /**
+     * Execute the use case business logic.
+     *
+     * @return mixed
+     */
+    public function execute()
+    {
+        //
+    }
+}
