@@ -1,0 +1,41 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Ugarit\Artifacts\{{ StudlyName }}\Providers;
+
+use Heritage\Support\ServiceProvider;
+
+/**
+ * Class {{ StudlyName }}ServiceProvider
+ *
+ * Service provider that bootstraps the {{ StudlyName }} artifact domain,
+ * including migrations, routes, and any other domain-level resources.
+ */
+class {{ StudlyName }}ServiceProvider extends ServiceProvider
+{
+    /**
+     * Register {{ name }} domain services into the IoC container.
+     *
+     * Bind interfaces, singletons, or any service-level dependencies here.
+     *
+     * @return void
+     */
+    public function register(): void
+    {
+        // {{ StudlyName }} service bindings
+    }
+
+    /**
+     * Bootstrap {{ name }} domain migrations and other resources.
+     *
+     * This method is called after all providers have been registered.
+     *
+     * @return void
+     */
+    public function boot(): void
+    {
+        // Load database migrations from the artifact's database directory
+        $this->loadMigrationsFrom(__DIR__ . '/../../database/migrations');
+    }
+}
