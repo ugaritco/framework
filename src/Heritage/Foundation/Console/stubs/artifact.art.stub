@@ -1,0 +1,85 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Ugarit\Artifacts\{{ StudlyName }};
+
+use Heritage\Support\Artifact;
+
+/**
+ * Artifact manifest for the {{ StudlyName }} domain module.
+ *
+ * This file defines the identity, capabilities, providers, and dependencies
+ * for the {{ name }} artifact within the Ugarit ecosystem.
+ */
+return new class extends Artifact
+{
+    /**
+     * The unique slug identifier for this artifact.
+     *
+     * @var string
+     */
+    public string $id = '{{ name }}';
+
+    /**
+     * The human-readable display name of this artifact.
+     *
+     * @var string
+     */
+    public string $name = '{{ StudlyName }} Domain';
+
+    /**
+     * The semantic version of this artifact following Ugarit versioning (1.00.00).
+     *
+     * @var string
+     */
+    public string $version = '1.00.00';
+
+    /**
+     * Human-readable description of what this artifact provides.
+     *
+     * @var string
+     */
+    public string $description = '{{ description }}';
+
+    /**
+     * Technical capabilities exposed by this artifact to other modules.
+     *
+     * Keys are capability slugs, values describe what the capability provides.
+     *
+     * @var array<string, string>
+     */
+    public array $capabilities = [
+        //
+    ];
+
+    /**
+     * Service providers that should be registered when this artifact is loaded.
+     *
+     * @var array<int, class-string<\Heritage\Support\ServiceProvider>>
+     */
+    public array $providers = [
+        Providers\{{ StudlyName }}ServiceProvider::class,
+    ];
+
+    /**
+     * Capability slugs required from other artifacts before this one can boot.
+     *
+     * @var array<int, string>
+     */
+    public array $requires = [
+        //
+    ];
+
+    /**
+     * Perform any bootstrap logic specific to this artifact.
+     *
+     * Called after all providers have been registered and booted.
+     *
+     * @return void
+     */
+    public function boot(): void
+    {
+        // Internal {{ name }} artifact bootstrap logic
+    }
+};
