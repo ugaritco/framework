@@ -1,0 +1,45 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+/**
+ * Class {{ class }}
+ *
+ * Immutable data transfer object representing structured payload data.
+ */
+readonly class {{ class }}
+{
+    /**
+     * Create a new data transfer object instance.
+     */
+    public function __construct(
+        //
+    ) {}
+
+    /**
+     * Instantiate the data transfer object from a raw associative array.
+     *
+     * @param  array<string, mixed>  $data
+     * @return self
+     */
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            //
+        );
+    }
+
+    /**
+     * Transform the data transfer object attributes into an associative array.
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            //
+        ];
+    }
+}
