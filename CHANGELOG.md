@@ -1,5 +1,19 @@
 # Release Notes for 1.x
 
+## [v1.00.18](https://github.com/ugarit/framework/compare/v1.00.17...v1.00.18) - 2026-09-21
+
+* feat(architecture): introduce 3-tier domain execution hierarchy:
+  * `UseCase`: atomic single-record mutation/persistence unit
+  * `Service`: intra-module sequential multi-UseCase orchestrator with transaction atomicity
+  * `Feature`: cross-module capability orchestrator
+* feat(architecture): add `UseCaseFactory`, `ServiceFactory`, and `FeatureFactory` for container-backed resolution
+* feat(routing): add polymorphic `Controller::execute()` supporting UseCases, Services, and Features with automated Responder dispatching
+* feat(responses): introduce `Outcome` execution envelope with status, variant, toast notifications, contextual data, and backward-compatible `Response`
+* feat(responses): add decoupled polymorphic HTTP Responders (`JsonResponder`, `InertiaResponder`, `RedirectBackResponder`, `RedirectToRouteResponder`) and `ResponderFactory`
+* feat(repositories): introduce `RepositoryContract`, `ModelRepositoryContract`, `ModelRepository`, and container-aware `RepositoryFactory`
+* feat(domain): add strongly-typed `DTO`, `TranslatableDTO`, `FormDTO`, `ActionType`, and `ResultContract`
+* feat(eloquent): add native `HasTranslation` trait and translatable model integration directly in Eloquent `Model`
+
 ## [v1.00.17](https://github.com/ugarit/framework/compare/v1.00.16...v1.00.17) - 2026-09-20
 
 * feat(foundation): integrate `registerArtifactProviders` and `discoverAndRegisterArtifacts` directly into `Heritage\Foundation\Application` Kernel
