@@ -249,6 +249,14 @@ trait HasAttributes
             $attributes[$key] = $this->mutateAttributeForArray($key, $this->getAttributeFromArray($key));
         }
 
+        if (method_exists($this, 'isTranslatable') && $this->isTranslatable()) {
+            foreach ($this->getTranslatable() as $key) {
+                if (! array_key_exists($key, $attributes) && ! in_array($key, $this->getHidden(), true)) {
+                    $attributes[$key] = $this->getAttribute($key);
+                }
+            }
+        }
+
         return $attributes;
     }
 
@@ -486,6 +494,23 @@ trait HasAttributes
     {
         if (! $key) {
             return;
+        }
+
+        if ($this->hasGetMutator($key) || $this->hasAttributeGetMutator($key)) {
+            return $this->getAttributeValue($key);
+        }
+
+        if (method_exists($this, 'isTranslatableAttribute') && $this->isTranslatableAttribute($key)) {
+            $translated = $this->getTranslatedAttribute($key);
+
+            if ($translated !== null && $translated !== '') {
+                return $translated;
+            }
+
+            $fallback = $this->getTranslatableFallbackValue($key);
+            if ($fallback !== null) {
+                return $fallback;
+            }
         }
 
         // If the attribute exists in the attribute array or has a "get" mutator we will
@@ -1094,6 +1119,12 @@ trait HasAttributes
             return $this->setMutatedAttributeValue($key, $value);
         } elseif ($this->hasAttributeSetMutator($key)) {
             return $this->setAttributeMarkedMutatedAttributeValue($key, $value);
+        }
+
+        if (method_exists($this, 'isTranslatableAttribute') && $this->isTranslatableAttribute($key)) {
+            $this->setTranslation($key, $value);
+
+            return $this;
         }
 
         // If an attribute is listed as a "date", we'll convert it from a DateTime
