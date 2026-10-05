@@ -1,0 +1,22 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Heritage\Parcels\Parcel;
+
+/**
+ * Class {{ class }}
+ *
+ * Structured data envelope for transporting typed payloads.
+ */
+class {{ class }} extends Parcel
+{
+    /**
+     * Create a new Parcel instance.
+     */
+    public function __construct(
+        //
+    ) {}
+}
