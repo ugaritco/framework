@@ -2,23 +2,27 @@
 
 namespace {{ namespace }};
 
-use Heritage\Contracts\Validation\ValidationRule;
 use Heritage\Foundation\Http\FormRequest;
 
+/**
+ * Validates payload for {{ class }}.
+ */
 class {{ class }} extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * Determine whether the request is authorized.
+     *
+     * @return bool
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
-     * Get the validation rules that apply to the request.
+     * Validation rules applied to the incoming payload.
      *
-     * @return array<string, ValidationRule|array<mixed>|string>
+     * @return array<string, string>
      */
     public function rules(): array
     {

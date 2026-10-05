@@ -1,0 +1,40 @@
+<?php
+
+namespace {{ namespace }};
+
+use Heritage\Foundation\Http\FormRequest;
+
+/**
+ * Validates payload for {{ class }}.
+ */
+class {{ class }} extends FormRequest
+{
+    /**
+     * Translatable attribute names to normalize and expand.
+     *
+     * @var array<int, string>
+     */
+    protected array $translatable = [{{ translatable_fields }}];
+
+    /**
+     * Determine whether the request is authorized.
+     *
+     * @return bool
+     */
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Validation rules applied to the incoming payload.
+     *
+     * @return array<string, string>
+     */
+    public function rules(): array
+    {
+        return [
+{{ rules }}
+        ];
+    }
+}
