@@ -13,6 +13,7 @@ use Heritage\Foundation\Http\Attributes\FailOnUnknownFields;
 use Heritage\Foundation\Http\Attributes\RedirectTo;
 use Heritage\Foundation\Http\Attributes\RedirectToRoute;
 use Heritage\Foundation\Http\Attributes\StopOnFirstFailure;
+use Heritage\Foundation\Http\Concerns\NormalizesTranslatableInputs;
 use Heritage\Http\Request;
 use Heritage\Routing\Redirector;
 use Heritage\Validation\ValidatesWhenResolvedTrait;
@@ -20,7 +21,7 @@ use ReflectionClass;
 
 class FormRequest extends Request implements ValidatesWhenResolved
 {
-    use ValidatesWhenResolvedTrait;
+    use ValidatesWhenResolvedTrait, NormalizesTranslatableInputs;
 
     /**
      * The container instance.
@@ -197,13 +198,25 @@ class FormRequest extends Request implements ValidatesWhenResolved
     }
 
     /**
+     * Prepare the data for validation.
+     *
+     * @return void
+     */
+    protected function prepareForValidation()
+    {
+        $this->normalizeTranslatableInputs();
+    }
+
+    /**
      * Get the validation rules for this form request.
      *
      * @return array
      */
     protected function validationRules()
     {
-        return method_exists($this, 'rules') ? $this->container->call([$this, 'rules']) : [];
+        $rawRules = method_exists($this, 'rules') ? $this->container->call([$this, 'rules']) : [];
+
+        return $this->expandTranslatableRules($rawRules);
     }
 
     /**

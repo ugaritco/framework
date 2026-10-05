@@ -645,6 +645,28 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     }
 
     /**
+     * Set the session instance on the request (Heritage alias).
+     *
+     * @param  \Heritage\Contracts\Session\Session  $session
+     * @return void
+     */
+    public function setHeritageSession($session)
+    {
+        $this->setUgaritSession($session);
+    }
+
+    /**
+     * Set the session instance on the request (Compatibility alias).
+     *
+     * @param  \Heritage\Contracts\Session\Session  $session
+     * @return void
+     */
+    public function setLaravelSession($session)
+    {
+        $this->setUgaritSession($session);
+    }
+
+    /**
      * Set the locale for the request instance.
      *
      * @param  string  $locale
