@@ -4,22 +4,27 @@ declare(strict_types=1);
 
 namespace Heritage\Contracts\Features;
 
-use Heritage\DTOs\DTO;
-use Heritage\Responses\Outcome;
+use Heritage\Contracts\Parcels\ParcelContract;
+use Heritage\Outcomes\Outcome;
+use Heritage\Parcels\Parcel;
 
 /**
  * Interface FeatureContract
  *
- * Contract for broad application features that coordinate across multiple UseCases, Services,
- * or modules to achieve a comprehensive business capability.
+ * Architectural contract for Feature workflow orchestrators in the Ugarit Ecosystem.
+ *
+ * Responsibilities:
+ * - Coordinates across multiple atomic Capabilities, external services, or modules.
+ * - Receives structured input via Parcels.
+ * - Returns a unified execution Outcome.
  */
 interface FeatureContract
 {
     /**
      * Execute the feature orchestration workflow.
      *
-     * @param  ?DTO  $data  Input Data Transfer Object.
+     * @param  Parcel|ParcelContract|null  $data  Input Parcel boundary (or null for parameterless workflows).
      * @return Outcome The unified execution outcome envelope.
      */
-    public function handle(?DTO $data): Outcome;
+    public function handle(Parcel|ParcelContract|null $data): Outcome;
 }
