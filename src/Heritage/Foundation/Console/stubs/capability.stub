@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Heritage\Capabilities\Capability;
+use Heritage\Outcomes\Outcome;
+use Heritage\Parcels\Parcel;
+
+/**
+ * Class {{ class }}
+ *
+ * Encapsulates an atomic domain execution capability.
+ */
+class {{ class }} extends Capability
+{
+    /**
+     * Execute the capability business logic.
+     *
+     * @param  ?Parcel  $data
+     * @return Outcome
+     */
+    public function handle(?Parcel $data): Outcome
+    {
+        //
+    }
+}
