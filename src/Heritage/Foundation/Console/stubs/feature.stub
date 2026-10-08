@@ -4,19 +4,24 @@ declare(strict_types=1);
 
 namespace {{ namespace }};
 
+use Heritage\Features\Feature;
+use Heritage\Outcomes\Outcome;
+use Heritage\Parcels\Parcel;
+
 /**
  * Feature: {{ class }}
  *
- * Encapsulates the application workflow and orchestration logic for this feature.
+ * Encapsulates the workflow and orchestration logic for this feature.
  */
-class {{ class }}
+class {{ class }} extends Feature
 {
     /**
-     * Execute the feature workflow.
+     * Execute the feature orchestration workflow.
      *
-     * @return mixed
+     * @param  ?Parcel  $data
+     * @return Outcome
      */
-    public function handle()
+    public function handle(?Parcel $data): Outcome
     {
         //
     }
