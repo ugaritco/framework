@@ -17,6 +17,7 @@ class FeatureMakeCommand extends GeneratorCommand
      */
     protected $signature = 'make:feature
                     {name : The name of the feature}
+                    {--artifact= : The target modular artifact name}
                     {--f|force : Create the class even if the feature already exists}';
 
     /**
@@ -32,28 +33,6 @@ class FeatureMakeCommand extends GeneratorCommand
      * @var string
      */
     protected $type = 'Feature';
-
-    /**
-     * Add modular artifact options to the command definition.
-     *
-     * Features are strictly application-level workflows, so artifact options are omitted.
-     *
-     * @return void
-     */
-    protected function addArtifactOptions(): void
-    {
-        // Features reside strictly within app/Features
-    }
-
-    /**
-     * Get the specified modular artifact name, if any.
-     *
-     * @return string|null
-     */
-    protected function getArtifactOption(): ?string
-    {
-        return null;
-    }
 
     /**
      * Get the stub file for the generator.
