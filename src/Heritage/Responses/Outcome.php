@@ -27,7 +27,7 @@ use JsonSerializable;
  * 4. Automatically resolves and builds Toast feedback objects with contextual placeholders.
  * 5. Implements Arrayable, Jsonable, and JsonSerializable for clean API and view delivery.
  */
-class Outcome implements Arrayable, Jsonable, JsonSerializable
+readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
 {
     /**
      * Runtime context overrides such as translation placeholders and entity names.
