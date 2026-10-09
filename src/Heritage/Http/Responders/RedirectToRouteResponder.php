@@ -7,6 +7,7 @@ namespace Heritage\Http\Responders;
 use Heritage\Http\RedirectResponse;
 use Heritage\Http\Responders\Options\RedirectToRouteResponderOptions;
 use Heritage\Http\Responders\Options\ResponderOptions;
+use Heritage\Responses\Outcome;
 use InvalidArgumentException;
 
 /**
@@ -24,20 +25,30 @@ class RedirectToRouteResponder extends Responder
     /**
      * Transform options into an HTTP RedirectResponse pointing to a named route.
      *
-     * @param  ResponderOptions  $options  Must be an instance of RedirectToRouteResponderOptions.
+     * @param  ResponderOptions|Outcome|null  $options  Instance of RedirectToRouteResponderOptions or pure Outcome.
+     * @param  mixed  ...$extraArgs  Optional routeName and parameters if Outcome was passed directly.
      * @return RedirectResponse
      *
-     * @throws InvalidArgumentException If options is not an instance of RedirectToRouteResponderOptions.
+     * @throws InvalidArgumentException If options is not an instance of RedirectToRouteResponderOptions or Outcome.
      */
-    public function respond(?ResponderOptions $options = null): RedirectResponse
+    public function respond(ResponderOptions|Outcome|null $options = null, ...$extraArgs): RedirectResponse
     {
         // Resolve provided options or fall back to pre-bound instance
         $options = $options ?? $this->options;
 
-        // Step 1: Validate options instance type
+        // Step 1: Wrap direct Outcome into RedirectToRouteResponderOptions
+        if ($options instanceof Outcome) {
+            $options = new RedirectToRouteResponderOptions(
+                outcome: $options,
+                routeName: $extraArgs[0] ?? '',
+                parameters: $extraArgs[1] ?? []
+            );
+        }
+
+        // Step 2: Validate options instance type
         if (! $options instanceof RedirectToRouteResponderOptions) {
             throw new InvalidArgumentException(
-                'Expected instance of RedirectToRouteResponderOptions'
+                'Expected instance of RedirectToRouteResponderOptions or Outcome'
             );
         }
 

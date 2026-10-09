@@ -7,6 +7,7 @@ namespace Heritage\Http\Responders;
 use Heritage\Http\RedirectResponse;
 use Heritage\Http\Responders\Options\RedirectBackResponderOptions;
 use Heritage\Http\Responders\Options\ResponderOptions;
+use Heritage\Responses\Outcome;
 use InvalidArgumentException;
 
 /**
@@ -25,20 +26,25 @@ class RedirectBackResponder extends Responder
     /**
      * Transform options into an HTTP RedirectResponse going back to the previous URL.
      *
-     * @param  ResponderOptions  $options  Must be an instance of RedirectBackResponderOptions.
+     * @param  ResponderOptions|Outcome|null  $options  Instance of RedirectBackResponderOptions or pure Outcome.
      * @return RedirectResponse
      *
-     * @throws InvalidArgumentException If options is not an instance of RedirectBackResponderOptions.
+     * @throws InvalidArgumentException If options is not an instance of RedirectBackResponderOptions or Outcome.
      */
-    public function respond(?ResponderOptions $options = null): RedirectResponse
+    public function respond(ResponderOptions|Outcome|null $options = null): RedirectResponse
     {
         // Resolve provided options or fall back to pre-bound instance
         $options = $options ?? $this->options;
 
-        // Step 1: Validate options instance type
+        // Step 1: Wrap direct Outcome into RedirectBackResponderOptions
+        if ($options instanceof Outcome) {
+            $options = new RedirectBackResponderOptions(outcome: $options);
+        }
+
+        // Step 2: Validate options instance type
         if (! $options instanceof RedirectBackResponderOptions) {
             throw new InvalidArgumentException(
-                'Expected instance of RedirectBackResponderOptions'
+                'Expected instance of RedirectBackResponderOptions or Outcome'
             );
         }
 
