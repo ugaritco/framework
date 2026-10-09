@@ -6,6 +6,7 @@ namespace Heritage\Http\Responders;
 
 use Heritage\Http\Responders\Options\InertiaResponderOptions;
 use Heritage\Http\Responders\Options\ResponderOptions;
+use Heritage\Responses\Outcome;
 use Inertia\Inertia;
 use InvalidArgumentException;
 use LogicException;
@@ -25,21 +26,31 @@ class InertiaResponder extends Responder
     /**
      * Transform options into an Inertia HTTP response.
      *
-     * @param  ResponderOptions  $options  Must be an instance of InertiaResponderOptions.
+     * @param  ResponderOptions|Outcome|null  $options  Instance of InertiaResponderOptions or pure Outcome.
+     * @param  mixed  ...$extraArgs  Optional component name and extra array if Outcome was passed directly.
      * @return mixed Inertia response object.
      *
-     * @throws InvalidArgumentException If options is not an instance of InertiaResponderOptions.
+     * @throws InvalidArgumentException If options is not an instance of InertiaResponderOptions or Outcome.
      * @throws LogicException If the Inertia package is not installed.
      */
-    public function respond(?ResponderOptions $options = null): mixed
+    public function respond(ResponderOptions|Outcome|null $options = null, ...$extraArgs): mixed
     {
         // Resolve provided options or fall back to pre-bound instance
         $options = $options ?? $this->options;
 
-        // Step 1: Type check options instance
+        // Step 1: Wrap direct Outcome into InertiaResponderOptions
+        if ($options instanceof Outcome) {
+            $options = new InertiaResponderOptions(
+                outcome: $options,
+                component: $extraArgs[0] ?? 'Dashboard/Index',
+                extra: $extraArgs[1] ?? []
+            );
+        }
+
+        // Step 2: Type check options instance
         if (! $options instanceof InertiaResponderOptions) {
             throw new InvalidArgumentException(
-                'Expected instance of InertiaResponderOptions'
+                'Expected instance of InertiaResponderOptions or Outcome'
             );
         }
 
