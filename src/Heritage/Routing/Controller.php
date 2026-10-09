@@ -3,25 +3,23 @@
 namespace Heritage\Routing;
 
 use BadMethodCallException;
+use Heritage\Capabilities\Capability;
+use Heritage\Contracts\Capabilities\CapabilityContract;
 use Heritage\Contracts\Container\BindingResolutionException;
 use Heritage\Contracts\Features\FeatureContract;
-use Heritage\Contracts\Services\ServiceContract;
-use Heritage\Contracts\UseCases\UseCaseContract;
-use Heritage\DTOs\DTO;
+use Heritage\Contracts\Parcels\ParcelContract;
+use Heritage\Parcels\Parcel;
 use Heritage\Enums\Responders\ResponderType;
+use Heritage\Factories\CapabilityFactory;
 use Heritage\Factories\FeatureFactory;
 use Heritage\Factories\ResponderFactory;
-use Heritage\Factories\ServiceFactory;
-use Heritage\Factories\UseCaseFactory;
 use Heritage\Features\Feature;
 use Heritage\Http\Responders\Options\InertiaResponderOptions;
 use Heritage\Http\Responders\Options\JsonResponderOptions;
 use Heritage\Http\Responders\Options\RedirectBackResponderOptions;
 use Heritage\Http\Responders\Options\RedirectToRouteResponderOptions;
 use Heritage\Http\Responders\Responder;
-use Heritage\Responses\Outcome;
-use Heritage\Services\Service;
-use Heritage\Services\UseCase;
+use Heritage\Outcomes\Outcome;
 use InvalidArgumentException;
 
 abstract class Controller
@@ -34,14 +32,11 @@ abstract class Controller
     protected $middleware = [];
 
     /**
-     * UseCaseFactory instance.
+     * CapabilityFactory instance.
      */
-    protected ?UseCaseFactory $useCaseFactory = null;
+    protected ?CapabilityFactory $capabilityFactory = null;
 
-    /**
-     * ServiceFactory instance.
-     */
-    protected ?ServiceFactory $serviceFactory = null;
+
 
     /**
      * FeatureFactory instance.
@@ -95,60 +90,34 @@ abstract class Controller
     }
 
     /**
-     * Retrieve the UseCaseFactory instance, lazily resolving it from the service container if uninitialized.
+     * Retrieve the CapabilityFactory instance, lazily resolving it from the service container if uninitialized.
      *
-     * @return UseCaseFactory
+     * @return CapabilityFactory
      */
-    public function getUseCaseFactory(): UseCaseFactory
+    public function getCapabilityFactory(): CapabilityFactory
     {
         // Use null coalescing assignment to lazily resolve and cache the factory instance
-        return $this->useCaseFactory ??= (function_exists('app') && app()->bound(UseCaseFactory::class)
-            ? app(UseCaseFactory::class)
-            : new UseCaseFactory());
+        return $this->capabilityFactory ??= (function_exists('app') && app()->bound(CapabilityFactory::class)
+            ? app(CapabilityFactory::class)
+            : new CapabilityFactory());
     }
 
     /**
-     * Explicitly set the UseCaseFactory instance (useful for unit testing and mocking).
+     * Explicitly set the CapabilityFactory instance (useful for unit testing and mocking).
      *
-     * @param  UseCaseFactory  $useCaseFactory
+     * @param  CapabilityFactory  $capabilityFactory
      * @return static
      */
-    public function setUseCaseFactory(UseCaseFactory $useCaseFactory): static
+    public function setCapabilityFactory(CapabilityFactory $capabilityFactory): static
     {
         // Assign the factory instance to the protected property
-        $this->useCaseFactory = $useCaseFactory;
+        $this->capabilityFactory = $capabilityFactory;
 
         // Return current instance for fluent method chaining
         return $this;
     }
 
-    /**
-     * Retrieve the ServiceFactory instance, lazily resolving it from the service container if uninitialized.
-     *
-     * @return ServiceFactory
-     */
-    public function getServiceFactory(): ServiceFactory
-    {
-        // Use null coalescing assignment to lazily resolve and cache the service factory instance
-        return $this->serviceFactory ??= (function_exists('app') && app()->bound(ServiceFactory::class)
-            ? app(ServiceFactory::class)
-            : new ServiceFactory());
-    }
 
-    /**
-     * Explicitly set the ServiceFactory instance (useful for unit testing and mocking).
-     *
-     * @param  ServiceFactory  $serviceFactory
-     * @return static
-     */
-    public function setServiceFactory(ServiceFactory $serviceFactory): static
-    {
-        // Assign the service factory instance
-        $this->serviceFactory = $serviceFactory;
-
-        // Return current instance for fluent method chaining
-        return $this;
-    }
 
     /**
      * Retrieve the FeatureFactory instance, lazily resolving it from the service container if uninitialized.
@@ -207,75 +176,41 @@ abstract class Controller
     }
 
     /**
-     * Resolve and instantiate an atomic UseCase instance using the registered factory.
+     * Resolve and instantiate an atomic Capability instance using the registered factory.
      *
-     * @template T of UseCaseContract
+     * @template T of CapabilityContract
      *
-     * @param  class-string<T>  $useCaseClass  Fully qualified class name of the target UseCase.
-     * @return T Resolved UseCase instance.
+     * @param  class-string<T>  $capabilityClass  Fully qualified class name of the target Capability.
+     * @return T Resolved Capability instance.
      *
      * @throws InvalidArgumentException If the resolved class is invalid or does not implement handle().
      */
-    protected function useCase(string $useCaseClass)
+    protected function capability(string $capabilityClass)
     {
         try {
-            // Step 1: Use the UseCaseFactory to resolve the class from the service container
-            $instance = $this->getUseCaseFactory()->make($useCaseClass);
+            // Step 1: Use the CapabilityFactory to resolve the class from the service container
+            $instance = $this->getCapabilityFactory()->make($capabilityClass);
 
             // Step 2: Validate that the resolved instance is an object
             if (! is_object($instance)) {
-                throw new InvalidArgumentException('UseCaseFactory must return an object. Got: '.gettype($instance));
+                throw new InvalidArgumentException('CapabilityFactory must return an object. Got: '.gettype($instance));
             }
 
             // Step 3: Ensure the instance implements the mandatory handle() method
             if (! method_exists($instance, 'handle')) {
-                throw new InvalidArgumentException("UseCase [{$useCaseClass}] does not implement handle().");
+                throw new InvalidArgumentException("Capability [{$capabilityClass}] does not implement handle().");
             }
 
-            // Return the validated UseCase instance
+            // Return the validated Capability instance
             return $instance;
         } catch (BindingResolutionException $e) {
             // Catch container resolution exceptions and rethrow a descriptive InvalidArgumentException
-            throw new InvalidArgumentException("Unable to resolve UseCase [{$useCaseClass}]: ".$e->getMessage(), 0, $e);
+            throw new InvalidArgumentException("Unable to resolve Capability [{$capabilityClass}]: ".$e->getMessage(), 0, $e);
         }
     }
 
     /**
-     * Resolve and instantiate an intra-module Service instance using the registered factory.
-     *
-     * @template T of ServiceContract
-     *
-     * @param  class-string<T>  $serviceClass  Fully qualified class name of the target Service.
-     * @return T Resolved Service instance.
-     *
-     * @throws InvalidArgumentException If the resolved class is invalid or does not implement handle().
-     */
-    protected function service(string $serviceClass)
-    {
-        try {
-            // Step 1: Use the ServiceFactory to resolve the class from the service container
-            $instance = $this->getServiceFactory()->make($serviceClass);
-
-            // Step 2: Validate that the resolved instance is an object
-            if (! is_object($instance)) {
-                throw new InvalidArgumentException('ServiceFactory must return an object. Got: '.gettype($instance));
-            }
-
-            // Step 3: Ensure the instance implements the mandatory handle() method
-            if (! method_exists($instance, 'handle')) {
-                throw new InvalidArgumentException("Service [{$serviceClass}] does not implement handle().");
-            }
-
-            // Return the validated Service instance
-            return $instance;
-        } catch (BindingResolutionException $e) {
-            // Catch container resolution exceptions and rethrow a descriptive InvalidArgumentException
-            throw new InvalidArgumentException("Unable to resolve Service [{$serviceClass}]: ".$e->getMessage(), 0, $e);
-        }
-    }
-
-    /**
-     * Resolve and instantiate a cross-module Feature instance using the registered factory.
+     * Resolve and instantiate a cross-artifact Feature instance using the registered factory.
      *
      * @template T of FeatureContract
      *
@@ -321,88 +256,123 @@ abstract class Controller
     }
 
     /**
-     * Execute a UseCase, Service, or Feature workflow and generate an HTTP response using a specified Responder type.
+     * Execute a Capability or Feature and retrieve the pure domain Outcome envelope.
      *
-     * Architectural Flow:
-     * 1. Detect and resolve the executable instance (UseCase, Service, or Feature) via its dedicated factory.
-     * 2. Execute business logic by passing the validated DTO to handle(), obtaining an Outcome envelope.
-     * 3. Instantiate the specialized Responder (Json, Inertia, Redirect) via ResponderFactory.
-     * 4. Wrap the Outcome into the corresponding strongly-typed ResponderOptions DTO.
-     * 5. Call respond() on the Responder to generate and return the final HTTP response.
+     * In the Ugarit architectural philosophy:
+     * - Capability executes an atomic operation.
+     * - Feature orchestrates a multi-step workflow.
+     * - Outcome represents the pure domain execution result, agnostic to transport/consumer.
      *
-     * @param  string  $actionClass  Fully qualified class name of the UseCase, Service, or Feature to execute.
-     * @param  ?DTO  $data  Validated Data Transfer Object passed to handle().
-     * @param  ResponderType  $responderType  Desired response channel (JSON, INERTIA, REDIRECT_BACK, REDIRECT_TO_ROUTE).
-     * @param  string|null  $component  Inertia component name (required if responderType is INERTIA).
-     * @param  string|null  $route  Target route name (used if responderType is REDIRECT_TO_ROUTE).
-     * @param  array|null  $parameters  Route parameters for redirect.
-     * @param  array  $extra  Additional metadata to merge into the response data.
-     * @return mixed Final HTTP response object (JsonResponse, RedirectResponse, Inertia Response).
+     * @param string $actionClass Fully qualified class name of the Capability or Feature.
+     * @param Parcel|ParcelContract|null $data Validated Parcel input.
+     * @return Outcome Pure execution outcome envelope.
      */
-    protected function execute(
+    protected function run(
         string $actionClass,
-        ?DTO $data = null,
+        Parcel|ParcelContract|null $data = null
+    ): Outcome {
+        $executable = match (true) {
+            is_subclass_of($actionClass, Capability::class) => $this->capability($actionClass),
+            is_subclass_of($actionClass, Feature::class) => $this->feature($actionClass),
+            default => app($actionClass),
+        };
+
+        return $executable->handle($data);
+    }
+
+    /**
+     * Transform a domain Outcome envelope into the appropriate consumer Response using a Responder.
+     *
+     * In the Ugarit architectural philosophy:
+     * - Responder receives the Outcome and converts it into the final Response presentation
+     *   (Inertia view, JsonResponse, RedirectResponse, etc.) based on consumer requirements.
+     * - Decouples business logic from presentation and transport protocols.
+     *
+     * @param Outcome $outcome The domain execution outcome.
+     * @param ResponderType $responderType Desired presentation channel.
+     * @param string|null $component Inertia component name (if applicable).
+     * @param string|null $route Target route name for redirects (if applicable).
+     * @param array|null $parameters Route parameters (if applicable).
+     * @param array $extra Additional presentation metadata.
+     * @return mixed Consumer Response (e.g., Inertia Response, JsonResponse, RedirectResponse).
+     */
+    protected function respond(
+        Outcome $outcome,
         ResponderType $responderType = ResponderType::REDIRECT_BACK,
         ?string $component = null,
         ?string $route = null,
         ?array $parameters = null,
         array $extra = []
-    ) {
-        // Step 1: Detect executable type and resolve via the appropriate factory
-        $executable = match (true) {
-            is_subclass_of($actionClass, UseCase::class) => $this->useCase($actionClass),
-            is_subclass_of($actionClass, Service::class) => $this->service($actionClass),
-            is_subclass_of($actionClass, Feature::class) => $this->feature($actionClass),
-            default => app($actionClass),
-        };
-
-        // Step 2: Execute domain logic and retrieve the Outcome envelope
-        /** @var Outcome $outcome */
-        $outcome = $executable->handle($data);
-
-        // Step 3: Instantiate the specialized Responder matching the requested ResponderType
+    ): mixed {
         $responder = $this->responder($responderType);
 
-        // Step 4: Wrap the Outcome into the appropriate Options DTO for the Responder
         $options = match ($responderType) {
-            // Options for redirecting back to the previous URL
             ResponderType::REDIRECT_BACK => new RedirectBackResponderOptions(
                 outcome: $outcome,
                 extra: $extra
             ),
-
-            // Options for redirecting to a specific named route with parameters
             ResponderType::REDIRECT_TO_ROUTE => new RedirectToRouteResponderOptions(
                 outcome: $outcome,
                 routeName: $route ?? '',
                 parameters: $parameters ?? [],
                 extra: $extra
             ),
-
-            // Options for rendering Inertia.js components with resolved resource data
             ResponderType::INERTIA => new InertiaResponderOptions(
                 outcome: $outcome,
                 component: $component ?? 'Dashboard/Index',
                 extra: array_merge(
                     [
-                        // Resolve JsonResources or ResourceCollections to clean arrays
                         'data' => is_array($outcome->data)
-                            ? array_map(fn ($r) => method_exists($r, 'resolve') ? $r->resolve() : $r, $outcome->data)
-                            : (method_exists($outcome->data, 'resolve') ? $outcome->data->resolve() : $outcome->data ?? []),
+                            ? array_map(fn ($r) => is_object($r) && method_exists($r, 'resolve') ? $r->resolve() : $r, $outcome->data)
+                            : (is_object($outcome->data) && method_exists($outcome->data, 'resolve') ? $outcome->data->resolve() : $outcome->data ?? []),
                     ],
                     $extra
                 )
             ),
-
-            // Options for returning structured JSON responses
             ResponderType::JSON => new JsonResponderOptions(
                 outcome: $outcome,
                 extra: $extra
             ),
         };
 
-        // Step 5: Convert the Options DTO into the final HTTP response
         return $responder->respond($options);
+    }
+
+    /**
+     * Execute a Capability or Feature workflow and transform its Outcome into a Response in a single call.
+     *
+     * Architectural Flow:
+     * 1. Capability/Feature executes via run(), returning an Outcome.
+     * 2. Responder transforms Outcome via respond(), returning the consumer Response.
+     *
+     * @param  string  $actionClass  Fully qualified class name of the Capability or Feature to execute.
+     * @param  Parcel|ParcelContract|null  $data  Validated Parcel passed to handle().
+     * @param  ResponderType  $responderType  Desired response channel (JSON, INERTIA, REDIRECT_BACK, REDIRECT_TO_ROUTE).
+     * @param  string|null  $component  Inertia component name (required if responderType is INERTIA).
+     * @param  string|null  $route  Target route name (used if responderType is REDIRECT_TO_ROUTE).
+     * @param  array|null  $parameters  Route parameters for redirect.
+     * @param  array  $extra  Additional metadata to merge into the response data.
+     * @return mixed Final consumer Response object (JsonResponse, RedirectResponse, Inertia Response).
+     */
+    protected function execute(
+        string $actionClass,
+        Parcel|ParcelContract|null $data = null,
+        ResponderType $responderType = ResponderType::REDIRECT_BACK,
+        ?string $component = null,
+        ?string $route = null,
+        ?array $parameters = null,
+        array $extra = []
+    ) {
+        $outcome = $this->run($actionClass, $data);
+
+        return $this->respond(
+            outcome: $outcome,
+            responderType: $responderType,
+            component: $component,
+            route: $route,
+            parameters: $parameters,
+            extra: $extra
+        );
     }
 
     /**
