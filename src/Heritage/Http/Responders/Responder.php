@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Heritage\Http\Responders;
 
+use Heritage\Contracts\Responders\ResponderContract;
 use Heritage\Contracts\Support\Arrayable;
 use Heritage\Http\Resources\Json\JsonResource;
 use Heritage\Http\Resources\Json\ResourceCollection;
 use Heritage\Http\Responders\Options\ResponderOptions;
+use Heritage\Responses\Outcome;
 use InvalidArgumentException;
 
 /**
@@ -16,12 +18,12 @@ use InvalidArgumentException;
  * Base abstract responder providing unified helper methods for formatting and processing HTTP responses.
  *
  * Architectural Role:
- * 1. Transforms a domain Outcome returned by a UseCase, Service, or Feature along with its
- *    strongly-typed ResponderOptions into an appropriate transport-level HTTP response (JSON, Inertia, Redirect).
- * 2. Provides centralized helpers to resolve API Resources, Collections, and Arrayable objects.
- * 3. Enforces pre-render existence checks for Inertia components across core pages and modular artifacts.
+ * 1. Transforms a domain Outcome returned by a Capability or Feature into an appropriate consumer Response (JSON, Inertia, Redirect).
+ * 2. Decouples business logic from presentation and transport protocols.
+ * 3. Provides centralized helpers to resolve API Resources, Collections, and Arrayable objects.
+ * 4. Enforces pre-render existence checks for Inertia components across core pages and modular artifacts.
  */
-abstract class Responder
+abstract class Responder implements ResponderContract
 {
     /**
      * Optional pre-bound ResponderOptions instance.
@@ -43,10 +45,10 @@ abstract class Responder
     /**
      * Transform a domain Outcome + Options DTO into a transport-specific HTTP response.
      *
-     * @param  ResponderOptions|null  $options  Strongly-typed options object (optional if pre-bound).
+     * @param  ResponderOptions|Outcome|null  $options  Strongly-typed options object, pure Outcome, or null if pre-bound.
      * @return mixed Final HTTP response (JsonResponse, RedirectResponse, InertiaResponse, etc.).
      */
-    abstract public function respond(?ResponderOptions $options = null): mixed;
+    abstract public function respond(ResponderOptions|Outcome|null $options = null): mixed;
 
     /**
      * Format raw outcome data into a standard structured array.
@@ -138,13 +140,25 @@ abstract class Responder
                 // Integrated project artifact assets
                 resource_path("js/artifacts/{$artifact}/pages/{$path}"),
                 resource_path("js/artifacts/{$artifact}/Pages/{$path}"),
+                // Panel module and artifact resources
+                resource_path("js/apps/panel/modules/{$artifact}/pages/{$path}"),
+                resource_path("js/apps/panel/artifacts/{$artifact}/pages/{$path}"),
+                resource_path("js/apps/panel/pages/{$artifact}/{$path}"),
                 // Standalone package artifact resources
                 base_path("artifacts/{$artifact}/resources/js/pages/{$path}"),
                 base_path("artifacts/{$artifact}/resources/js/Pages/{$path}"),
-                // Panel module resources
-                resource_path("js/apps/panel/modules/{$artifact}/pages/{$path}"),
-                base_path("modules/{$artifact}/resources/js/pages/{$path}"),
             ];
+
+            // Add ucfirst variation for last segment if needed
+            $parts = explode('/', $path);
+            $lastPart = array_pop($parts);
+            $ucLastPath = empty($parts) ? ucfirst($lastPart) : implode('/', $parts).'/'.ucfirst($lastPart);
+            if ($ucLastPath !== $path) {
+                $searchPaths[] = resource_path("js/apps/panel/modules/{$artifact}/pages/{$ucLastPath}");
+                $searchPaths[] = resource_path("js/apps/panel/artifacts/{$artifact}/pages/{$ucLastPath}");
+                $searchPaths[] = resource_path("js/artifacts/{$artifact}/pages/{$ucLastPath}");
+                $searchPaths[] = base_path("artifacts/{$artifact}/resources/js/pages/{$ucLastPath}");
+            }
 
             // Search for file existence across all extensions
             foreach ($searchPaths as $searchPath) {
@@ -158,7 +172,7 @@ abstract class Responder
 
             // Component was not found in any artifact directory
             throw new InvalidArgumentException(
-                "Inertia component [{$component}] was not found in artifact or module pages."
+                "Inertia component [{$component}] was not found in artifact pages."
             );
         }
 
