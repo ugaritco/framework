@@ -33,7 +33,9 @@ trait CollectsResources
             return $resource;
         }
 
-        if (is_array($resource)) {
+        if (is_null($resource)) {
+            $resource = new Collection();
+        } elseif (is_array($resource)) {
             $resource = new Collection($resource);
         }
 
