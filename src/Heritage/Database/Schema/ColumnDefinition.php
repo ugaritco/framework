@@ -77,13 +77,24 @@ class ColumnDefinition extends Fluent
     }
 
     /**
+     * Mark the column as a translatable column (stored in the translation table).
+     *
+     * @param  bool  $value
+     * @return $this
+     */
+    public function translated(bool $value = true)
+    {
+        return $this->translation($value);
+    }
+
+    /**
      * Determine if the column is marked as translatable.
      *
      * @return bool
      */
     public function isTranslation(): bool
     {
-        return (bool) ($this->get('translation') || $this->get('translatable') || $this->get('translate'));
+        return (bool) ($this->get('translation') || $this->get('translatable') || $this->get('translated') || $this->get('translate'));
     }
 }
 

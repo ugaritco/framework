@@ -528,25 +528,26 @@ class Builder
     }
 
     /**
-     * Create a new table and its corresponding translation table on the schema.
+     * Create a new translatable table and its paired translation table on the schema.
      *
      * @param  string  $table
      * @param  \Closure(\Heritage\Database\Schema\Blueprint): void  $callback
      * @param  (\Closure(\Heritage\Database\Schema\Blueprint): void)|string|array|null  $translationCallback
-     * @param  string|null  $translationTable
+     * @param  string|array|null  $optionsOrTable
      * @param  string|null  $foreignKey
      * @param  string|null  $localeColumn
      * @return void
      */
-    public function createWithTranslation(
+    public function createTranslatable(
         $table,
         Closure $callback,
         Closure|string|array|null $translationCallback = null,
-        ?string $translationTable = null,
+        string|array|null $optionsOrTable = null,
         ?string $foreignKey = null,
-        ?string $localeColumn = 'locale'
+        ?string $localeColumn = null
     ) {
         $options = [];
+        $translationTable = null;
 
         if (is_array($translationCallback)) {
             $options = $translationCallback;
@@ -556,12 +557,18 @@ class Builder
             $translationCallback = null;
         }
 
+        if (is_array($optionsOrTable)) {
+            $options = array_merge($options, $optionsOrTable);
+        } elseif (is_string($optionsOrTable)) {
+            $translationTable = $optionsOrTable;
+        }
+
         [$schema, $tableName] = $this->parseSchemaAndTable($table);
         $defaultTranslationName = Str::singular($tableName).'_translations';
 
         $translationTable = $translationTable ?? $options['table'] ?? (isset($schema) ? "{$schema}.{$defaultTranslationName}" : $defaultTranslationName);
         $foreignKey = $foreignKey ?? $options['foreign_key'] ?? Str::singular($tableName).'_id';
-        $localeColumn = $localeColumn ?? $options['locale_column'] ?? 'locale';
+        $localeColumn = $localeColumn ?? $options['locale_column'] ?? 'locale_id';
         $localeLength = $options['locale_length'] ?? 10;
         $includeTimestamps = $options['timestamps'] ?? false;
 
@@ -636,7 +643,11 @@ class Builder
             }
 
             // Locale column
-            $tableBlueprint->string($localeColumn, $localeLength)->index();
+            if ($localeColumn === 'locale_id') {
+                $tableBlueprint->foreignId('locale_id')->constrained('locales')->cascadeOnDelete();
+            } else {
+                $tableBlueprint->string($localeColumn, $localeLength)->index();
+            }
 
             // Add all translated columns
             foreach ($translationColumns as $column) {
@@ -652,28 +663,72 @@ class Builder
                 $tableBlueprint->addColumnDefinition($clonedColumn);
             }
 
+            // Optional extra customizations on the translation table
+            if ($translationCallback instanceof Closure) {
+                $translationCallback($tableBlueprint);
+            }
+
             // Compound unique index ensuring one translation per locale
             $tableBlueprint->unique([$foreignKey, $localeColumn]);
 
             if ($includeTimestamps) {
                 $tableBlueprint->timestamps();
             }
-
-            // Optional extra customizations on the translation table
-            if ($translationCallback instanceof Closure) {
-                $translationCallback($tableBlueprint);
-            }
         });
     }
 
     /**
-     * Drop a table and its translation table from the schema.
+     * Backward-compatible alias for createTranslatable.
+     *
+     * @param  string  $table
+     * @param  \Closure(\Heritage\Database\Schema\Blueprint): void  $callback
+     * @param  (\Closure(\Heritage\Database\Schema\Blueprint): void)|string|array|null  $translationCallback
+     * @param  string|array|null  $optionsOrTable
+     * @param  string|null  $foreignKey
+     * @param  string|null  $localeColumn
+     * @return void
+     */
+    public function createWithTranslation(
+        $table,
+        Closure $callback,
+        Closure|string|array|null $translationCallback = null,
+        string|array|null $optionsOrTable = null,
+        ?string $foreignKey = null,
+        ?string $localeColumn = null
+    ) {
+        $this->createTranslatable($table, $callback, $translationCallback, $optionsOrTable, $foreignKey, $localeColumn);
+    }
+
+    /**
+     * Backward-compatible plural alias for createTranslatable.
+     *
+     * @param  string  $table
+     * @param  \Closure(\Heritage\Database\Schema\Blueprint): void  $callback
+     * @param  (\Closure(\Heritage\Database\Schema\Blueprint): void)|string|array|null  $translationCallback
+     * @param  string|array|null  $optionsOrTable
+     * @param  string|null  $foreignKey
+     * @param  string|null  $localeColumn
+     * @return void
+     */
+    public function createWithTranslations(
+        $table,
+        Closure $callback,
+        Closure|string|array|null $translationCallback = null,
+        string|array|null $optionsOrTable = null,
+        ?string $foreignKey = null,
+        ?string $localeColumn = null
+    ) {
+        $this->createTranslatable($table, $callback, $translationCallback, $optionsOrTable, $foreignKey, $localeColumn);
+    }
+
+    /**
+     * Drop a translatable table and its paired translation table from the schema.
      *
      * @param  string  $table
      * @param  string|null  $translationTable
      * @return void
      */
-    public function dropWithTranslation($table, ?string $translationTable = null)
+    public function dropTranslatable($table, ?string $translationTable = null)
     {
         [$schema, $tableName] = $this->parseSchemaAndTable($table);
         $defaultTranslationName = Str::singular($tableName).'_translations';
@@ -684,13 +739,25 @@ class Builder
     }
 
     /**
-     * Drop a table and its translation table from the schema if they exist.
+     * Backward-compatible alias for dropTranslatable.
      *
      * @param  string  $table
      * @param  string|null  $translationTable
      * @return void
      */
-    public function dropIfExistsWithTranslation($table, ?string $translationTable = null)
+    public function dropWithTranslation($table, ?string $translationTable = null)
+    {
+        $this->dropTranslatable($table, $translationTable);
+    }
+
+    /**
+     * Drop a translatable table and its paired translation table from the schema if they exist.
+     *
+     * @param  string  $table
+     * @param  string|null  $translationTable
+     * @return void
+     */
+    public function dropIfExistsTranslatable($table, ?string $translationTable = null)
     {
         [$schema, $tableName] = $this->parseSchemaAndTable($table);
         $defaultTranslationName = Str::singular($tableName).'_translations';
@@ -698,6 +765,18 @@ class Builder
 
         $this->dropIfExists($translationTable);
         $this->dropIfExists($table);
+    }
+
+    /**
+     * Backward-compatible alias for dropIfExistsTranslatable.
+     *
+     * @param  string  $table
+     * @param  string|null  $translationTable
+     * @return void
+     */
+    public function dropIfExistsWithTranslation($table, ?string $translationTable = null)
+    {
+        $this->dropIfExistsTranslatable($table, $translationTable);
     }
 
 
