@@ -48,7 +48,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         Concerns\HasGlobalScopes,
         Concerns\HasRelationships,
         Concerns\HasTimestamps,
-        Concerns\HasTranslation,
+        Concerns\Translatable,
         Concerns\HasUniqueIds,
         Concerns\HidesAttributes,
         Concerns\GuardsAttributes,
@@ -1484,6 +1484,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected function finishSave(array $options)
     {
         $this->fireModelEvent('saved', false);
+
+        if (method_exists($this, 'isTranslatable') && $this->isTranslatable()) {
+            $this->savePendingTranslations();
+        }
 
         if ($this->isDirty() && ($options['touch'] ?? true)) {
             $this->touchOwners();

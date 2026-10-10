@@ -34,11 +34,50 @@ abstract class ModelTranslation extends Model
     public $timestamps = false;
 
     /**
+     * The column name used for locale foreign key or code.
+     *
+     * @var string
+     */
+    public string $localeColumn = 'locale_id';
+
+    /**
      * The attributes that aren't mass assignable.
      *
      * @var array<string>|bool
      */
     protected $guarded = ['id'];
+
+    /**
+     * Get the fillable attributes for the model.
+     *
+     * Automatically merges the parent foreign key, locale_id, and locale
+     * into the model's fillable attributes so they don't need to be manually
+     * declared in child translation models.
+     *
+     * @return array<string>
+     */
+    public function getFillable()
+    {
+        $fillable = parent::getFillable();
+
+        $defaults = [
+            $this->getParentForeignKey(),
+            'locale_id',
+            'locale',
+        ];
+
+        $parentClass = $this->getParentModelClass();
+        if (class_exists($parentClass)) {
+            $parent = new $parentClass;
+            if (method_exists($parent, 'getTranslatable')) {
+                $defaults = array_merge($defaults, $parent->getTranslatable());
+            } elseif (property_exists($parent, 'translatable') && is_array($parent->translatable)) {
+                $defaults = array_merge($defaults, $parent->translatable);
+            }
+        }
+
+        return array_values(array_unique(array_merge($defaults, $fillable)));
+    }
 
     /**
      * Get the table associated with the model.
@@ -176,10 +215,18 @@ abstract class ModelTranslation extends Model
     public function locale(): mixed
     {
         $localeModel = function_exists('config')
-            ? config('i18n.models.locale', 'Ugarit\\Artifacts\\I18n\\Models\\Locale')
-            : 'Ugarit\\Artifacts\\I18n\\Models\\Locale';
+            ? config('i18n.models.locale')
+            : null;
 
-        if (class_exists($localeModel) && ($this->hasAttribute('locale_id') || in_array('locale_id', $this->getFillable(), true))) {
+        if (empty($localeModel) || ! class_exists($localeModel)) {
+            if (class_exists('Ugarit\\Artifacts\\I18n\\Models\\Locale')) {
+                $localeModel = 'Ugarit\\Artifacts\\I18n\\Models\\Locale';
+            } elseif (class_exists('Ugarit\\Artifacts\\I18n\\Models\\Locale\\Locale')) {
+                $localeModel = 'Ugarit\\Artifacts\\I18n\\Models\\Locale\\Locale';
+            }
+        }
+
+        if ($localeModel && class_exists($localeModel) && ($this->hasAttribute('locale_id') || in_array('locale_id', $this->getFillable(), true))) {
             return $this->belongsTo($localeModel, 'locale_id');
         }
 
