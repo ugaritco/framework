@@ -486,6 +486,49 @@ class Router implements BindingRegistrar, RegistrarContract
     }
 
     /**
+     * Create localized route groups across available locales for SEO and public routes.
+     *
+     * @param  \Closure  $callback
+     * @param  array  $options
+     * @return $this
+     */
+    public function localized(Closure $callback, array $options = [])
+    {
+        $availableLocales = function_exists('config')
+            ? array_keys(config('locale.available_locales', ['ar' => [], 'en' => []]))
+            : ['ar', 'en'];
+
+        if (empty($availableLocales)) {
+            $availableLocales = ['ar', 'en'];
+        }
+
+        $defaultLocale = function_exists('config')
+            ? (config('locale.default_locale') ?? config('app.locale', 'ar'))
+            : 'ar';
+
+        $hideDefault = function_exists('config')
+            ? (bool) config('locale.hide_default_locale_in_url', false)
+            : false;
+
+        $as = $options['as'] ?? '';
+        $middleware = (array) ($options['middleware'] ?? ['web']);
+
+        foreach ($availableLocales as $locale) {
+            $prefix = ($hideDefault && $locale === $defaultLocale) ? '' : $locale;
+
+            $this->group([
+                'prefix' => $prefix,
+                'as' => $as ? "{$as}." : ($locale . '.'),
+                'middleware' => array_merge($middleware, [
+                    \Heritage\Routing\Middleware\SetLocaleFromUrl::class . ':' . $locale,
+                ]),
+            ], $callback);
+        }
+
+        return $this;
+    }
+
+    /**
      * Update the group stack with the given attributes.
      *
      * @param  array  $attributes

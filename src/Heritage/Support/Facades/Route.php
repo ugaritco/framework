@@ -25,6 +25,7 @@ namespace Heritage\Support\Facades;
  * @method static void apiSingletons(array $singletons, array $options = [])
  * @method static \Heritage\Routing\PendingSingletonResourceRegistration apiSingleton(string $name, string $controller, array $options = [])
  * @method static \Heritage\Routing\Router group(array $attributes, \Closure|array|string $routes)
+ * @method static \Heritage\Routing\Router localized(\Closure $callback, array $options = [])
  * @method static array mergeWithLastGroup(array $new, bool $prependExistingPrefix = true)
  * @method static string getLastGroupPrefix()
  * @method static \Heritage\Routing\Route addRoute(array|string $methods, string $uri, array|string|callable|null $action)
