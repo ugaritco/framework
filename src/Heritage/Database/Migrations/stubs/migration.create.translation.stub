@@ -13,7 +13,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::createWithTranslation('{{ table }}', function (Blueprint $table) {
+        Schema::createTranslatable('{{ table }}', function (Blueprint $table) {
             // Primary unique identifier
             $table->id();
 
@@ -21,10 +21,7 @@ return new class extends Migration
             $table->string('slug')->unique();
 
             // Localized multilingual display denomination
-            $table->string('name')->translation();
-
-            // Localized multilingual detailed description or content
-            $table->text('description')->nullable()->translation();
+            $table->string('name')->translatable();
 
             // Soft deletion timestamp for auditing and data safety
             $table->softDeletes();
@@ -39,6 +36,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExistsWithTranslation('{{ table }}');
+        Schema::dropIfExistsTranslatable('{{ table }}');
     }
 };

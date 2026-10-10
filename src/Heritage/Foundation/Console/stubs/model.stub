@@ -1,9 +1,60 @@
 <?php
 
+declare(strict_types=1);
+
 namespace {{ namespace }};
 
-{{ factoryImport }}{{ translationImport }}use Heritage\Database\Eloquent\Model;
+use Heritage\Database\Eloquent\Factories\HasFactory;
+use Heritage\Database\Eloquent\Model;
+use Heritage\Database\Eloquent\SoftDeletes;
+use Ugarit\Artifacts\I18n\Traits\Translatable;
 
+/**
+ * Eloquent model representing a {{ class }} entity.
+ *
+ * Includes:
+ * - translation capabilities via Translatable
+ * - soft deletion support
+ * - a slug-based fallback for missing translations
+ */
 class {{ class }} extends Model
 {
-{{ factory }}{{ translation }}}
+    use Translatable, HasFactory, SoftDeletes;
+
+    /**
+     * Mass-assignable attributes.
+     *
+     * @var list<string>
+     */
+    protected $fillable = [
+        'slug',
+        'active',
+    ];
+
+    /**
+     * Translatable attribute keys handled by the translation layer.
+     *
+     * @var list<string>
+     */
+    protected array $translatable = [
+        'name',
+    ];
+
+    /**
+     * Attribute casting definitions.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+
+    /**
+     * Fallback mapping for translatable fields.
+     *
+     * @var array<string, string>
+     */
+    protected array $translatableFallback = [
+        'name' => 'slug',
+    ];
+}

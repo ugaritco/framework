@@ -8,7 +8,6 @@ use Heritage\Console\Concerns\CreatesMatchingTest;
 use Heritage\Console\GeneratorCommand;
 use Heritage\Support\Collection;
 use Heritage\Support\Str;
-use Heritage\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -42,10 +41,11 @@ class ModelMakeCommand extends GeneratorCommand
                     {--r|resource : Indicates if the generated controller should be a resource controller}
                     {--api : Indicates if the generated controller should be an API resource controller}
                     {--R|requests : Create new form request classes and use them in the resource controller}
-                    {--t|translation : Create a new translation model and configure the model with translations}
-                    {--trans : Create a new translation model and configure the model with translations}
-                    {--translatable : Create a new translation model and configure the model with translations}
-                    {--translation-model : Indicates if the generated model should be a translation model extending ModelTranslation}
+                    {--t|translation : Configure the model with virtual multilingual translations (HasTranslation & Dual Tables)}
+                    {--trans : Configure the model with virtual multilingual translations (HasTranslation & Dual Tables)}
+                    {--translatable : Configure the model with virtual multilingual translations (HasTranslation & Dual Tables)}
+                    {--with-translation-file : Generate a physical Translation model file in addition to the main model}
+                    {--translation-model : Indicates if the generated model should be an explicit translation model extending ModelTranslation}
                     {--artifact= : The target modular artifact for this model}';
 
     /**
@@ -53,7 +53,7 @@ class ModelMakeCommand extends GeneratorCommand
      *
      * @var string
      */
-    protected $description = 'Create a new Eloquent model class inside a modular artifact';
+    protected $description = 'Create a new Eloquent model class inside an application or modular artifact';
 
     /**
      * The type of class being generated.
@@ -69,23 +69,42 @@ class ModelMakeCommand extends GeneratorCommand
      */
     public function handle()
     {
-        // 1. Resolve target modular artifact
+        // 1. Resolve target modular artifact or application location
         $artifact = $this->option('artifact');
 
-        if (! $artifact && $this->input->isInteractive()) {
+        if (! $artifact && ! $this->option('translation-model') && $this->input->isInteractive()) {
             $available = $this->getAvailableArtifacts();
 
-            if (! empty($available)) {
-                $artifact = select(
-                    label: 'Which artifact does this model belong to?',
-                    options: $available,
-                );
-            } else {
+            $locations = [
+                'app' => 'Application Root (App\Models)',
+            ];
+
+            foreach ($available as $artSlug) {
+                $studly = Str::studly($artSlug);
+                $locations[$artSlug] = "Domain Artifact: {$studly} (artifacts/{$artSlug}/src/Models)";
+            }
+
+            $locations['custom_artifact'] = 'New Artifact (Specify a new Domain Artifact)...';
+
+            $chosenLocation = select(
+                label: 'Where should this model be created?',
+                options: $locations,
+                default: ! empty($available) ? $available[0] : 'app',
+            );
+
+            if ($chosenLocation === 'custom_artifact') {
                 $artifact = text(
                     label: 'What is the target artifact name for this model?',
-                    placeholder: 'e.g. catalog, identity',
+                    placeholder: 'e.g. catalog, identity, billing',
                     required: true,
+                    validate: fn (string $v) => preg_match('/^[a-z][a-z0-9\-]*$/', $v)
+                        ? null
+                        : 'Name must be lowercase letters, numbers, and dashes only.',
                 );
+            } elseif ($chosenLocation !== 'app') {
+                $artifact = $chosenLocation;
+            } else {
+                $artifact = null;
             }
         }
 
@@ -98,7 +117,7 @@ class ModelMakeCommand extends GeneratorCommand
 
         if (! $hasTranslatableOption && ! $this->option('translation-model') && $this->input->isInteractive()) {
             $isTranslatable = confirm(
-                label: 'Should this model support multilingual translations (HasTranslation)?',
+                label: 'Would you like this model to be translatable?',
                 default: false,
             );
 
@@ -154,7 +173,7 @@ class ModelMakeCommand extends GeneratorCommand
             $this->createPolicy();
         }
 
-        if ($this->isTranslatable() && ! $this->option('translation-model')) {
+        if ($this->isTranslatable() && $this->option('with-translation-file') && ! $this->option('translation-model')) {
             $this->createTranslationModel();
         }
 
@@ -208,14 +227,22 @@ class ModelMakeCommand extends GeneratorCommand
      */
     protected function createFactory()
     {
-        $factory = Str::studly($this->argument('name'));
+        $modelName = Str::studly(class_basename($this->argument('name')));
         $artifact = $this->option('artifact');
 
         $this->call('make:factory', array_filter([
-            'name' => "{$factory}Factory",
+            'name' => "{$modelName}Factory",
             '--model' => $this->qualifyClass($this->getNameInput()),
             '--artifact' => $artifact,
         ]));
+
+        if ($this->isTranslatable() && $this->option('with-translation-file') && ! $this->option('translation-model')) {
+            $this->call('make:factory', array_filter([
+                'name' => "{$modelName}TranslationFactory",
+                '--model' => $this->qualifyClass($modelName.'Translation'),
+                '--artifact' => $artifact,
+            ]));
+        }
     }
 
     /**
@@ -266,7 +293,7 @@ class ModelMakeCommand extends GeneratorCommand
     {
         $controller = Str::studly(class_basename($this->argument('name')));
         $modelName = $this->qualifyClass($this->getNameInput());
-        $artifact = $this->option('artifact') ?: $this->option('module');
+        $artifact = $this->option('artifact');
 
         $this->call('make:controller', array_filter([
             'name' => "{$controller}Controller",
@@ -287,7 +314,7 @@ class ModelMakeCommand extends GeneratorCommand
     protected function createFormRequests()
     {
         $request = Str::studly(class_basename($this->argument('name')));
-        $artifact = $this->option('artifact') ?: $this->option('module');
+        $artifact = $this->option('artifact');
 
         $this->call('make:request', array_filter([
             'name' => "Store{$request}Request",
@@ -308,7 +335,7 @@ class ModelMakeCommand extends GeneratorCommand
     protected function createPolicy()
     {
         $policy = Str::studly(class_basename($this->argument('name')));
-        $artifact = $this->option('artifact') ?: $this->option('module');
+        $artifact = $this->option('artifact');
 
         $this->call('make:policy', array_filter([
             'name' => "{$policy}Policy",
@@ -336,7 +363,11 @@ class ModelMakeCommand extends GeneratorCommand
             return $this->resolveStubPath('/stubs/model.translation.stub');
         }
 
-        return $this->resolveStubPath('/stubs/model.stub');
+        if ($this->isTranslatable()) {
+            return $this->resolveStubPath('/stubs/model.stub');
+        }
+
+        return $this->resolveStubPath('/stubs/model.plain.stub');
     }
 
     /**
@@ -379,12 +410,9 @@ class ModelMakeCommand extends GeneratorCommand
     {
         $artifact = $this->option('artifact');
 
-        if ($artifact) {
-            $studly = Str::studly($artifact);
-            return "Ugarit\\Artifacts\\{$studly}\\Models";
-        }
-
-        return is_dir(app_path('Models')) ? $rootNamespace.'\\Models' : $rootNamespace;
+        return $artifact
+            ? "Ugarit\\Artifacts\\" . Str::studly($artifact) . "\\Models"
+            : $rootNamespace . '\\Models';
     }
 
     /**
@@ -396,21 +424,17 @@ class ModelMakeCommand extends GeneratorCommand
     protected function getPath($name)
     {
         $artifact = $this->option('artifact');
+        $modelBase = class_basename($name);
 
-        if ($artifact) {
-            $modelBase = class_basename($name);
-            $dir = $this->ugarit->basePath("artifacts/{$artifact}/src/Models");
+        $baseDir = $artifact
+            ? $this->ugarit->basePath("artifacts/{$artifact}/src/Models")
+            : $this->ugarit['path'] . '/Models';
 
-            if (! is_dir($dir)) {
-                @mkdir($dir, 0755, true);
-            }
-
-            return $dir.'/'.$modelBase.'.php';
+        if (! is_dir($baseDir)) {
+            @mkdir($baseDir, 0755, true);
         }
 
-        $name = Str::replaceFirst($this->rootNamespace(), '', $name);
-
-        return $this->ugarit['path'].'/'.str_replace('\\', '/', $name).'.php';
+        return "{$baseDir}/{$modelBase}.php";
     }
 
     /**
@@ -423,74 +447,32 @@ class ModelMakeCommand extends GeneratorCommand
      */
     protected function buildClass($name)
     {
-        $replace = array_merge(
-            $this->buildFactoryReplacements(),
-            $this->buildTranslationReplacements()
-        );
+        $modelBase = class_basename($name);
+        $replacements = [];
+
+        if ($this->option('translation-model')) {
+            $parentModel = Str::beforeLast($modelBase, 'Translation');
+            $snakeModel = Str::snake($parentModel);
+            $camelModel = lcfirst($parentModel);
+
+            $replacements = [
+                '{{ model }}' => $parentModel,
+                '{{snake_model}}' => $snakeModel,
+                '{{ snake_model }}' => $snakeModel,
+                '{{camel_model}}' => $camelModel,
+                '{{ camel_model }}' => $camelModel,
+                '{{foreign_key}}' => "{$snakeModel}_id",
+                '{{ foreign_key }}' => "{$snakeModel}_id",
+            ];
+        }
+
+        $classContent = parent::buildClass($name);
 
         return str_replace(
-            array_keys($replace), array_values($replace), parent::buildClass($name)
+            array_keys($replacements),
+            array_values($replacements),
+            $classContent
         );
-    }
-
-    /**
-     * Build the replacements for a factory.
-     *
-     * @return array<string, string>
-     */
-    protected function buildFactoryReplacements()
-    {
-        $replacements = [];
-
-        if ($this->option('factory') || $this->option('all')) {
-            $modelPath = (new Stringable($this->argument('name')))->studly()->replace('/', '\\')->toString();
-            $artifact = $this->option('artifact');
-
-            if ($artifact) {
-                $studly = Str::studly($artifact);
-                $factoryNamespace = "\\Ugarit\\Artifacts\\{$studly}\\Database\\Factories\\{$modelPath}Factory";
-            } else {
-                $factoryNamespace = '\\Database\\Factories\\'.$modelPath.'Factory';
-            }
-
-            $factoryCode = <<<EOT
-            /** @use HasFactory<$factoryNamespace> */
-                use HasFactory;
-            EOT;
-
-            $replacements['{{ factory }}'] = $factoryCode;
-            $replacements['{{ factoryImport }}'] = "use Heritage\Database\Eloquent\Factories\HasFactory;\n";
-        } else {
-            $replacements['{{ factory }}'] = ($this->isTranslatable() && ! $this->option('translation-model')) ? '' : "    //\n";
-            $replacements["{{ factoryImport }}\n"] = '';
-            $replacements["{{ factoryImport }}\r\n"] = '';
-            $replacements['{{ factoryImport }}'] = '';
-        }
-
-        return $replacements;
-    }
-
-    /**
-     * Build the replacements for translation capabilities.
-     *
-     * @return array<string, string>
-     */
-    protected function buildTranslationReplacements(): array
-    {
-        $replacements = [];
-
-        if ($this->isTranslatable() && ! $this->option('translation-model')) {
-            $gap = ($this->option('factory') || $this->option('all')) ? "\n" : '';
-            $replacements['{{ translationImport }}'] = "use Heritage\Database\Eloquent\Concerns\HasTranslation;\n";
-            $replacements['{{ translation }}'] = "{$gap}    use HasTranslation;\n\n    /**\n     * The attributes that are translatable into multiple locales.\n     *\n     * @var array<int, string>\n     */\n    protected array \$translatable = [\n        //\n    ];\n";
-        } else {
-            $replacements['{{ translation }}'] = '';
-            $replacements["{{ translationImport }}\n"] = '';
-            $replacements["{{ translationImport }}\r\n"] = '';
-            $replacements['{{ translationImport }}'] = '';
-        }
-
-        return $replacements;
     }
 
     /**
@@ -524,14 +506,32 @@ class ModelMakeCommand extends GeneratorCommand
             return;
         }
 
-        (new Collection(multiselect('Would you like any of the following?', [
-            'seed' => 'Database Seeder',
-            'factory' => 'Factory',
-            'requests' => 'Form Requests',
-            'migration' => 'Migration',
-            'policy' => 'Policy',
-            'resource' => 'Resource Controller',
-            'translation' => 'Translation Model',
-        ])))->each(fn ($option) => $input->setOption($option, true));
+        $choices = multiselect(
+            label: 'Would you like any of the following?',
+            options: [
+                'all' => 'With All (Factory, Migration, Seeder, Requests, Policy, Resource Controller, Translation Model)',
+                'seed' => 'Database Seeder',
+                'factory' => 'Factory',
+                'requests' => 'Form Requests',
+                'migration' => 'Migration',
+                'policy' => 'Policy',
+                'resource' => 'Resource Controller',
+                'translatable' => 'Translatable (Multilingual Model & Translation Class)',
+            ],
+        );
+
+        if (in_array('all', $choices)) {
+            $input->setOption('all', true);
+            $input->setOption('factory', true);
+            $input->setOption('seed', true);
+            $input->setOption('migration', true);
+            $input->setOption('controller', true);
+            $input->setOption('policy', true);
+            $input->setOption('resource', true);
+            $input->setOption('requests', true);
+            $input->setOption('translatable', true);
+        } else {
+            (new Collection($choices))->each(fn ($option) => $input->setOption($option, true));
+        }
     }
 }

@@ -1,0 +1,39 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Heritage\Database\Eloquent\Factories\HasFactory;
+use Heritage\Database\Eloquent\Model;
+use Heritage\Database\Eloquent\SoftDeletes;
+
+/**
+ * Eloquent model representing a {{ class }} entity.
+ *
+ * Includes soft deletion and active flag casting.
+ */
+class {{ class }} extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    /**
+     * Mass-assignable attributes.
+     *
+     * @var list<string>
+     */
+    protected $fillable = [
+        'name',
+        'slug',
+        'active',
+    ];
+
+    /**
+     * Attribute casting definitions.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+}

@@ -114,7 +114,7 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
 
         if (! $hasTranslatableOption && $this->input->isInteractive()) {
             $translatable = confirm(
-                label: 'Should this migration support multilingual translations (Schema::createWithTranslation)?',
+                label: 'Would you like this table to be translatable?',
                 default: false,
             );
         } else {

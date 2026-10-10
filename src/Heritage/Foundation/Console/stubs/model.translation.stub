@@ -1,9 +1,33 @@
 <?php
 
+declare(strict_types=1);
+
 namespace {{ namespace }};
 
-{{ factoryImport }}use Heritage\Database\Eloquent\ModelTranslation;
+use Heritage\Database\Eloquent\ModelTranslation;
 
+/**
+ * Eloquent model representing a {{ model }} translation record.
+ *
+ * Extends ModelTranslation to automatically inherit:
+ * - Table name convention resolution ({{ snake_model }}_translations)
+ * - Parent model relation and dynamic properties (${{ camel_model }}Translation->{{ camel_model }})
+ * - Locale relation and resolution (${{ camel_model }}Translation->locale)
+ * - Auto-fillable parent foreign key ('{{ foreign_key }}') and locale ('locale_id')
+ * - Disabled timestamps ($timestamps = false)
+ * - Automatic factory resolution ({{ class }}Factory)
+ */
 class {{ class }} extends ModelTranslation
 {
-{{ factory }}}
+    /**
+     * Mass-assignable attributes.
+     *
+     * Note: '{{ foreign_key }}' and 'locale_id' are automatically
+     * handled as fillable by ModelTranslation.
+     *
+     * @var list<string>
+     */
+    protected $fillable = [
+        'name',
+    ];
+}
