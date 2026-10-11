@@ -1,12 +1,25 @@
 # Release Notes for 1.x
 
+## [v1.02.01] - 2026-10-11
+
+* refactor(ada): completely purge legacy Service, UseCase, and DTO concepts across the framework and ecosystem
+* feat(architecture): solidify streamlined ADA execution pipeline: `Capability` (atomic operation) and `Feature` (workflow orchestration)
+* feat(parcels): establish `Heritage\Parcels\Parcel` and `Heritage\Parcels\TranslationParcel` as the sole typed data envelopes
+* feat(outcomes): standardize domain execution results on `Heritage\Outcomes\Outcome` with complete transport decoupling
+* feat(responders): enhance `Heritage\Http\Responders\Responder` and `ResponderContract` to transform pure `Outcome` envelopes into consumer `Response` presentations
+* refactor(controller): decouple `Heritage\Routing\Controller` into discrete `run()`, `respond()`, and `execute()` primitives
+* chore(console): remove legacy `make:dto`, `make:service`, and `make:usecase` commands in favor of `make:parcel`, `make:capability`, and `make:feature`
+* docs(artifacts): comprehensively update `docs/artifacts.md` and knowledgebase architectural documentation
+
 ## [v1.02.00](https://github.com/ugarit/framework/compare/v1.01.24...v1.02.00) - 2026-09-24
 
 * release: major ecosystem milestone release v1.02.00 featuring the unified Ugarit Design System and Tailwind CSS v4 engine
 * feat(design-system): full token integration with 12 primitive systems, fluid clamp scaling, and 17 typography roles
 * feat(design-system): complete semantic layer with accessible light and dark foundations and 8 data chart tokens
 * feat(design-system): seamless Tailwind CSS v4 integration using `@theme inline` in `primitives/theme.css` and `semantic/theme.css`
-* refactor(starter-kits): streamline `app.css` into an ultra-clean 21-line entry bridge across all 18 starter kits
+* feat(eloquent): introduce `Heritage\Database\Eloquent\Concerns\Translatable` as the primary multilingual trait with `bootTranslatable()`
+* feat(eloquent): standardize trait ordering in translatable models to place `Translatable` first (`use Translatable, HasFactory, SoftDeletes;`)
+* feat(factories): implement zero-boilerplate auto-translation engine and fluent translation chaining (`withTranslations`, `inLocale`, `withTranslation`) in base `Factory`
 * feat(docs): publish comprehensive design system specification in `docs/design-system.md`
 * chore: synchronize all starter kit environments and lab workspaces with framework kernel v1.02.00
 
