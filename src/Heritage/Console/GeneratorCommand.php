@@ -486,6 +486,126 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
     }
 
     /**
+     * Get the list of available modular artifacts.
+     *
+     * @return array<int, string>
+     */
+    protected function getAvailableArtifacts(): array
+    {
+        $artifactsPath = $this->ugarit->basePath('artifacts');
+
+        if (! is_dir($artifactsPath)) {
+            return [];
+        }
+
+        $dirs = array_filter(glob($artifactsPath.'/*'), 'is_dir');
+
+        return array_values(array_map('basename', $dirs));
+    }
+
+    /**
+     * Prompt the user for an artifact if running interactively and not specified.
+     *
+     * @param  string  $label
+     * @return string|null
+     */
+    protected function promptForArtifact(string $label = 'Where should this component be created?'): ?string
+    {
+        if ($this->getArtifactOption() || ! $this->input->isInteractive()) {
+            return $this->getArtifactOption();
+        }
+
+        $available = $this->getAvailableArtifacts();
+        if (empty($available)) {
+            return null;
+        }
+
+        $locations = [
+            'app' => 'Application Root (Main Application)',
+        ];
+
+        foreach ($available as $artSlug) {
+            $studly = Str::studly($artSlug);
+            $locations[$artSlug] = "Domain Artifact: {$studly} (artifacts/{$artSlug})";
+        }
+
+        $locations['custom_artifact'] = 'New Artifact (Specify a new Domain Artifact)...';
+
+        if (function_exists('\\Ugarit\\Prompts\\select')) {
+            $chosen = \Ugarit\Prompts\select(
+                label: $label,
+                options: $locations,
+                default: ! empty($available) ? $available[0] : 'app',
+            );
+
+            if ($chosen === 'custom_artifact') {
+                $artifact = \Ugarit\Prompts\text(
+                    label: 'What is the target artifact name?',
+                    placeholder: 'e.g. company, catalog, identity',
+                    required: true,
+                    validate: fn (string $v) => preg_match('/^[a-z][a-z0-9\-]*$/', $v)
+                        ? null
+                        : 'Name must be lowercase letters, numbers, and dashes only.',
+                );
+            } elseif ($chosen !== 'app') {
+                $artifact = $chosen;
+            } else {
+                $artifact = null;
+            }
+
+            if ($artifact) {
+                $this->input->setOption('artifact', $artifact);
+            }
+
+            return $artifact;
+        }
+
+        return null;
+    }
+
+    /**
+     * Prompt the user for a model name if running interactively and not specified.
+     *
+     * @param  string  $label
+     * @return string|null
+     */
+    protected function promptForModel(string $label = 'Which model should this correspond to?'): ?string
+    {
+        if (! $this->input->isInteractive()) {
+            return null;
+        }
+
+        $availableModels = $this->findAvailableModels($this->getArtifactOption());
+
+        if (function_exists('\\Ugarit\\Prompts\\select') && ! empty($availableModels)) {
+            $options = array_combine($availableModels, $availableModels);
+            $options['custom_model'] = 'Other (Specify a custom model name)...';
+
+            $chosen = \Ugarit\Prompts\select(
+                label: $label,
+                options: $options,
+                default: $availableModels[0],
+            );
+
+            if ($chosen === 'custom_model' && function_exists('\\Ugarit\\Prompts\\text')) {
+                $chosen = \Ugarit\Prompts\text(
+                    label: 'What is the model name?',
+                    placeholder: 'e.g. Branch, User, Order',
+                    required: true,
+                );
+            }
+
+            if ($chosen && $this->hasOption('model')) {
+                $this->input->setOption('model', $chosen);
+            }
+
+            return $chosen;
+        }
+
+        return null;
+    }
+
+    /**
      * Get the model for the default guard's user provider.
      *
      * @return string|null
