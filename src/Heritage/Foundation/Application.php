@@ -926,7 +926,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             return;
         }
 
-        $artifactsConfig = (array) ($this->make('config')->get('artifacts.artifacts') ?? $this->make('config')->get('artifacts.modules', []));
+        $artifactsConfig = (array) $this->make('config')->get('artifacts.artifacts', []);
 
         // Autoloader fallback for modular artifacts located in artifacts/
         spl_autoload_register(function (string $class) use ($artifactsPath): void {
@@ -964,8 +964,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 continue;
             }
 
-            $moduleDir = $artifactsPath . DIRECTORY_SEPARATOR . $item;
-            if (! is_dir($moduleDir)) {
+            $artifactDir = $artifactsPath . DIRECTORY_SEPARATOR . $item;
+            if (! is_dir($artifactDir)) {
                 continue;
             }
 
@@ -977,7 +977,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             $providersToRegister = [];
 
             // Case A: art.php exists (Ugarit ADA Standard)
-            $artFile = $moduleDir . DIRECTORY_SEPARATOR . 'art.php';
+            $artFile = $artifactDir . DIRECTORY_SEPARATOR . 'art.php';
             if (file_exists($artFile)) {
                 $art = require $artFile;
                 if (is_object($art)) {
@@ -992,7 +992,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             }
 
             // Case B: composer.json exists
-            $composerFile = $moduleDir . DIRECTORY_SEPARATOR . 'composer.json';
+            $composerFile = $artifactDir . DIRECTORY_SEPARATOR . 'composer.json';
             if (file_exists($composerFile)) {
                 $content = json_decode((string) file_get_contents($composerFile), true);
                 $ugaritProviders = $content['extra']['ugarit']['providers'] ?? [];

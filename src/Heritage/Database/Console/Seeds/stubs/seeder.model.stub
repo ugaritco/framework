@@ -1,0 +1,21 @@
+<?php
+
+namespace {{ namespace }};
+
+use Heritage\Database\Seeder;
+use {{ namespacedModel }};
+
+/**
+ * Database seeder for {{ model }} entities.
+ */
+class {{ class }} extends Seeder
+{
+    /**
+     * Run the database seeds.
+     */
+    public function run(): void
+    {
+        // Generate sample entity records (automatically localized across active locales if translatable)
+        {{ model }}::factory()->count(10)->create();
+    }
+}

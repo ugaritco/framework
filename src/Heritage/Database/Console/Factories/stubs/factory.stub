@@ -6,10 +6,19 @@ use {{ namespacedModel }};
 use Heritage\Database\Eloquent\Factories\Factory;
 
 /**
+ * Unified factory for {{ model }} entities and their multilingual translations.
+ *
  * @extends Factory<{{ model }}>
  */
 class {{ factory }}Factory extends Factory
 {
+    /**
+     * The model that this factory corresponds to.
+     *
+     * @var class-string<{{ model }}>
+     */
+    protected $model = {{ model }}::class;
+
     /**
      * Define the model's default state.
      *

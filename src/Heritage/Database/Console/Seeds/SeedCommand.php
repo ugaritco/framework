@@ -22,6 +22,7 @@ class SeedCommand extends Command
     protected $signature = 'db:seed
                     {class? : The class name of the root seeder}
                     {--class=Database\\Seeders\\DatabaseSeeder : The class name of the root seeder}
+                    {--artifact= : The specific domain artifact to seed}
                     {--database= : The database connection to seed}
                     {--force : Force the operation to run when in production}';
 
@@ -114,15 +115,29 @@ class SeedCommand extends Command
      */
     protected function getSeeder()
     {
-        $class = $this->input->getArgument('class') ?? $this->input->getOption('class');
+        if ($artifact = $this->input->getOption('artifact')) {
+            $studlyName = \Heritage\Support\Str::studly($artifact);
+            $candidate1 = "Ugarit\\Artifacts\\{$studlyName}\\Database\\Seeders\\{$studlyName}DatabaseSeeder";
+            $candidate2 = "Ugarit\\Artifacts\\{$studlyName}\\Database\\Seeders\\DatabaseSeeder";
 
-        if (! str_contains($class, '\\')) {
-            $class = 'Database\\Seeders\\'.$class;
-        }
+            if (class_exists($candidate1)) {
+                $class = $candidate1;
+            } elseif (class_exists($candidate2)) {
+                $class = $candidate2;
+            } else {
+                $class = "Ugarit\\Artifacts\\{$studlyName}\\Database\\Seeders\\{$studlyName}Seeder";
+            }
+        } else {
+            $class = $this->input->getArgument('class') ?? $this->input->getOption('class');
 
-        if ($class === 'Database\\Seeders\\DatabaseSeeder' &&
-            ! class_exists($class)) {
-            $class = 'DatabaseSeeder';
+            if (! str_contains($class, '\\')) {
+                $class = 'Database\\Seeders\\'.$class;
+            }
+
+            if ($class === 'Database\\Seeders\\DatabaseSeeder' &&
+                ! class_exists($class)) {
+                $class = 'DatabaseSeeder';
+            }
         }
 
         return $this->ugarit->make($class)

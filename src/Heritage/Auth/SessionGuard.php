@@ -1031,12 +1031,14 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Set the current request instance.
      *
-     * @param  \Symfony\Component\HttpFoundation\Request  $request
+     * @param  \Symfony\Component\HttpFoundation\Request|null  $request
      * @return $this
      */
-    public function setRequest(Request $request)
+    public function setRequest(?Request $request = null)
     {
-        $this->request = $request;
+        if ($request !== null) {
+            $this->request = $request;
+        }
 
         return $this;
     }

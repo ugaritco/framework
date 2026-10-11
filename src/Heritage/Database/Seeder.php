@@ -7,6 +7,7 @@ use Heritage\Console\View\Components\TwoColumnDetail;
 use Heritage\Contracts\Container\Container;
 use Heritage\Database\Console\Seeds\WithoutModelEvents;
 use Heritage\Support\Arr;
+use Heritage\Support\Str;
 use InvalidArgumentException;
 
 abstract class Seeder
@@ -38,13 +39,6 @@ abstract class Seeder
      * @var array<string, class-string<\Heritage\Database\Seeder>>
      */
     protected static array $artifactSeeders = [];
-
-    /**
-     * Backward-compatible alias for registered artifact seeders.
-     *
-     * @var array<string, class-string<\Heritage\Database\Seeder>>
-     */
-    protected static array $moduleSeeders = [];
 
     /**
      * Run the given seeder class.
@@ -206,6 +200,105 @@ abstract class Seeder
     }
 
     /**
+     * Discover and execute all registered or discovered domain artifact seeders.
+     *
+     * @param  bool  $silent
+     * @return $this
+     */
+    public function callArtifactSeeders($silent = false)
+    {
+        $seeders = static::discoverArtifactSeeders();
+
+        foreach ($seeders as $seederClass) {
+            $this->call($seederClass, $silent);
+        }
+
+        return $this;
+    }
+
+
+
+    /**
+     * Discover all domain artifact master seeders across the application.
+     *
+     * @return array<string, class-string<\Heritage\Database\Seeder>>
+     */
+    public static function discoverArtifactSeeders(): array
+    {
+        $discovered = static::$artifactSeeders;
+
+        // Base paths to inspect for modular domain artifacts
+        $artifactsPath = function_exists('base_path') ? base_path('artifacts') : null;
+
+        if ($artifactsPath && is_dir($artifactsPath)) {
+            $directories = glob($artifactsPath.'/*', GLOB_ONLYDIR) ?: [];
+
+            foreach ($directories as $dir) {
+                $slug = basename($dir);
+                $studlyName = Str::studly($slug);
+
+                if (isset($discovered[$slug])) {
+                    continue;
+                }
+
+                // Convention 1: Ugarit\Artifacts\{Studly}\Database\Seeders\{Studly}DatabaseSeeder
+                $candidate1 = "Ugarit\\Artifacts\\{$studlyName}\\Database\\Seeders\\{$studlyName}DatabaseSeeder";
+                if (class_exists($candidate1)) {
+                    $discovered[$slug] = $candidate1;
+                    continue;
+                }
+
+                // Convention 2: Ugarit\Artifacts\{Studly}\Database\Seeders\DatabaseSeeder
+                $candidate2 = "Ugarit\\Artifacts\\{$studlyName}\\Database\\Seeders\\DatabaseSeeder";
+                if (class_exists($candidate2)) {
+                    $discovered[$slug] = $candidate2;
+                    continue;
+                }
+
+                // Convention 3: Check database/seeders/*.php matching pattern
+                $seedersDir = $dir.'/database/seeders';
+                if (is_dir($seedersDir)) {
+                    $files = glob($seedersDir.'/*DatabaseSeeder.php') ?: [];
+                    foreach ($files as $file) {
+                        $baseClass = basename($file, '.php');
+                        $fullClass = "Ugarit\\Artifacts\\{$studlyName}\\Database\\Seeders\\{$baseClass}";
+                        if (class_exists($fullClass)) {
+                            $discovered[$slug] = $fullClass;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort discovered seeders by foundational priority
+        $priorityOrder = [
+            'i18n' => 10,
+            'geography' => 20,
+            'identity' => 30,
+            'auth' => 35,
+            'authentication' => 36,
+            'authorization' => 37,
+            'ums' => 40,
+            'company' => 50,
+            'taxonomy' => 60,
+        ];
+
+        uksort($discovered, function ($a, $b) use ($priorityOrder) {
+            $pA = $priorityOrder[$a] ?? 100;
+            $pB = $priorityOrder[$b] ?? 100;
+
+            if ($pA === $pB) {
+                return strcmp($a, $b);
+            }
+
+            return $pA <=> $pB;
+        });
+
+        return $discovered;
+    }
+
+    /**
      * Register an artifact seeder in the global seeder registry.
      *
      * @param  string  $artifact
@@ -215,7 +308,6 @@ abstract class Seeder
     public static function registerArtifactSeeder(string $artifact, string $seederClass): void
     {
         static::$artifactSeeders[$artifact] = $seederClass;
-        static::$moduleSeeders[$artifact] = $seederClass;
     }
 
     /**
@@ -237,29 +329,5 @@ abstract class Seeder
     public static function getArtifactSeeder(string $artifact): ?string
     {
         return static::$artifactSeeders[$artifact] ?? null;
-    }
-
-    /**
-     * @deprecated Use registerArtifactSeeder instead.
-     */
-    public static function registerModuleSeeder(string $module, string $seederClass): void
-    {
-        static::registerArtifactSeeder($module, $seederClass);
-    }
-
-    /**
-     * @deprecated Use getArtifactSeeders instead.
-     */
-    public static function getModuleSeeders(): array
-    {
-        return static::getArtifactSeeders();
-    }
-
-    /**
-     * @deprecated Use getArtifactSeeder instead.
-     */
-    public static function getModuleSeeder(string $module): ?string
-    {
-        return static::getArtifactSeeder($module);
     }
 }

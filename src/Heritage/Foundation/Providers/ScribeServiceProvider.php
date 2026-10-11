@@ -32,11 +32,13 @@ use Heritage\Database\Console\TableCommand as DatabaseTableCommand;
 use Heritage\Database\Console\WipeCommand;
 use Heritage\Foundation\Console\AboutCommand;
 use Heritage\Foundation\Console\ApiInstallCommand;
+use Heritage\Foundation\Console\ArtifactListCommand;
 use Heritage\Foundation\Console\ArtifactMakeCommand;
 use Heritage\Foundation\Console\BroadcastingInstallCommand;
 use Heritage\Foundation\Console\CastMakeCommand;
 use Heritage\Foundation\Console\ChannelListCommand;
 use Heritage\Foundation\Console\ChannelMakeCommand;
+use Heritage\Foundation\Console\CapabilityMakeCommand;
 use Heritage\Foundation\Console\ClassMakeCommand;
 use Heritage\Foundation\Console\ClearCompiledCommand;
 use Heritage\Foundation\Console\ComponentMakeCommand;
@@ -50,7 +52,6 @@ use Heritage\Foundation\Console\DevCommand;
 use Heritage\Foundation\Console\DevListCommand;
 use Heritage\Foundation\Console\DocsCommand;
 use Heritage\Foundation\Console\DownCommand;
-use Heritage\Foundation\Console\DtoMakeCommand;
 use Heritage\Foundation\Console\EnumMakeCommand;
 use Heritage\Foundation\Console\EnvironmentCommand;
 use Heritage\Foundation\Console\EnvironmentDecryptCommand;
@@ -69,12 +70,14 @@ use Heritage\Foundation\Console\KeyGenerateCommand;
 use Heritage\Foundation\Console\LangPublishCommand;
 use Heritage\Foundation\Console\ListenerMakeCommand;
 use Heritage\Foundation\Console\MailMakeCommand;
+use Heritage\Foundation\Console\ModelListCommand;
 use Heritage\Foundation\Console\ModelMakeCommand;
 use Heritage\Foundation\Console\NotificationMakeCommand;
 use Heritage\Foundation\Console\ObserverMakeCommand;
 use Heritage\Foundation\Console\OptimizeClearCommand;
 use Heritage\Foundation\Console\OptimizeCommand;
 use Heritage\Foundation\Console\PackageDiscoverCommand;
+use Heritage\Foundation\Console\ParcelMakeCommand;
 use Heritage\Foundation\Console\PolicyMakeCommand;
 use Heritage\Foundation\Console\ProviderMakeCommand;
 use Heritage\Foundation\Console\ReloadCommand;
@@ -86,14 +89,12 @@ use Heritage\Foundation\Console\RouteListCommand;
 use Heritage\Foundation\Console\RuleMakeCommand;
 use Heritage\Foundation\Console\ScopeMakeCommand;
 use Heritage\Foundation\Console\ServeCommand;
-use Heritage\Foundation\Console\ServiceMakeCommand;
 use Heritage\Foundation\Console\StorageLinkCommand;
 use Heritage\Foundation\Console\StorageUnlinkCommand;
 use Heritage\Foundation\Console\StubPublishCommand;
 use Heritage\Foundation\Console\TestMakeCommand;
 use Heritage\Foundation\Console\TraitMakeCommand;
 use Heritage\Foundation\Console\UpCommand;
-use Heritage\Foundation\Console\UseCaseMakeCommand;
 use Heritage\Foundation\Console\VendorPublishCommand;
 use Heritage\Foundation\Console\ViewCacheCommand;
 use Heritage\Foundation\Console\ViewClearCommand;
@@ -201,9 +202,11 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
      */
     protected $devCommands = [
         'ApiInstall' => ApiInstallCommand::class,
+        'ArtifactList' => ArtifactListCommand::class,
         'ArtifactMake' => ArtifactMakeCommand::class,
         'BroadcastingInstall' => BroadcastingInstallCommand::class,
         'CacheTable' => CacheTableCommand::class,
+        'CapabilityMake' => CapabilityMakeCommand::class,
         'CastMake' => CastMakeCommand::class,
         'ChannelList' => ChannelListCommand::class,
         'ChannelMake' => ChannelMakeCommand::class,
@@ -216,7 +219,6 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
         'Dev' => DevCommand::class,
         'DevList' => DevListCommand::class,
         'Docs' => DocsCommand::class,
-        'DtoMake' => DtoMakeCommand::class,
         'EnumMake' => EnumMakeCommand::class,
         'EventGenerate' => EventGenerateCommand::class,
         'EventMake' => EventMakeCommand::class,
@@ -230,10 +232,12 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
         'ListenerMake' => ListenerMakeCommand::class,
         'MailMake' => MailMakeCommand::class,
         'MiddlewareMake' => MiddlewareMakeCommand::class,
+        'ModelList' => ModelListCommand::class,
         'ModelMake' => ModelMakeCommand::class,
         'NotificationMake' => NotificationMakeCommand::class,
         'NotificationTable' => NotificationTableCommand::class,
         'ObserverMake' => ObserverMakeCommand::class,
+        'ParcelMake' => ParcelMakeCommand::class,
         'PolicyMake' => PolicyMakeCommand::class,
         'ProviderMake' => ProviderMakeCommand::class,
         'QueueFailedTable' => FailedTableCommand::class,
@@ -246,11 +250,9 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
         'SeederMake' => SeederMakeCommand::class,
         'SessionTable' => SessionTableCommand::class,
         'Serve' => ServeCommand::class,
-        'ServiceMake' => ServiceMakeCommand::class,
         'StubPublish' => StubPublishCommand::class,
         'TestMake' => TestMakeCommand::class,
         'TraitMake' => TraitMakeCommand::class,
-        'UseCaseMake' => UseCaseMakeCommand::class,
         'VendorPublish' => VendorPublishCommand::class,
         'ViewMake' => ViewMakeCommand::class,
     ];

@@ -57,7 +57,8 @@ class FoundationServiceProvider extends AggregateServiceProvider
         HttpFactory::class => HttpFactory::class,
         Vite::class => Vite::class,
         \Heritage\Factories\RepositoryFactory::class => \Heritage\Factories\RepositoryFactory::class,
-        \Heritage\Factories\UseCaseFactory::class => \Heritage\Factories\UseCaseFactory::class,
+        \Heritage\Factories\CapabilityFactory::class => \Heritage\Factories\CapabilityFactory::class,
+        \Heritage\Factories\FeatureFactory::class => \Heritage\Factories\FeatureFactory::class,
         \Heritage\Factories\ResponderFactory::class => \Heritage\Factories\ResponderFactory::class,
     ];
 

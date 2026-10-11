@@ -296,14 +296,6 @@ abstract class ServiceProvider
     }
 
     /**
-     * @deprecated Use registerArtifactSeeder instead.
-     */
-    protected function registerModuleSeeder($module, $seederClass)
-    {
-        $this->registerArtifactSeeder($module, $seederClass);
-    }
-
-    /**
      * Register Eloquent model factory paths.
      *
      * @deprecated Will be removed in a future Ugarit version.

@@ -160,6 +160,13 @@ abstract class Factory
     protected static $cachedModelAttributes = [];
 
     /**
+     * The translation attributes that will be applied to the model per locale.
+     *
+     * @var array<string, array<string, mixed>>
+     */
+    protected $translations = [];
+
+    /**
      * Create a new factory instance.
      *
      * @param  int|null  $count
@@ -172,6 +179,7 @@ abstract class Factory
      * @param  \Heritage\Support\Collection|null  $recycle
      * @param  bool|null  $expandRelationships
      * @param  array  $excludeRelationships
+     * @param  array  $translations
      */
     public function __construct(
         $count = null,
@@ -184,6 +192,7 @@ abstract class Factory
         ?Collection $recycle = null,
         ?bool $expandRelationships = null,
         array $excludeRelationships = [],
+        array $translations = [],
     ) {
         $this->count = $count;
         $this->states = $states ?? new Collection;
@@ -196,6 +205,7 @@ abstract class Factory
         $this->faker = $this->withFaker();
         $this->expandRelationships = $expandRelationships ?? self::$expandRelationshipsByDefault;
         $this->excludeRelationships = $excludeRelationships;
+        $this->translations = $translations;
     }
 
     /**
@@ -382,6 +392,10 @@ abstract class Factory
 
             $model->save();
 
+            if (method_exists($model, 'isTranslatable') && $model->isTranslatable()) {
+                $model->savePendingTranslations();
+            }
+
             foreach ($model->getRelations() as $name => $items) {
                 if ($items instanceof Enumerable && $items->isEmpty()) {
                     $model->unsetRelation($name);
@@ -527,10 +541,14 @@ abstract class Factory
     protected function makeInstance(?Model $parent)
     {
         return Model::unguarded(function () use ($parent) {
-            return tap($this->newModel($this->getExpandedAttributes($parent)), function ($instance) {
+            $expandedAttributes = $this->getExpandedAttributes($parent);
+
+            return tap($this->newModel($expandedAttributes), function ($instance) use ($expandedAttributes) {
                 if (isset($this->connection)) {
                     $instance->setConnection($this->connection);
                 }
+
+                $this->applyTranslationsToInstance($instance, $expandedAttributes);
             });
         });
     }
@@ -937,7 +955,232 @@ abstract class Factory
             'recycle' => $this->recycle,
             'expandRelationships' => $this->expandRelationships,
             'excludeRelationships' => $this->excludeRelationships,
+            'translations' => $this->translations,
         ], $arguments)));
+    }
+
+    /**
+     * Set the translations that should be applied to the model.
+     *
+     * Supports both locale-keyed format:
+     * ['ar' => ['name' => 'الفرع'], 'en' => ['name' => 'The Branch']]
+     * And attribute-keyed format:
+     * ['name' => ['ar' => 'الفرع', 'en' => 'The Branch']]
+     *
+     * @param  array<string, mixed>  $translations
+     * @return static
+     */
+    public function withTranslations(array $translations)
+    {
+        $normalized = [];
+
+        foreach ($translations as $firstKey => $value) {
+            if (is_array($value)) {
+                $innerKeys = array_keys($value);
+                $isAttributeKeyed = count($innerKeys) > 0 && is_string($innerKeys[0]) && strlen($innerKeys[0]) <= 5 && ! is_numeric($innerKeys[0]) && ! is_array($value[$innerKeys[0]]);
+
+                if ($isAttributeKeyed && (in_array('ar', $innerKeys, true) || in_array('en', $innerKeys, true))) {
+                    foreach ($value as $locale => $attrValue) {
+                        $normalized[$locale][$firstKey] = $attrValue;
+                    }
+                } else {
+                    $normalized[$firstKey] = array_merge($this->translations[$firstKey] ?? [], $value);
+                }
+            }
+        }
+
+        $merged = $this->translations;
+        foreach ($normalized as $locale => $attrs) {
+            $merged[$locale] = array_merge($merged[$locale] ?? [], $attrs);
+        }
+
+        return $this->newInstance(['translations' => $merged]);
+    }
+
+    /**
+     * Specify translations for a specific locale.
+     *
+     * @param  string  $locale
+     * @param  array<string, mixed>  $attributes
+     * @return static
+     */
+    public function inLocale(string $locale, array $attributes)
+    {
+        $merged = $this->translations;
+        $merged[$locale] = array_merge($merged[$locale] ?? [], $attributes);
+
+        return $this->newInstance(['translations' => $merged]);
+    }
+
+    /**
+     * Alias for inLocale().
+     *
+     * @param  string  $locale
+     * @param  array<string, mixed>  $attributes
+     * @return static
+     */
+    public function forLocale(string $locale, array $attributes)
+    {
+        return $this->inLocale($locale, $attributes);
+    }
+
+    /**
+     * Specify a single attribute translation for a locale.
+     *
+     * @param  string  $attribute
+     * @param  string  $locale
+     * @param  mixed  $value
+     * @return static
+     */
+    public function withTranslation(string $attribute, string $locale, mixed $value)
+    {
+        return $this->inLocale($locale, [$attribute => $value]);
+    }
+
+    /**
+     * Apply automatic translations and fluent translation states to a model instance.
+     *
+     * @param  \Heritage\Database\Eloquent\Model  $instance
+     * @param  array<string, mixed>  $expandedAttributes
+     * @return void
+     */
+    protected function applyTranslationsToInstance(Model $instance, array $expandedAttributes): void
+    {
+        if (! method_exists($instance, 'isTranslatable') || ! $instance->isTranslatable()) {
+            return;
+        }
+
+        $translatableAttributes = method_exists($instance, 'getTranslatable')
+            ? $instance->getTranslatable()
+            : [];
+
+        if (empty($translatableAttributes)) {
+            return;
+        }
+
+        // Apply explicitly defined fluent translations first
+        foreach ($this->translations as $locale => $attrs) {
+            $instance->fillTranslation((string) $locale, $attrs);
+        }
+
+        // Resolve active configured locales
+        $availableLocales = function_exists('config')
+            ? array_keys(config('locale.available_locales', ['ar' => [], 'en' => []]))
+            : ['ar', 'en'];
+
+        if (empty($availableLocales)) {
+            $availableLocales = ['ar', 'en'];
+        }
+
+        // Auto-seed translations for each translatable attribute across active locales
+        foreach ($translatableAttributes as $attribute) {
+            $baseValue = $expandedAttributes[$attribute] ?? null;
+
+            if ($baseValue === null) {
+                continue;
+            }
+
+            if (is_array($baseValue)) {
+                foreach ($baseValue as $locale => $val) {
+                    $instance->setTranslation($attribute, $val, (string) $locale);
+                }
+                continue;
+            }
+
+            foreach ($availableLocales as $locale) {
+                // Check if a translation was already provided for this attribute & locale
+                if (isset($this->translations[$locale][$attribute])) {
+                    continue;
+                }
+
+                $localizedValue = $this->generateLocalizedValue($attribute, $baseValue, (string) $locale);
+                $instance->setTranslation($attribute, $localizedValue, (string) $locale);
+            }
+        }
+    }
+
+    /**
+     * Generate or format a localized value for a translatable attribute.
+     *
+     * @param  string  $attribute
+     * @param  mixed  $baseValue
+     * @param  string  $locale
+     * @return mixed
+     */
+    protected function generateLocalizedValue(string $attribute, mixed $baseValue, string $locale): mixed
+    {
+        if (! is_string($baseValue) || empty($baseValue)) {
+            return $baseValue;
+        }
+
+        $isArabicString = (bool) preg_match('/[\x{0600}-\x{06FF}]/u', $baseValue);
+
+        if ($locale === 'ar') {
+            if ($isArabicString) {
+                return $baseValue;
+            }
+
+            $fakerAr = $this->getLocalizedFaker('ar_SA');
+
+            if ($attribute === 'name' || $attribute === 'title' || $attribute === 'company') {
+                return $fakerAr ? $fakerAr->company() : ('فرع ' . $baseValue);
+            }
+
+            if ($attribute === 'description' || $attribute === 'content' || $attribute === 'bio' || $attribute === 'notes') {
+                return $fakerAr ? $fakerAr->paragraph() : ('وصف ' . $baseValue);
+            }
+
+            if ($attribute === 'address' || $attribute === 'street' || $attribute === 'city') {
+                return $fakerAr ? $fakerAr->address() : ('عنوان ' . $baseValue);
+            }
+
+            return $baseValue;
+        }
+
+        if ($locale === 'en') {
+            if (! $isArabicString) {
+                return $baseValue;
+            }
+
+            $fakerEn = $this->getLocalizedFaker('en_US');
+
+            if ($attribute === 'name' || $attribute === 'title' || $attribute === 'company') {
+                return $fakerEn ? $fakerEn->company() : ($baseValue . ' Branch');
+            }
+
+            if ($attribute === 'description' || $attribute === 'content' || $attribute === 'bio' || $attribute === 'notes') {
+                return $fakerEn ? $fakerEn->paragraph() : ($baseValue . ' description');
+            }
+
+            return $baseValue;
+        }
+
+        return "[{$locale}] " . $baseValue;
+    }
+
+    /**
+     * Get a localized Faker generator instance for the given locale.
+     *
+     * @param  string  $locale
+     * @return \Faker\Generator|null
+     */
+    protected function getLocalizedFaker(string $locale = 'ar_SA')
+    {
+        static $fakers = [];
+
+        if (isset($fakers[$locale])) {
+            return $fakers[$locale];
+        }
+
+        if (class_exists(\Faker\Factory::class)) {
+            try {
+                return $fakers[$locale] = \Faker\Factory::create($locale);
+            } catch (Throwable) {
+                // Fallback to default faker if locale is not supported
+            }
+        }
+
+        return $fakers[$locale] = $this->faker;
     }
 
     /**
@@ -977,6 +1220,15 @@ abstract class Factory
         }
 
         $resolver = static::$modelNameResolvers[static::class] ?? static::$modelNameResolvers[self::class] ?? static::$modelNameResolver ?? function (self $factory) {
+            // Check for modular artifact or package convention: \Database\Factories\ -> \Models\
+            if (str_contains($factory::class, '\\Database\\Factories\\')) {
+                $candidate = str_replace('\\Database\\Factories\\', '\\Models\\', $factory::class);
+                $candidate = Str::replaceLast('Factory', '', $candidate);
+                if (class_exists($candidate)) {
+                    return $candidate;
+                }
+            }
+
             $namespacedFactoryBasename = Str::replaceLast(
                 'Factory', '', Str::replaceFirst(static::$namespace, '', $factory::class)
             );

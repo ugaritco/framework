@@ -2,9 +2,11 @@
 
 namespace {{ namespace }};
 
-use Heritage\Database\Console\Seeds\WithoutModelEvents;
 use Heritage\Database\Seeder;
 
+/**
+ * Database seeder for {{ class }}.
+ */
 class {{ class }} extends Seeder
 {
     /**

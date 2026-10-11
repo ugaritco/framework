@@ -35,6 +35,22 @@ class FactoryMakeCommand extends GeneratorCommand
     protected $type = 'Factory';
 
     /**
+     * Execute the console command.
+     *
+     * @return bool|null
+     */
+    public function handle()
+    {
+        $this->promptForArtifact('Which modular artifact should this factory belong to?');
+
+        if (! $this->option('model') && $this->input->isInteractive()) {
+            $this->promptForModel('Which model should this factory correspond to?');
+        }
+
+        return parent::handle();
+    }
+
+    /**
      * Get the stub file for the generator.
      *
      * @return string
