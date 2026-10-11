@@ -7,7 +7,7 @@ namespace Ugarit\Artifacts\{{ StudlyName }};
 use Heritage\Support\Artifact;
 
 /**
- * Artifact manifest for the {{ StudlyName }} domain module.
+ * Artifact manifest for the {{ StudlyName }} domain artifact.
  *
  * This file defines the identity, capabilities, providers, and dependencies
  * for the {{ name }} artifact within the Ugarit ecosystem.
@@ -43,7 +43,7 @@ return new class extends Artifact
     public string $description = '{{ description }}';
 
     /**
-     * Technical capabilities exposed by this artifact to other modules.
+     * Technical capabilities exposed by this artifact to other artifacts.
      *
      * Keys are capability slugs, values describe what the capability provides.
      *

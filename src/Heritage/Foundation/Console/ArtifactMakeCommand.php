@@ -9,6 +9,7 @@ use Heritage\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Ugarit\Prompts\confirm;
+use function Ugarit\Prompts\select;
 use function Ugarit\Prompts\text;
 
 /**
@@ -29,9 +30,8 @@ use function Ugarit\Prompts\text;
  *       ├── Models/
  *       ├── Http/Controllers/
  *       ├── Policies/
- *       ├── DTOs/
- *       ├── Services/
- *       ├── UseCases/
+ *       ├── Parcels/
+ *       ├── Capabilities/
  *       ├── Features/
  *       └── Rules/
  */
@@ -57,6 +57,86 @@ class ArtifactMakeCommand extends Command
     protected $description = 'Scaffold a complete modular Artifact domain with all required structure';
 
     /**
+     * Official ready-made artifacts catalog available in the Ugarit ecosystem.
+     *
+     * @var array<string, array{name: string, title: string, description: string, capabilities: array<string, string>}>
+     */
+    protected array $officialArtifacts = [
+        'i18n' => [
+            'name' => 'i18n',
+            'title' => 'Internationalization & Localization',
+            'description' => 'Dynamic entity translations, multilingual dictionaries, locale resolution and RTL/LTR support',
+            'capabilities' => [
+                'locales' => 'Locale management, fallback hierarchy, and directional resolution (RTL/LTR)',
+                'languages' => 'Language catalog, ISO-639 codes, and native denomination registry',
+                'translations' => 'Dynamic entity translatable attributes and multilingual dictionary storage',
+            ],
+        ],
+        'geography' => [
+            'name' => 'geography',
+            'title' => 'Geography & Territorial Hierarchy',
+            'description' => 'ISO countries, governorates/states, cities, districts, addresses and geospatial coordinates',
+            'capabilities' => [
+                'countries' => 'ISO-3166 countries, capitals, currencies, dialing codes, and flags',
+                'governorates' => 'First-level administrative divisions, provinces, and states',
+                'cities' => 'Cities, municipalities, and localized urban regions',
+                'districts' => 'Districts, neighborhoods, and municipal subdivisions',
+                'locations' => 'Geospatial coordinates, latitude/longitude, and addresses',
+            ],
+        ],
+        'identity' => [
+            'name' => 'identity',
+            'title' => 'Identity & Authentication',
+            'description' => 'User identity management, roles, permissions, profile attributes and credentials',
+            'capabilities' => [
+                'users' => 'Core user entity management, credentials and metadata',
+                'roles' => 'Role-based access control (RBAC) and permission mapping',
+                'profiles' => 'Extended user profiles, avatars and localized personal preferences',
+            ],
+        ],
+        'catalog' => [
+            'name' => 'catalog',
+            'title' => 'Product Catalog & Categories',
+            'description' => 'Products, categorized hierarchies, SKU inventory units, tags and attribute schemas',
+            'capabilities' => [
+                'products' => 'Product catalog, pricing, variants and status management',
+                'categories' => 'Hierarchical nested categories, taxonomies and navigation',
+                'attributes' => 'Dynamic custom attributes, specs and filterable facets',
+            ],
+        ],
+        'billing' => [
+            'name' => 'billing',
+            'title' => 'Billing, Subscriptions & Invoices',
+            'description' => 'Payment transactions, subscription plans, automated invoicing and balance ledgers',
+            'capabilities' => [
+                'subscriptions' => 'Recurring subscription tier management and lifecycle',
+                'invoices' => 'Automated invoice generation, line items and PDF exports',
+                'payments' => 'Payment gateway transactions, webhooks and ledger records',
+            ],
+        ],
+        'blog' => [
+            'name' => 'blog',
+            'title' => 'Blog & Content Publishing',
+            'description' => 'Articles, publications, author attribution, taxonomies and editorial workflows',
+            'capabilities' => [
+                'posts' => 'Editorial articles, drafts, scheduled publishing and revisions',
+                'authors' => 'Author attribution, bios and social profile references',
+                'tags' => 'Taxonomy tagging and topic clustering',
+            ],
+        ],
+        'notifications' => [
+            'name' => 'notifications',
+            'title' => 'Multi-Channel Notifications',
+            'description' => 'Real-time broadcast events, transactional mail, SMS notifications and user alert logs',
+            'capabilities' => [
+                'alerts' => 'In-app user notification center and unread counters',
+                'channels' => 'Multi-channel routing (Email, SMS, Webhook, Push)',
+                'templates' => 'Localized notification message templates',
+            ],
+        ],
+    ];
+
+    /**
      * The directories created inside src/ when NOT using --minimal.
      *
      * @var array<int, string>
@@ -65,9 +145,8 @@ class ArtifactMakeCommand extends Command
         'Models',
         'Http/Controllers',
         'Policies',
-        'DTOs',
-        'Services',
-        'UseCases',
+        'Parcels',
+        'Capabilities',
         'Features',
         'Rules',
     ];
@@ -95,16 +174,45 @@ class ArtifactMakeCommand extends Command
     {
         // --- Step 1: Resolve artifact name ---
         $name = $this->argument('name');
+        $description = $this->option('description');
+
+        // Detect artifacts already present in the project
+        $existingArtifacts = $this->getExistingArtifacts();
 
         if (! $name && $this->input->isInteractive()) {
-            $name = text(
-                label: 'What is the artifact name (slug)?',
-                placeholder: 'e.g. catalog, identity, blog',
-                required: true,
-                validate: fn (string $v) => preg_match('/^[a-z][a-z0-9\-]*$/', $v)
-                    ? null
-                    : 'Name must be lowercase letters, numbers, and dashes only.',
+            // Filter out already installed artifacts
+            $availableOfficial = array_filter(
+                $this->officialArtifacts,
+                fn ($meta, $slug) => ! in_array(strtolower($slug), $existingArtifacts),
+                ARRAY_FILTER_USE_BOTH
             );
+
+            $options = [];
+            foreach ($availableOfficial as $slug => $meta) {
+                $options[$slug] = "{$meta['title']} [{$slug}] — {$meta['description']}";
+            }
+            $options['custom'] = 'Create a new custom Artifact...';
+
+            $choice = select(
+                label: 'Select a ready-made Domain Artifact to scaffold, or create a custom one:',
+                options: $options,
+            );
+
+            if ($choice === 'custom') {
+                $name = text(
+                    label: 'What is the artifact name (slug)?',
+                    placeholder: 'e.g. catalog, identity, blog',
+                    required: true,
+                    validate: fn (string $v) => preg_match('/^[a-z][a-z0-9\-]*$/', $v)
+                        ? null
+                        : 'Name must be lowercase letters, numbers, and dashes only.',
+                );
+            } else {
+                $name = $choice;
+                if (! $description && isset($this->officialArtifacts[$choice]['description'])) {
+                    $description = $this->officialArtifacts[$choice]['description'];
+                }
+            }
         }
 
         if (! $name) {
@@ -116,18 +224,24 @@ class ArtifactMakeCommand extends Command
         $name = strtolower(trim($name));
 
         // --- Step 2: Resolve description ---
-        $description = $this->option('description');
-
         if (! $description && $this->input->isInteractive()) {
+            $defaultDesc = isset($this->officialArtifacts[$name]['description'])
+                ? $this->officialArtifacts[$name]['description']
+                : Str::studly($name) . ' domain artifact for Ugarit';
+
             $description = text(
                 label: 'Brief description of this artifact:',
                 placeholder: 'e.g. Manages product catalog and categories',
-                default: Str::studly($name) . ' domain artifact for Ugarit',
+                default: $defaultDesc,
             );
         }
 
         // Fallback description if still empty
-        $description = $description ?: Str::studly($name) . ' domain artifact for Ugarit';
+        $description = $description ?: (
+            isset($this->officialArtifacts[$name]['description'])
+                ? $this->officialArtifacts[$name]['description']
+                : Str::studly($name) . ' domain artifact for Ugarit'
+        );
 
         // --- Step 3: Compute derived values ---
         $studly      = Str::studly($name);           // e.g. "catalog" → "Catalog"
@@ -151,6 +265,24 @@ class ArtifactMakeCommand extends Command
         $this->outputSummary($name, $studly, $artifactPath);
 
         return 0;
+    }
+
+    /**
+     * Get the slugs of all artifacts currently existing in the project.
+     *
+     * @return array<int, string>
+     */
+    protected function getExistingArtifacts(): array
+    {
+        $artifactsPath = $this->ugarit->basePath('artifacts');
+
+        if (! is_dir($artifactsPath)) {
+            return [];
+        }
+
+        $dirs = glob($artifactsPath.'/*', GLOB_ONLYDIR) ?: [];
+
+        return array_map(fn ($dir) => strtolower(basename($dir)), $dirs);
     }
 
     /**
