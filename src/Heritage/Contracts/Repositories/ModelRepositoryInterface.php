@@ -4,47 +4,58 @@ declare(strict_types=1);
 
 namespace Heritage\Contracts\Repositories;
 
-use Heritage\DTOs\DTO;
+use Heritage\Parcels\Parcel;
 
 /**
  * Interface ModelRepositoryInterface
  *
- * Explicit contract for entity repositories mapping Eloquent models to Data Transfer Objects.
+ * Explicit contract for entity repositories mapping Eloquent models to structured data envelopes (Parcels).
  *
  * Architectural Rules:
- * - Prevents leaking Eloquent model instances outside the repository layer into UseCases.
- * - All standard operations (all, find, save, destroy) consume and produce pure, strongly-typed DTOs.
+ * - Prevents leaking Eloquent model instances outside the repository layer into Features and Capabilities.
+ * - All standard operations (all, find, save, destroy) consume and produce strongly-typed Parcels.
  */
 interface ModelRepositoryInterface extends RepositoryInterface
 {
     /**
-     * Retrieve all model records mapped to an array of DTOs.
+     * Retrieve all model records mapped to an array of Parcels.
      *
-     * @return DTO[] Array of DTO instances.
+     * @return array<int, Parcel> Array of Parcel instances.
      */
     public function all(): array;
 
     /**
-     * Find a record by its primary key and map to DTO.
+     * Find a record by its primary key and map to Parcel.
      *
      * @param  int|string  $id  Primary key of the record.
-     * @return DTO|null DTO instance if found, null otherwise.
+     * @return Parcel|null Parcel instance if found, null otherwise.
      */
-    public function find(int|string $id): ?DTO;
+    public function find(int|string $id): ?Parcel;
 
     /**
-     * Persist or update a record using DTO data and return a fresh DTO instance.
+     * Persist or update a record using Parcel data and return a fresh instance.
      *
-     * @param  DTO  $dto  DTO containing payload to save.
-     * @return DTO Fresh DTO instance from the refreshed database model.
+     * @param  Parcel  $parcel  Parcel containing payload to save.
+     * @return Parcel Fresh Parcel instance from the refreshed database model.
      */
-    public function save(DTO $dto): DTO;
+    public function save(Parcel $parcel): Parcel;
 
     /**
-     * Delete a record from storage using the attached model in the DTO.
+     * Retrieve paginated model records mapped to Parcels.
      *
-     * @param  DTO  $dto  DTO with attached model instance.
+     * @param  int  $perPage
+     * @param  array  $columns
+     * @param  string  $pageName
+     * @param  int|null  $page
+     * @return mixed
+     */
+    public function paginate(int $perPage = 15, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed;
+
+    /**
+     * Delete a record from storage using the attached model in the Parcel or its primary key.
+     *
+     * @param  Parcel|int|string  $parcel  Parcel with attached model instance or ID.
      * @return bool True on success, false on failure.
      */
-    public function destroy(DTO $dto): bool;
+    public function destroy(Parcel|int|string $parcel): bool;
 }

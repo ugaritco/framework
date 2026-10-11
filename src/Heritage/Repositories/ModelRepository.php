@@ -7,7 +7,7 @@ namespace Heritage\Repositories;
 use Exception;
 use Heritage\Contracts\Repositories\ModelRepositoryInterface;
 use Heritage\Database\Eloquent\Model;
-use Heritage\DTOs\DTO;
+use Heritage\Parcels\Parcel;
 use InvalidArgumentException;
 use LogicException;
 use ReflectionException;
@@ -15,16 +15,16 @@ use ReflectionException;
 /**
  * Class ModelRepository
  *
- * Base repository implementation providing standard CRUD operations mapping Eloquent models to DTOs.
+ * Base repository implementation providing standard CRUD operations mapping Eloquent models to Parcels.
  *
  * Architectural Goals:
- * 1. Decouple Eloquent models from the business layer; UseCases interact solely with pure DTOs.
+ * 1. Decouple Eloquent models from the business layer; Features and Capabilities interact solely with pure Parcels.
  * 2. Provide standard CRUD operations (all, find, save, destroy, snapshotById) uniformly across all entities.
- * 3. Support automatic create/update detection: if a DTO has an attached model instance, it updates;
+ * 3. Support automatic create/update detection: if a Parcel has an attached model instance, it updates;
  *    otherwise, it creates a new record.
  *
  * @template TModel of Model
- * @template TDTO of DTO
+ * @template TParcel of Parcel
  */
 abstract class ModelRepository implements ModelRepositoryInterface
 {
@@ -47,14 +47,15 @@ abstract class ModelRepository implements ModelRepositoryInterface
     }
 
     /**
-     * Convert a given Eloquent Model instance into its corresponding DTO.
-     *
-     * Each concrete repository must define this mapping for its specific entity.
+     * Convert a given Eloquent Model instance into its corresponding Parcel.
      *
      * @param  Model  $model  The Eloquent model instance to convert.
-     * @return DTO The corresponding Data Transfer Object.
+     * @return Parcel The corresponding Parcel representation.
      */
-    abstract protected function mapToDTO(Model $model): DTO;
+    protected function mapToParcel(Model $model): Parcel
+    {
+        throw new LogicException('Repository must implement mapToParcel().');
+    }
 
     /**
      * Get the underlying Eloquent model instance.
@@ -68,47 +69,63 @@ abstract class ModelRepository implements ModelRepositoryInterface
     }
 
     /**
-     * Retrieve all models from the database mapped to a list of DTOs.
+     * Retrieve all models from the database mapped to a list of Parcels.
      *
-     * @return array<int, DTO> List of DTOs representing the database records.
+     * @return array<int, Parcel> List of Parcels representing the database records.
      */
     public function all(): array
     {
-        // 1. Build a new query and fetch all records from the database
-        // 2. Map each retrieved model instance to its corresponding DTO via mapToDTO()
-        // 3. Return a clean array of DTO instances
+        // 1. Fetch all records from the database
+        // 2. Map each retrieved model instance to its corresponding Parcel via mapToParcel()
+        // 3. Return a clean array of Parcel instances
         return $this->model->newQuery()->get()
-            ->map(fn ($model) => $this->mapToDTO($model))
+            ->map(fn ($model) => $this->mapToParcel($model))
             ->all();
     }
 
     /**
-     * Save or update a model using data provided by the DTO.
+     * Retrieve paginated model records mapped to Parcels.
+     *
+     * @param  int  $perPage  Items per page (default: 15).
+     * @param  array  $columns  Columns to select.
+     * @param  string  $pageName  Query parameter name for pagination page.
+     * @param  int|null  $page  Explicit page number.
+     * @return mixed LengthAwarePaginator with items mapped to Parcels.
+     */
+    public function paginate(int $perPage = 15, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed
+    {
+        $paginator = $this->model->newQuery()->paginate($perPage, $columns, $pageName, $page);
+
+        return $paginator->through(fn ($model) => $this->mapToParcel($model));
+    }
+
+    /**
+     * Save or update a model using data provided by the Parcel.
      *
      * Flow:
-     * 1. Convert DTO data to a raw associative array.
+     * 1. Convert parcel data to a raw associative array.
      * 2. Filter out null values if shouldFilterNulls() is enabled to avoid overwriting existing columns.
      * 3. Use attached model (Update) or instantiate a new model (Create).
      * 4. Fill model attributes and persist to database.
-     * 5. Reconstruct and return a fresh DTO instance from the refreshed database model.
+     * 5. Reconstruct and return a fresh Parcel instance from the refreshed database model.
      *
-     * @param  DTO  $dto  Data Transfer Object containing fields to save.
-     * @return DTO Fresh DTO instance reflecting the persisted record.
+     * @param  Parcel  $parcel  Parcel containing fields to save.
+     * @return Parcel Fresh instance reflecting the persisted record.
      *
      * @throws ReflectionException
      */
-    public function save(DTO $dto): DTO
+    public function save(Parcel $parcel): Parcel
     {
-        // Step 1: Convert DTO to associative array
-        $data = $dto->toArray();
+        // Step 1: Convert Parcel to associative array
+        $data = $parcel->toArray();
 
-        // Step 2: Filter out null values if the DTO requests null filtering
-        if ($dto->shouldFilterNulls()) {
+        // Step 2: Filter out null values if null filtering is requested
+        if ($parcel->shouldFilterNulls()) {
             $data = array_filter($data, fn ($value) => ! is_null($value));
         }
 
         // Step 3: Determine target model; use attached instance if present (Update), else create new (Create)
-        $model = $dto->getModel() ?? $this->model->newInstance();
+        $model = $parcel->getModel() ?? $this->model->newInstance();
 
         // Step 4: Fill model attributes with prepared data
         $model->fill($data);
@@ -116,17 +133,17 @@ abstract class ModelRepository implements ModelRepositoryInterface
         // Step 5: Persist changes to database
         $model->save();
 
-        // Step 6: Construct and return a fresh DTO instance from the refreshed database record
-        return $dto::fromModel($model->fresh(), true);
+        // Step 6: Construct and return a fresh Parcel instance from the refreshed database record
+        return $parcel::fromModel($model->fresh(), true);
     }
 
     /**
-     * Find a model by its primary key and map it to a DTO.
+     * Find a model by its primary key and map it to a Parcel.
      *
      * @param  int|string  $id  Primary key value of the target record.
-     * @return DTO|null DTO instance if found, or null if the record does not exist.
+     * @return Parcel|null Parcel instance if found, or null if the record does not exist.
      */
-    public function find(int|string $id): ?DTO
+    public function find(int|string $id): ?Parcel
     {
         // Execute primary key lookup on the model
         $model = $this->model->newQuery()->find($id);
@@ -136,20 +153,20 @@ abstract class ModelRepository implements ModelRepositoryInterface
             return null;
         }
 
-        // Map model to DTO and return
-        return $this->mapToDTO($model);
+        // Map model to parcel and return
+        return $this->mapToParcel($model);
     }
 
     /**
-     * Take a snapshot of an entity by ID and map it to a specialized Snapshot DTO.
+     * Take a snapshot of an entity by ID and map it to a specialized Snapshot Parcel.
      *
      * @param  int|string  $id  Primary key of the entity.
-     * @param  class-string<DTO>  $snapshotDtoClass  Target snapshot DTO class.
-     * @return DTO|null
+     * @param  class-string<Parcel>  $snapshotClass  Target snapshot class.
+     * @return Parcel|null
      *
      * @throws ReflectionException|InvalidArgumentException
      */
-    public function snapshotById(int|string $id, string $snapshotDtoClass): ?DTO
+    public function snapshotById(int|string $id, string $snapshotClass): ?Parcel
     {
         // 1. Fetch model from database by primary key
         $model = $this->model->newQuery()->find($id);
@@ -159,38 +176,49 @@ abstract class ModelRepository implements ModelRepositoryInterface
             return null;
         }
 
-        // 3. Ensure the target class is a valid subclass of DTO
-        if (! is_subclass_of($snapshotDtoClass, DTO::class)) {
+        // 3. Ensure the target class is a valid subclass of Parcel
+        if (! is_subclass_of($snapshotClass, Parcel::class)) {
             throw new InvalidArgumentException(
-                'Snapshot DTO must extend '.DTO::class
+                'Snapshot class must extend '.Parcel::class
             );
         }
 
-        // 4. Construct snapshot DTO from the model instance
-        return $snapshotDtoClass::fromModel($model);
+        // 4. Construct snapshot instance from the model instance
+        return $snapshotClass::fromModel($model);
     }
 
     /**
-     * Delete a model from the database using the attached instance in the DTO.
+     * Delete a model from the database using the attached instance in the Parcel or its primary key.
      *
-     * @param  DTO  $dto  DTO with attached model to delete.
+     * @param  Parcel|int|string  $parcel  Parcel with attached model to delete, or model primary key.
      * @return bool True on successful deletion, false on failure.
      *
-     * @throws LogicException If no model instance is attached to the DTO.
+     * @throws LogicException If no model instance or ID is available.
      */
-    public function destroy(DTO $dto): bool
+    public function destroy(Parcel|int|string $parcel): bool
     {
-        // Step 1: Extract the attached model instance from the DTO
-        $model = $dto->getModel();
+        // Case 1: Primary key provided directly
+        if (is_int($parcel) || is_string($parcel)) {
+            $model = $this->model->newQuery()->find($parcel);
 
-        // Step 2: Validate model presence; cannot delete without a concrete instance
+            if (! $model) {
+                return false;
+            }
+
+            return (bool) $model->delete();
+        }
+
+        // Case 2: Parcel provided
+        $model = $parcel->getModel() ?? (isset($parcel->id) ? $this->model->newQuery()->find($parcel->id) : null);
+
+        // Validate model presence
         if (! $model) {
-            throw new LogicException('Cannot delete a model without an attached instance.');
+            throw new LogicException('Cannot delete a model without an attached instance or valid ID.');
         }
 
         try {
-            // Step 3: Check whether force delete or standard/soft delete is requested
-            if (method_exists($model, 'forceDelete') && ($dto->force ?? false)) {
+            // Check whether force delete or standard/soft delete is requested
+            if (method_exists($model, 'forceDelete') && ($parcel->force ?? false)) {
                 // Execute hard delete from database table
                 $model->forceDelete();
             } else {
