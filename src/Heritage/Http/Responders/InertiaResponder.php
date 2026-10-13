@@ -42,7 +42,7 @@ class InertiaResponder extends Responder
         if ($options instanceof Outcome) {
             $options = new InertiaResponderOptions(
                 outcome: $options,
-                component: $extraArgs[0] ?? 'Dashboard/Index',
+                component: $extraArgs[0] ?? throw new InvalidArgumentException('An Inertia response needs a component.'),
                 extra: $extraArgs[1] ?? []
             );
         }

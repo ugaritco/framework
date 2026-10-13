@@ -8,6 +8,7 @@ use Heritage\Http\JsonResponse;
 use Heritage\Http\Responders\Options\JsonResponderOptions;
 use Heritage\Http\Responders\Options\ResponderOptions;
 use Heritage\Responses\Outcome;
+use InvalidArgumentException;
 
 /**
  * Class JsonResponder

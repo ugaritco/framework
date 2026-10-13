@@ -4,46 +4,71 @@ declare(strict_types=1);
 
 namespace Heritage\Factories;
 
+use Heritage\Container\Container;
 use Heritage\Enums\Responders\ResponderType;
 use Heritage\Http\Responders\InertiaResponder;
 use Heritage\Http\Responders\JsonResponder;
 use Heritage\Http\Responders\RedirectBackResponder;
 use Heritage\Http\Responders\RedirectToRouteResponder;
 use Heritage\Http\Responders\Responder;
+use Heritage\Http\Responders\ViewResponder;
+use InvalidArgumentException;
 
 /**
  * Class ResponderFactory
  *
- * Factory responsible for creating explicit HTTP Responder instances based on the requested format.
- *
- * Architectural Philosophy:
- * - Complete decoupling of domain business logic from the transport/presentation layer.
- * - A UseCase returns a pure Response object unaware of how it will be delivered.
- * - The Controller specifies the ResponderType, and this factory instantiates the specialized Responder.
+ * Creates the Responder of a ResponderType. Responders are resolved from the container, so an
+ * application can bind its own class for a responder (or extend one) and inject dependencies.
  */
 class ResponderFactory
 {
     /**
-     * Create and return a specialized Responder instance matching the given ResponderType.
+     * The responder class of each concrete type.
      *
-     * @param  ResponderType  $type  The type of responder (JSON, INERTIA, REDIRECT_BACK, REDIRECT_TO_ROUTE).
-     * @return Responder Concrete Responder instance extending the base Responder class.
+     * @var array<string, class-string<Responder>>
+     */
+    protected array $responders = [
+        'json' => JsonResponder::class,
+        'inertia' => InertiaResponder::class,
+        'view' => ViewResponder::class,
+        'redirect_back' => RedirectBackResponder::class,
+        'redirect_to_route' => RedirectToRouteResponder::class,
+    ];
+
+    /**
+     * @param  Container|null  $container  The container resolving responders (the global one by default).
+     */
+    public function __construct(protected ?Container $container = null)
+    {
+    }
+
+    /**
+     * Create the Responder of the given type.
+     *
+     * @param  ResponderType  $type  A concrete type; AUTO is resolved by the controller first.
+     * @return Responder
+     *
+     * @throws InvalidArgumentException When the type has no responder (AUTO).
      */
     public function make(ResponderType $type): Responder
     {
-        // Match the responder type and return the corresponding specialized responder instance
-        return match ($type) {
-            // Standard JSON responder for API requests and mobile clients
-            ResponderType::JSON => new JsonResponder,
+        $class = $this->responders[$type->value]
+            ?? throw new InvalidArgumentException("ResponderType::{$type->name} has no responder; resolve it to a concrete type first.");
 
-            // Inertia.js responder for modern Single Page Application (SPA) views
-            ResponderType::INERTIA => new InertiaResponder,
+        return ($this->container ?? Container::getInstance())->make($class);
+    }
 
-            // Redirect back responder with session flash messages and toast notifications
-            ResponderType::REDIRECT_BACK => new RedirectBackResponder,
+    /**
+     * Use another Responder class for a type.
+     *
+     * @param  ResponderType  $type  The type to override.
+     * @param  class-string<Responder>  $class  The responder class.
+     * @return static
+     */
+    public function extend(ResponderType $type, string $class): static
+    {
+        $this->responders[$type->value] = $class;
 
-            // Redirect to a specific named route with parameters and flash messages
-            ResponderType::REDIRECT_TO_ROUTE => new RedirectToRouteResponder,
-        };
+        return $this;
     }
 }

@@ -40,7 +40,7 @@ class RedirectToRouteResponder extends Responder
         if ($options instanceof Outcome) {
             $options = new RedirectToRouteResponderOptions(
                 outcome: $options,
-                routeName: $extraArgs[0] ?? '',
+                routeName: $extraArgs[0] ?? throw new InvalidArgumentException('A redirect to a route needs the route name.'),
                 parameters: $extraArgs[1] ?? []
             );
         }

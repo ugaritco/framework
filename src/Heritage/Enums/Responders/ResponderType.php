@@ -22,6 +22,11 @@ enum ResponderType: string
     case INERTIA = 'inertia';
 
     /**
+     * Server-rendered Blade view.
+     */
+    case VIEW = 'view';
+
+    /**
      * HTTP redirect back to the previous URL with session flash feedback.
      */
     case REDIRECT_BACK = 'redirect_back';
@@ -30,4 +35,10 @@ enum ResponderType: string
      * HTTP redirect to a named route with parameters and flash feedback.
      */
     case REDIRECT_TO_ROUTE = 'redirect_to_route';
+
+    /**
+     * Chosen per request by the controller: JSON when the client expects JSON (not an Inertia
+     * visit), otherwise the Inertia page, the named route or a redirect back, by what is given.
+     */
+    case AUTO = 'auto';
 }

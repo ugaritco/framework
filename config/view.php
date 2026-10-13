@@ -33,4 +33,17 @@ return [
         realpath(storage_path('framework/views'))
     ),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Controller Pages
+    |--------------------------------------------------------------------------
+    |
+    | How Controller::page() renders a page: "inertia" renders an Inertia
+    | component, "blade" a Blade view. A controller may override it with
+    | its $pages property.
+    |
+    */
+
+    'pages' => env('VIEW_PAGES', 'inertia'),
+
 ];

@@ -10,21 +10,21 @@ use Heritage\Contracts\Support\Arrayable;
 use Heritage\Contracts\Support\Jsonable;
 use Heritage\Enums\Actions\Feedback\Variant;
 use Heritage\Http\Resources\Json\JsonResource;
-use Heritage\Http\Resources\Json\ResourceCollection;
-use Heritage\Support\Collection;
 use JsonSerializable;
 
 /**
  * Class Outcome
  *
  * The unified domain execution outcome envelope across the Ugarit Ecosystem.
- * Represents the final result of any UseCase, Service, or Feature operation.
+ * Represents the final result of any Capability or Feature.
  *
  * Key Capabilities:
- * 1. Supports strongly-typed domain ResultContract Enums for rich status and localized messages.
+ * 1. Built from a ResultContract enum, its title, message, variant and status code are read from
+ *    the Result when requested, with the current context; explicit values override them.
  * 2. Supports direct static factory creation (Outcome::success, Outcome::failure).
- * 3. Encapsulates payload data, error messages, HTTP status codes, and user-facing notifications.
- * 4. Automatically resolves and builds Toast feedback objects with contextual placeholders.
+ * 3. Carries the domain data (models, collections); the Controller presents it with a Resource
+ *    (withData()). An artifact subclass may add defaultContext() and actions().
+ * 4. Builds Toast feedback objects with contextual placeholders.
  * 5. Implements Arrayable, Jsonable, and JsonSerializable for clean API and view delivery.
  */
 readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
@@ -40,7 +40,7 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
      * Initialize an Outcome instance.
      *
      * @param  bool  $success  Indicates whether the operation was successful.
-     * @param  JsonResource|ResourceCollection|Collection|array|null  $data  The returned payload data.
+     * @param  mixed  $data  The returned payload data.
      * @param  string|null  $message  User-facing feedback message.
      * @param  string|null  $title  User-facing feedback title.
      * @param  Variant|null  $variant  Visual feedback variant (SUCCESS, ERROR, WARNING, INFO).
@@ -52,7 +52,7 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
      */
     public function __construct(
         public readonly bool $success = true,
-        public readonly JsonResource|ResourceCollection|Collection|array|null $data = null,
+        public readonly mixed $data = null,
         public readonly ?string $message = null,
         public readonly ?string $title = null,
         public readonly ?Variant $variant = null,
@@ -70,25 +70,20 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
      * Create an Outcome instance from a domain ResultContract Enum.
      *
      * @param  ResultContract  $result  The domain Result enum.
-     * @param  JsonResource|ResourceCollection|Collection|array|null  $data  Payload data.
+     * @param  mixed  $data  Payload data.
      * @param  array<string, mixed>  $context  Runtime context parameters.
      * @return static
      */
     public static function fromResult(
         ResultContract $result,
-        JsonResource|ResourceCollection|Collection|array|null $data = null,
+        mixed $data = null,
         array $context = []
     ): static {
-        // Construct Outcome deriving success, variant, and status from the Result enum
+        // Title, message, variant and status are read from the Result when requested,
+        // so they always reflect the current context.
         return new static(
             success: $result->isSuccess(),
             data: $data,
-            message: $result->message($context),
-            title: $result->title($context),
-            variant: $result->variant(),
-            errors: [],
-            actions: [],
-            statusCode: $result->statusCode(),
             result: $result,
             context: $context
         );
@@ -97,7 +92,7 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
     /**
      * Create a successful outcome instance.
      *
-     * @param  JsonResource|ResourceCollection|Collection|array|null  $data  Payload data.
+     * @param  mixed  $data  Payload data.
      * @param  string|null  $message  User-facing success message.
      * @param  string|null  $title  User-facing success title.
      * @param  array<int, mixed>  $actions  Interactive UI actions.
@@ -106,7 +101,7 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
      * @return static
      */
     public static function success(
-        JsonResource|ResourceCollection|Collection|array|null $data = null,
+        mixed $data = null,
         ?string $message = null,
         ?string $title = null,
         array $actions = [],
@@ -133,7 +128,7 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
      *
      * @param  string|null  $message  Descriptive failure message.
      * @param  array<string, mixed>  $errors  Validation or error details.
-     * @param  JsonResource|ResourceCollection|Collection|array|null  $data  Optional payload data.
+     * @param  mixed  $data  Optional payload data.
      * @param  string|null  $title  User-facing failure title.
      * @param  array<int, mixed>  $actions  Corrective interactive actions.
      * @param  int  $statusCode  HTTP status code (defaults to 400 Bad Request).
@@ -143,7 +138,7 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
     public static function failure(
         ?string $message = null,
         array $errors = [],
-        JsonResource|ResourceCollection|Collection|array|null $data = null,
+        mixed $data = null,
         ?string $title = null,
         array $actions = [],
         int $statusCode = 400,
@@ -189,11 +184,32 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
     /**
      * Retrieve the outcome payload data.
      *
-     * @return JsonResource|ResourceCollection|Collection|array|null
+     * @return mixed A model, collection or paginator from the domain, or a Resource once presented.
      */
     public function data(): mixed
     {
         return $this->data;
+    }
+
+    /**
+     * Retrieve the domain value behind the payload, unwrapping a Resource.
+     *
+     * @return mixed
+     */
+    public function subject(): mixed
+    {
+        return $this->data instanceof JsonResource ? $this->data->resource : $this->data;
+    }
+
+    /**
+     * Return a new Outcome instance carrying the given payload, e.g. the data wrapped in a Resource.
+     *
+     * @param  mixed  $data  The new payload.
+     * @return static
+     */
+    public function withData(mixed $data): static
+    {
+        return $this->copyWith(['data' => $data]);
     }
 
     /**
@@ -264,7 +280,7 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
     }
 
     /**
-     * Retrieve the array of interactive actions.
+     * Retrieve the array of interactive actions; override to derive actions from the result and data.
      *
      * @return array<int, mixed>
      */
@@ -299,8 +315,18 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
      */
     public function getContext(): array
     {
-        // Return internal context array
-        return $this->context;
+        return array_merge($this->defaultContext(), $this->context);
+    }
+
+    /**
+     * Context placeholders every outcome of this class provides (e.g. the entity name derived
+     * from the data); the context given to the outcome overrides them.
+     *
+     * @return array<string, mixed>
+     */
+    protected function defaultContext(): array
+    {
+        return [];
     }
 
     /**
@@ -311,19 +337,48 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
      */
     public function withContext(array $context): static
     {
-        // Construct new instance with updated context
-        return new static(
-            success: $this->success,
-            data: $this->data,
-            message: $this->message,
-            title: $this->title,
-            variant: $this->variant,
-            errors: $this->errors,
-            actions: $this->actions,
-            statusCode: $this->statusCode,
-            result: $this->result,
-            context: $context
-        );
+        return $this->copyWith(['context' => $context]);
+    }
+
+    /**
+     * Return a new Outcome instance with the given errors merged into the existing ones.
+     *
+     * @param  array<string, mixed>  $errors  Displayable failure reasons.
+     * @return static
+     */
+    public function withErrors(array $errors): static
+    {
+        return $this->copyWith(['errors' => array_merge($this->errors, $errors)]);
+    }
+
+    /**
+     * Copy this Outcome with some properties replaced, without calling the constructor, so
+     * subclasses with their own constructor signature are copied as they are.
+     *
+     * @param  array<string, mixed>  $overrides  Property values to replace.
+     * @return static
+     */
+    protected function copyWith(array $overrides): static
+    {
+        $reflection = new \ReflectionObject($this);
+        $copy = $reflection->newInstanceWithoutConstructor();
+
+        foreach ($reflection->getProperties() as $property) {
+            $name = $property->getName();
+
+            if ($property->isStatic() || (! $property->isInitialized($this) && ! array_key_exists($name, $overrides))) {
+                continue;
+            }
+
+            $value = array_key_exists($name, $overrides) ? $overrides[$name] : $property->getValue($this);
+
+            // Readonly properties are initialized from the scope of the class declaring them
+            \Closure::bind(function () use ($name, $value): void {
+                $this->{$name} = $value;
+            }, $copy, $property->getDeclaringClass()->getName())();
+        }
+
+        return $copy;
     }
 
     /**
@@ -334,19 +389,7 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
      */
     public function withMergedContext(array $context): static
     {
-        // Construct new instance merging existing context with new parameters
-        return new static(
-            success: $this->success,
-            data: $this->data,
-            message: $this->message,
-            title: $this->title,
-            variant: $this->variant,
-            errors: $this->errors,
-            actions: $this->actions,
-            statusCode: $this->statusCode,
-            result: $this->result,
-            context: array_merge($this->context, $context)
-        );
+        return $this->copyWith(['context' => array_merge($this->context, $context)]);
     }
 
     /**
@@ -361,7 +404,7 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
             variant: $this->variant(),
             title: $this->title(),
             message: $this->message(),
-            actions: $this->actions
+            actions: $this->actions()
         );
     }
 
@@ -392,7 +435,7 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
             'errors' => $this->errors,
 
             // Action list
-            'actions' => $this->actions,
+            'actions' => $this->actions(),
 
             // HTTP status code
             'status_code' => $this->statusCode(),

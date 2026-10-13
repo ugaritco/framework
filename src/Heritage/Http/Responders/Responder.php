@@ -78,7 +78,14 @@ abstract class Responder implements ResponderContract
                 'data' => $this->resolveData($data),
             ],
             // Extract any additional custom public properties from the outcome object
-            $this->extractProperties($outcome)
+            $this->extractProperties($outcome),
+            // Feedback resolved from the Result and context (the properties only hold explicit overrides)
+            $outcome instanceof Outcome ? [
+                'message' => $outcome->message(),
+                'title' => $outcome->title(),
+                'variant' => $outcome->variant(),
+                'statusCode' => $outcome->statusCode(),
+            ] : []
         );
     }
 
@@ -220,6 +227,10 @@ abstract class Responder implements ResponderContract
         // Convert Arrayable instances to native arrays
         if ($data instanceof Arrayable) {
             return $data->toArray();
+        }
+
+        if (is_array($data)) {
+            return array_map(fn ($value) => $this->resolveData($value), $data);
         }
 
         // Return primitives or arrays as-is
