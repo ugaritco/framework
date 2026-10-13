@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace {{ namespace }};
 
-use Heritage\Capabilities\Capability;
-use Heritage\Outcomes\Outcome;
-use Heritage\Parcels\Parcel;
+{{ imports }}
 
 /**
  * Class {{ class }}
@@ -15,14 +13,32 @@ use Heritage\Parcels\Parcel;
  */
 class {{ class }} extends Capability
 {
+{{ constructor }}
+
     /**
      * Execute the capability business logic.
      *
-     * @param  ?Parcel  $data
+     * The parameter type declares the accepted Parcel; a nullable type also accepts no input.
+     * Throw a CapabilityException to fail with displayable errors without reporting.
+     *
+     * @param  {{ parcelDoc }}  $data  The input parcel.
      * @return Outcome
      */
-    public function handle(?Parcel $data): Outcome
+    protected function perform({{ parcelParameter }}): Outcome
     {
         //
+
+        return {{ success }};
+    }
+
+    /**
+     * Build the outcome returned when perform() throws; unexpected exceptions are already reported.
+     *
+     * @param  Throwable  $e  The exception raised by perform().
+     * @return Outcome
+     */
+    protected function failed(Throwable $e): Outcome
+    {
+        return {{ failure }};
     }
 }

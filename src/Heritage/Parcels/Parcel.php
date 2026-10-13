@@ -34,14 +34,52 @@ abstract class Parcel implements ParcelContract
     protected ?Model $model = null;
 
     /**
+     * The constructor parameters the Parcel was built from by fromArray(), fromModel() or
+     * fromParcel(); null when it was instantiated directly.
+     *
+     * @var array<int, string>|null
+     */
+    protected ?array $provided = null;
+
+    /**
      * Convert the Parcel properties into an associative array representation.
      *
      * @return array<string, mixed>
      */
     public function toArray(): array
     {
-        // Extract all defined properties from this instance
-        return get_object_vars($this);
+        // Extract the data properties, leaving out the attached model and the provided keys
+        return array_diff_key(get_object_vars($this), ['model' => true, 'provided' => true]);
+    }
+
+    /**
+     * The attributes to persist: the provided keys, so a key given as null clears its column
+     * while a key never given is left untouched. A Parcel instantiated directly does not know
+     * its provided keys; its nulls are dropped unless shouldFilterNulls() returns false.
+     *
+     * @return array<string, mixed>
+     */
+    public function toAttributes(): array
+    {
+        $data = $this->toArray();
+
+        if ($this->provided !== null) {
+            return array_intersect_key($data, array_flip($this->provided));
+        }
+
+        return $this->shouldFilterNulls()
+            ? array_filter($data, fn ($value) => ! is_null($value))
+            : $data;
+    }
+
+    /**
+     * The constructor parameters the Parcel was built from, or null when unknown.
+     *
+     * @return array<int, string>|null
+     */
+    public function provided(): ?array
+    {
+        return $this->provided;
     }
 
     /**
@@ -83,7 +121,8 @@ abstract class Parcel implements ParcelContract
     }
 
     /**
-     * Determine if null values should be filtered out before persisting to database.
+     * Determine if null values are dropped by toAttributes() when the provided keys are unknown
+     * (a Parcel instantiated directly with `new`).
      *
      * @return bool
      */
@@ -141,8 +180,10 @@ abstract class Parcel implements ParcelContract
             if (isset($model->{$property})) {
                 $value = $model->{$property};
 
-                // Automatically convert Eloquent translation collections to native arrays
-                if ($property === 'translations' && $value instanceof Collection) {
+                // Translations use the canonical shape keyed by locale code, the shape save() accepts
+                if ($property === 'translations' && method_exists($model, 'isTranslatable') && $model->isTranslatable()) {
+                    $value = $model->translationsToArray();
+                } elseif ($property === 'translations' && $value instanceof Collection) {
                     $value = $value->toArray();
                 }
 
@@ -164,6 +205,8 @@ abstract class Parcel implements ParcelContract
 
     /**
      * Instantiate a new Parcel using data from another Parcel or DTO with optional overrides.
+     * The model attached to a source Parcel is attached to the new one, so an update stays an
+     * update; build a Parcel for another model with fromArray().
      *
      * @param  object  $source  Source Parcel or DTO instance.
      * @param  array<string, mixed>  $additionalData  Data overrides.
@@ -171,13 +214,23 @@ abstract class Parcel implements ParcelContract
      */
     public static function fromParcel(object $source, array $additionalData = []): static
     {
-        $sourceArray = method_exists($source, 'toArray') ? $source->toArray() : get_object_vars($source);
+        // A source Parcel passes on only what it was given, so the target keeps the provided keys
+        $sourceArray = match (true) {
+            $source instanceof self => $source->toAttributes(),
+            method_exists($source, 'toArray') => $source->toArray(),
+            default => get_object_vars($source),
+        };
 
         // Merge source properties with overrides
         $data = array_merge($sourceArray, $additionalData);
 
-        // Instantiate new Parcel
-        return static::fromArray($data);
+        $parcel = static::fromArray($data);
+
+        if ($source instanceof self && $source->getModel() !== null) {
+            $parcel->setModel($source->getModel());
+        }
+
+        return $parcel;
     }
 
     /**
@@ -301,16 +354,24 @@ abstract class Parcel implements ParcelContract
 
         // Return parameterless instance if no constructor exists
         if (! $constructor) {
-            return new static;
+            $parcel = new static;
+            $parcel->provided = [];
+
+            return $parcel;
         }
 
-        // Parameter values array for instantiation
+        // Parameter values array for instantiation, and the parameters found in the data
         $params = [];
+        $provided = [];
 
         // Step 3: Iterate through constructor parameters
         foreach ($constructor->getParameters() as $param) {
             $name = $param->getName();
             $type = $param->getType();
+
+            if (array_key_exists($name, $data)) {
+                $provided[] = $name;
+            }
 
             // Handle nested Parcel recursion
             if ($type instanceof ReflectionNamedType && ! $type->isBuiltin()) {
@@ -347,7 +408,10 @@ abstract class Parcel implements ParcelContract
             }
         }
 
-        // Step 4: Instantiate and return the new Parcel with resolved arguments
-        return $class->newInstanceArgs($params);
+        // Step 4: Instantiate the new Parcel with resolved arguments and record its provided keys
+        $parcel = $class->newInstanceArgs($params);
+        $parcel->provided = $provided;
+
+        return $parcel;
     }
 }

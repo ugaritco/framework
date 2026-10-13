@@ -63,6 +63,7 @@ class RedirectBackResponder extends Responder
         if (! $outcome->isSuccess()) {
             // On failure: redirect back with form errors and preserve old input
             return back()->withErrors([
+                ...$outcome->errors(),
                 'form' => $outcome->message(),
             ])->withInput();
         }

@@ -4,58 +4,76 @@ declare(strict_types=1);
 
 namespace Heritage\Contracts\Repositories;
 
+use Heritage\Contracts\Pagination\LengthAwarePaginator;
+use Heritage\Database\Eloquent\Collection;
+use Heritage\Database\Eloquent\Model;
+use Heritage\Database\Eloquent\ModelNotFoundException;
 use Heritage\Parcels\Parcel;
 
 /**
  * Interface ModelRepositoryInterface
  *
- * Explicit contract for entity repositories mapping Eloquent models to structured data envelopes (Parcels).
+ * Contract for entity repositories: Parcels come in, Eloquent models come out.
  *
  * Architectural Rules:
- * - Prevents leaking Eloquent model instances outside the repository layer into Features and Capabilities.
- * - All standard operations (all, find, save, destroy) consume and produce strongly-typed Parcels.
+ * - Queries and persistence stay in the repository; capabilities never build queries.
+ * - Input is a Parcel (its provided attributes are persisted); output is the model, which the
+ *   capability hands to a Resource for presentation.
+ *
+ * @template TModel of Model
  */
 interface ModelRepositoryInterface extends RepositoryInterface
 {
     /**
-     * Retrieve all model records mapped to an array of Parcels.
+     * Retrieve all records.
      *
-     * @return array<int, Parcel> Array of Parcel instances.
+     * @return Collection<int, TModel>
      */
-    public function all(): array;
+    public function all(): Collection;
 
     /**
-     * Find a record by its primary key and map to Parcel.
+     * Retrieve the records of one page.
+     *
+     * @param  int  $perPage  Items per page.
+     * @param  array<int, string>  $columns  Columns to select.
+     * @param  string  $pageName  Query string parameter holding the page number.
+     * @param  int|null  $page  Explicit page number.
+     * @return LengthAwarePaginator
+     */
+    public function paginate(int $perPage = 15, array $columns = ['*'], string $pageName = 'page', ?int $page = null): LengthAwarePaginator;
+
+    /**
+     * Find a record by its primary key.
      *
      * @param  int|string  $id  Primary key of the record.
-     * @return Parcel|null Parcel instance if found, null otherwise.
+     * @return TModel|null The model, or null when it does not exist.
      */
-    public function find(int|string $id): ?Parcel;
+    public function find(int|string $id): ?Model;
 
     /**
-     * Persist or update a record using Parcel data and return a fresh instance.
+     * Find a record by its primary key or fail.
      *
-     * @param  Parcel  $parcel  Parcel containing payload to save.
-     * @return Parcel Fresh Parcel instance from the refreshed database model.
+     * @param  int|string  $id  Primary key of the record.
+     * @return TModel
+     *
+     * @throws ModelNotFoundException When the record does not exist.
      */
-    public function save(Parcel $parcel): Parcel;
+    public function findOrFail(int|string $id): Model;
 
     /**
-     * Retrieve paginated model records mapped to Parcels.
+     * Create a record, or update the model attached to the Parcel, from the Parcel's attributes.
      *
-     * @param  int  $perPage
-     * @param  array  $columns
-     * @param  string  $pageName
-     * @param  int|null  $page
-     * @return mixed
+     * @param  Parcel  $parcel  The attributes to persist (see Parcel::toAttributes()).
+     * @return TModel The persisted model, freshly loaded.
      */
-    public function paginate(int $perPage = 15, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed;
+    public function save(Parcel $parcel): Model;
 
     /**
-     * Delete a record from storage using the attached model in the Parcel or its primary key.
+     * Delete a record: the model attached to the Parcel or its id, a model, or a primary key.
+     * A Parcel with a true `force` property force-deletes a soft-deletable model.
      *
-     * @param  Parcel|int|string  $parcel  Parcel with attached model instance or ID.
-     * @return bool True on success, false on failure.
+     * @param  Parcel|Model|int|string  $target  What to delete.
+     * @return bool True when a record was deleted, false when the key matches no record.
      */
-    public function destroy(Parcel|int|string $parcel): bool;
+    public function destroy(Parcel|Model|int|string $target): bool;
 }

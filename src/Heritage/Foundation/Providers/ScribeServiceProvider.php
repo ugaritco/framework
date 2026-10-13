@@ -82,6 +82,7 @@ use Heritage\Foundation\Console\PolicyMakeCommand;
 use Heritage\Foundation\Console\ProviderMakeCommand;
 use Heritage\Foundation\Console\ReloadCommand;
 use Heritage\Foundation\Console\RequestMakeCommand;
+use Heritage\Foundation\Console\ResultMakeCommand;
 use Heritage\Foundation\Console\ResourceMakeCommand;
 use Heritage\Foundation\Console\RouteCacheCommand;
 use Heritage\Foundation\Console\RouteClearCommand;
@@ -193,6 +194,7 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
         'Up' => UpCommand::class,
         'ViewCache' => ViewCacheCommand::class,
         'ViewClear' => ViewClearCommand::class,
+        'TranslationsConvertLocaleStorage' => \Heritage\Translation\Console\ConvertLocaleStorageCommand::class,
     ];
 
     /**
@@ -244,6 +246,7 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
         'QueueTable' => TableCommand::class,
         'QueueBatchesTable' => BatchesTableCommand::class,
         'RequestMake' => RequestMakeCommand::class,
+        'ResultMake' => ResultMakeCommand::class,
         'ResourceMake' => ResourceMakeCommand::class,
         'RuleMake' => RuleMakeCommand::class,
         'ScopeMake' => ScopeMakeCommand::class,
