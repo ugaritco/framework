@@ -28,9 +28,7 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
         {--path= : The location where the migration file should be created}
         {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}
         {--fullpath : Output the full path of the migration (Deprecated)}
-        {--t|trans : Create a new migration with a translation table}
-        {--translation : Create a new migration with a translation table}
-        {--translatable : Create a new migration with a translation table}
+        {--t|translatable : Create a translatable table (Schema::createTranslatable with its translation table)}
         {--artifact= : The target modular artifact for this migration}';
 
     /**
@@ -108,9 +106,7 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
         }
 
         // Resolve translatable status
-        $hasTranslatableOption = $this->input->getOption('trans')
-            || $this->input->getOption('translation')
-            || $this->input->getOption('translatable');
+        $hasTranslatableOption = $this->input->getOption('translatable');
 
         if (! $hasTranslatableOption && $this->input->isInteractive()) {
             $translatable = confirm(

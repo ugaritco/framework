@@ -283,7 +283,7 @@ class ModelMakeCommandTest extends TestCase
 
     public function testItCanGenerateModelFileWithTranslationOption()
     {
-        $this->scribe('make:model', ['name' => 'Foo', '--translation' => true])
+        $this->scribe('make:model', ['name' => 'Foo', '--translatable' => true])
             ->assertExitCode(0);
 
         $this->assertFileContains([
@@ -304,7 +304,7 @@ class ModelMakeCommandTest extends TestCase
 
     public function testItCanGenerateModelFileWithTranslationAndMigrationOption()
     {
-        $this->scribe('make:model', ['name' => 'Foo', '--translation' => true, '--migration' => true])
+        $this->scribe('make:model', ['name' => 'Foo', '--translatable' => true, '--migration' => true])
             ->assertExitCode(0);
 
         $this->assertFileContains([
@@ -324,14 +324,14 @@ class ModelMakeCommandTest extends TestCase
         $this->assertMigrationFileContains([
             'use Heritage\Database\Migrations\Migration;',
             'return new class extends Migration',
-            'Schema::createWithTranslation(\'foos\', function (Blueprint $table) {',
-            'Schema::dropIfExistsWithTranslation(\'foos\');',
+            'Schema::createTranslatable(\'foos\', function (Blueprint $table) {',
+            'Schema::dropIfExistsTranslatable(\'foos\');',
         ], 'create_foos_table.php');
     }
 
     public function testItCanGenerateNestedModelFileWithTranslationOption()
     {
-        $this->scribe('make:model', ['name' => 'Foo/Bar', '--translation' => true])
+        $this->scribe('make:model', ['name' => 'Foo/Bar', '--translatable' => true])
             ->assertExitCode(0);
 
         $this->assertFileContains([

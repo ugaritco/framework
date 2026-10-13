@@ -27,8 +27,7 @@ class RequestMakeCommand extends GeneratorCommand
                     {--feature : Create a Feature-layer workflow FormRequest}
                     {--artifact= : The target modular artifact name}
                     {--model= : The entity/model name this request belongs to}
-                    {--translatable : Enable multilingual translatable attributes support}
-                    {--trans : Alias for --translatable}
+                    {--t|translatable : Declare translatable fields ($translatable) in the request}
                     {--fields= : Comma-separated translatable field names (e.g. name,description)}
                     {--f|force : Create the class even if the request already exists}';
 
@@ -110,7 +109,7 @@ class RequestMakeCommand extends GeneratorCommand
      */
     protected function resolveTranslatableSupport(): void
     {
-        $hasTranslatableFlag = $this->option('translatable') || $this->option('trans') || $this->option('fields');
+        $hasTranslatableFlag = $this->option('translatable') || $this->option('fields');
 
         if ($hasTranslatableFlag) {
             $this->input->setOption('translatable', true);
@@ -173,7 +172,7 @@ class RequestMakeCommand extends GeneratorCommand
      */
     protected function isTranslatable(): bool
     {
-        return (bool) ($this->option('translatable') || $this->option('trans') || $this->option('fields'));
+        return (bool) ($this->option('translatable') || $this->option('fields'));
     }
 
     /**
@@ -302,4 +301,5 @@ class RequestMakeCommand extends GeneratorCommand
 
         return $classContent;
     }
+
 }

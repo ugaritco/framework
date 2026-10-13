@@ -41,9 +41,7 @@ class ModelMakeCommand extends GeneratorCommand
                     {--r|resource : Indicates if the generated controller should be a resource controller}
                     {--api : Indicates if the generated controller should be an API resource controller}
                     {--R|requests : Create new form request classes and use them in the resource controller}
-                    {--t|translation : Configure the model with virtual multilingual translations (HasTranslation & Dual Tables)}
-                    {--trans : Configure the model with virtual multilingual translations (HasTranslation & Dual Tables)}
-                    {--translatable : Configure the model with virtual multilingual translations (HasTranslation & Dual Tables)}
+                    {--t|translatable : Make the model translatable ($translatable attributes stored in a translation table)}
                     {--with-translation-file : Generate a physical Translation model file in addition to the main model}
                     {--translation-model : Indicates if the generated model should be an explicit translation model extending ModelTranslation}
                     {--artifact= : The target modular artifact for this model}';
@@ -113,7 +111,7 @@ class ModelMakeCommand extends GeneratorCommand
         }
 
         // 2. Resolve translation support
-        $hasTranslatableOption = $this->option('translation') || $this->option('trans') || $this->option('translatable');
+        $hasTranslatableOption = $this->option('translatable');
 
         if (! $hasTranslatableOption && ! $this->option('translation-model') && $this->input->isInteractive()) {
             $isTranslatable = confirm(
@@ -187,7 +185,7 @@ class ModelMakeCommand extends GeneratorCommand
      */
     protected function isTranslatable(): bool
     {
-        return (bool) ($this->option('translation') || $this->option('translatable') || $this->option('trans'));
+        return (bool) $this->option('translatable');
     }
 
     /**
@@ -263,7 +261,7 @@ class ModelMakeCommand extends GeneratorCommand
         $this->call('make:migration', array_filter([
             'name' => "create_{$table}_table",
             '--create' => $table,
-            '--translation' => $this->isTranslatable() ? true : null,
+            '--translatable' => $this->isTranslatable() ? true : null,
             '--artifact' => $artifact,
         ]));
     }

@@ -7,19 +7,18 @@ namespace {{ namespace }};
 use Heritage\Database\Eloquent\Factories\HasFactory;
 use Heritage\Database\Eloquent\Model;
 use Heritage\Database\Eloquent\SoftDeletes;
-use Ugarit\Artifacts\I18n\Traits\Translatable;
 
 /**
  * Eloquent model representing a {{ class }} entity.
  *
  * Includes:
- * - translation capabilities via Translatable
+ * - translatable attributes (built into Model: declare $translatable)
  * - soft deletion support
  * - a slug-based fallback for missing translations
  */
 class {{ class }} extends Model
 {
-    use Translatable, HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     /**
      * Mass-assignable attributes.
