@@ -4,45 +4,97 @@ declare(strict_types=1);
 
 namespace Heritage\Database\Eloquent\Concerns;
 
+use Heritage\Contracts\Translation\LocaleResolver;
 use Heritage\Database\Eloquent\Builder;
 use Heritage\Database\Eloquent\Model;
 use Heritage\Database\Eloquent\Relations\HasMany;
 use Heritage\Database\Eloquent\Relations\HasOne;
+use Heritage\Database\Eloquent\RuntimeTranslation;
+use Heritage\Database\Eloquent\SoftDeletes;
 use Heritage\Support\Str;
-use Throwable;
+use Heritage\Translation\Locales;
+use InvalidArgumentException;
 
 /**
- * Trait providing native multilingual and translation capabilities for Eloquent Models.
+ * Native multilingual support for Eloquent models.
+ *
+ * Every public method speaks in locale codes ("ar", "en"). How a code is stored in the
+ * translation table (the code itself, or a locale_id) is delegated to the LocaleResolver,
+ * so the kernel works without the i18n artifact and uses it when it is installed.
+ *
+ * Canonical input shape: ['translations' => ['ar' => ['name' => '...'], 'en' => [...]]].
  */
 trait Translatable
 {
     /**
-     * Holds translation models queued for saving.
+     * Translation models queued for saving, keyed by locale code.
      *
      * @var array<string, \Heritage\Database\Eloquent\Model>
      */
     protected array $pendingTranslations = [];
 
     /**
+     * Locale codes whose translation is deleted on save (sent as null in the payload).
+     *
+     * @var array<string, true>
+     */
+    protected array $pendingTranslationDeletions = [];
+
+    /**
+     * Translations already resolved for this instance, keyed by locale code (null = none).
+     *
+     * @var array<string, \Heritage\Database\Eloquent\Model|null>
+     */
+    protected array $resolvedTranslations = [];
+
+    /**
      * Boot the translatable trait for the model.
      */
     public static function bootTranslatable(): void
     {
-        static::saved(function (Model $model) {
-            if ($model->isTranslatable()) {
-                $model->savePendingTranslations();
+        // Eager-load the current and fallback translations so reading translated
+        // attributes on a collection does not run one query per model. Single-record
+        // queries (find(), first()) skip it: a lazy load costs the same query, only when used.
+        static::addGlobalScope('localizedTranslations', function (Builder $builder) {
+            $model = $builder->getModel();
+
+            if ($model->isTranslatable() && $model->shouldEagerLoadTranslations() && $builder->getQuery()->limit !== 1) {
+                $builder->with('localizedTranslations');
             }
         });
 
+        // Pending translations are saved by Model::finishSave(), which also runs for quiet saves.
+
         static::deleting(function (Model $model) {
-            if ($model->isTranslatable()) {
-                try {
-                    $model->translations()->delete();
-                } catch (Throwable) {
-                    // Handled gracefully if already cascaded by database foreign key
-                }
+            // Soft deletes keep translations so a restored record keeps its names.
+            if (! $model->isTranslatable() || (method_exists($model, 'isForceDeleting') && ! $model->isForceDeleting())) {
+                return;
             }
+
+            $model->translationUsesSoftDeletes()
+                ? $model->translations()->withTrashed()->forceDelete()
+                : $model->translations()->delete();
         });
+    }
+
+    /**
+     * Whether the translation model soft deletes its rows (uses SoftDeletes).
+     */
+    public function translationUsesSoftDeletes(): bool
+    {
+        static $uses = [];
+
+        $class = $this->getTranslationModel();
+
+        return $uses[$class] ??= in_array(SoftDeletes::class, class_uses_recursive($class), true);
+    }
+
+    /**
+     * The locale resolver shared by all translatable models.
+     */
+    public static function localeResolver(): LocaleResolver
+    {
+        return Locales::resolver();
     }
 
     /**
@@ -72,7 +124,7 @@ trait Translatable
     }
 
     /**
-     * Get the fallback map for translatable attributes.
+     * Get the fallback column map for translatable attributes (e.g. ['name' => 'slug']).
      *
      * @return array<string, string>
      */
@@ -82,11 +134,19 @@ trait Translatable
     }
 
     /**
-     * Should translation be loaded on demand (lazy load).
+     * Should a missing translation be queried on demand (lazy load).
      */
     public function isLoadTranslationOnDemand(): bool
     {
         return property_exists($this, 'loadTranslationOnDemand') ? (bool) $this->loadTranslationOnDemand : true;
+    }
+
+    /**
+     * Should queries eager-load the current and fallback translations.
+     */
+    public function shouldEagerLoadTranslations(): bool
+    {
+        return property_exists($this, 'eagerLoadTranslations') ? (bool) $this->eagerLoadTranslations : true;
     }
 
     /**
@@ -100,31 +160,55 @@ trait Translatable
 
         $conventional = static::class.'Translation';
         $ref = new \ReflectionClass(static::class);
-        $expectedFile = dirname($ref->getFileName()) . '/' . class_basename($conventional) . '.php';
+        $expectedFile = dirname($ref->getFileName()).'/'.class_basename($conventional).'.php';
 
         if (file_exists($expectedFile) && class_exists($conventional)) {
             return $conventional;
         }
 
-        return $this->resolveDynamicTranslationModelClass();
+        // No translation class: a RuntimeTranslation configured for this model is used.
+        return RuntimeTranslation::class;
     }
 
     /**
-     * Resolve or dynamically generate a Translation Model class if none was manually defined.
+     * Whether a child route parameter names this model's translation, so scoped bindings
+     * resolve it through translations(): "translation", "{model}_translation" or the
+     * translation class name (snake or camel case).
+     *
+     * @param  string  $childType  The child route parameter name.
+     * @return bool
      */
-    protected function resolveDynamicTranslationModelClass(): string
+    protected function isTranslationRouteChild(string $childType): bool
     {
-        $baseName = class_basename(static::class);
-        $fullClass = static::class;
-        $dynamicClassName = 'Heritage\\Database\\Eloquent\\DynamicTranslations\\'.$baseName.'Translation';
-
-        if (! class_exists($dynamicClassName)) {
-            $tableName = $this->getTranslationTable();
-            $foreignKey = $this->getTranslationForeignKey();
-            eval("namespace Heritage\\Database\\Eloquent\\DynamicTranslations; class {$baseName}Translation extends \\Heritage\\Database\\Eloquent\\ModelTranslation { protected \$table = '{$tableName}'; protected \$parentModel = '{$fullClass}'; protected \$parentForeignKey = '{$foreignKey}'; }");
+        if (! $this->isTranslatable()) {
+            return false;
         }
 
-        return $dynamicClassName;
+        return in_array(Str::camel($childType), [
+            'translation',
+            Str::camel(class_basename(static::class)).'Translation',
+            Str::camel(class_basename($this->getTranslationModel())),
+        ], true);
+    }
+
+    /**
+     * Create a new (unsaved) translation model instance.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function newTranslation(array $attributes = []): Model
+    {
+        $class = $this->getTranslationModel();
+
+        $instance = $class === RuntimeTranslation::class
+            ? RuntimeTranslation::for($this, $attributes)
+            : new $class($attributes);
+
+        if (! $instance->getConnectionName()) {
+            $instance->setConnection($this->getConnectionName());
+        }
+
+        return $instance;
     }
 
     /**
@@ -156,103 +240,154 @@ trait Translatable
     }
 
     /**
-     * Define a hasMany relationship to get all translations for this model.
-     *
-     * @return \Heritage\Database\Eloquent\Relations\HasMany
+     * The column storing the locale in the translation table.
+     */
+    public function getTranslationLocaleColumn(): string
+    {
+        static $columns = [];
+
+        $resolver = static::localeResolver();
+        $key = static::class.'|'.$resolver::class;
+
+        if (! isset($columns[$key])) {
+            $translation = $this->newTranslation();
+
+            $columns[$key] = method_exists($translation, 'getLocaleColumn')
+                ? $translation->getLocaleColumn()
+                : $resolver->storageColumn();
+        }
+
+        return $columns[$key];
+    }
+
+    /**
+     * All translations of this model.
      */
     public function translations(): HasMany
     {
-        return $this->hasMany($this->getTranslationModel(), $this->getTranslationForeignKey());
+        $instance = $this->newTranslation();
+
+        return $this->newHasMany(
+            $instance->newQuery(), $this, $instance->qualifyColumn($this->getTranslationForeignKey()), $this->getKeyName()
+        );
     }
 
     /**
-     * Define a hasOne relationship to get the translation for the given or current locale.
-     *
-     * @param  string|null  $locale
-     * @return \Heritage\Database\Eloquent\Relations\HasOne
+     * The translations for the current and fallback locales (eager-loaded by default).
+     */
+    public function localizedTranslations(): HasMany
+    {
+        $values = array_values(array_filter(
+            array_map(fn ($code) => $this->toLocaleStorage($code), $this->localizedCodes()),
+            fn ($value) => $value !== null
+        ));
+
+        return $this->translations()->whereIn($this->getTranslationLocaleColumn(), $values);
+    }
+
+    /**
+     * The translation for the given (or current) locale code.
      */
     public function translation(?string $locale = null): HasOne
     {
-        $currentLocale = $locale ?? $this->resolveCurrentLocale();
-        $related = $this->getTranslationModel();
-        $foreignKey = $this->getTranslationForeignKey();
+        $locale ??= static::localeResolver()->current();
+        $instance = $this->newTranslation();
 
-        $relation = $this->hasOne($related, $foreignKey);
-        $localeColumn = $this->resolveLocaleColumn($relation->getRelated());
-
-        if ($localeColumn === 'locale_id') {
-            $localeId = $this->resolveLocaleId($currentLocale);
-            return $relation->where($localeColumn, $localeId);
-        }
-
-        return $relation->where($localeColumn, $currentLocale);
+        return $this->newHasOne(
+            $instance->newQuery(), $this, $instance->qualifyColumn($this->getTranslationForeignKey()), $this->getKeyName()
+        )->where($this->getTranslationLocaleColumn(), $this->toLocaleStorage($locale));
     }
 
     /**
-     * Get the translated model instance for the given or active locale.
+     * Get the translation model for the given (or current) locale code.
      */
     public function translate(?string $locale = null): ?Model
     {
-        $locale = $locale ?? $this->resolveCurrentLocale();
+        $locale ??= static::localeResolver()->current();
 
         if (isset($this->pendingTranslations[$locale])) {
             return $this->pendingTranslations[$locale];
         }
 
-        if ($this->relationLoaded('translation')) {
-            $loaded = $this->getRelation('translation');
-            if ($loaded) {
-                $localeColumn = $this->resolveLocaleColumn($loaded);
-                $expected = $localeColumn === 'locale_id' ? $this->resolveLocaleId($locale) : $locale;
-                if ($loaded->{$localeColumn} == $expected) {
-                    return $loaded;
-                }
+        if (isset($this->pendingTranslationDeletions[$locale])) {
+            return null;
+        }
+
+        if (array_key_exists($locale, $this->resolvedTranslations)) {
+            return $this->resolvedTranslations[$locale];
+        }
+
+        $storage = $this->toLocaleStorage($locale);
+
+        if ($storage === null) {
+            return null;
+        }
+
+        $column = $this->getTranslationLocaleColumn();
+        $matches = fn (Model $translation) => (string) $translation->getAttribute($column) === (string) $storage;
+
+        // Loaded relations: "translations" holds every locale, "localizedTranslations"
+        // holds the current and fallback locales, "translation" a single one.
+        foreach (['translations', 'localizedTranslations'] as $relation) {
+            if (! $this->relationLoaded($relation)) {
+                continue;
+            }
+
+            $found = $this->getRelation($relation)->first($matches);
+
+            if ($found || $relation === 'translations' || in_array($locale, $this->localizedCodes(), true)) {
+                return $this->resolvedTranslations[$locale] = $found;
             }
         }
 
-        if ($this->relationLoaded('translations')) {
-            $sample = $this->translations->first();
-            $localeColumn = $sample ? $this->resolveLocaleColumn($sample) : 'locale_id';
-            $expected = $localeColumn === 'locale_id' ? $this->resolveLocaleId($locale) : $locale;
-
-            return $this->translations->first(function ($t) use ($localeColumn, $expected) {
-                return ($t->{$localeColumn} ?? null) == $expected;
-            });
+        if ($this->relationLoaded('translation') && ($single = $this->getRelation('translation')) && $matches($single)) {
+            return $this->resolvedTranslations[$locale] = $single;
         }
 
-        if ($this->exists && $this->isLoadTranslationOnDemand()) {
-            $translation = $this->translation($locale)->first();
-            if ($locale === $this->resolveCurrentLocale()) {
-                $this->setRelation('translation', $translation);
-            }
-            return $translation;
+        if (! $this->exists || ! $this->isLoadTranslationOnDemand()) {
+            return null;
         }
 
-        return null;
+        return $this->resolvedTranslations[$locale] = $this->translation($locale)->first();
     }
 
     /**
-     * Get the translated model instance or fallback to default locale.
+     * Get the translation for the given locale or, when missing, the fallback locale.
      */
     public function translateOrDefault(?string $locale = null): ?Model
     {
-        $translation = $this->translate($locale);
-        if ($translation) {
-            return $translation;
-        }
-
-        $fallbackLocale = function_exists('config')
-            ? (config('locale.fallback_locale') ?? config('app.fallback_locale', 'en'))
-            : 'en';
-        if ($fallbackLocale !== ($locale ?? $this->resolveCurrentLocale())) {
-            return $this->translate($fallbackLocale);
-        }
-
-        return null;
+        return $this->translate($locale) ?? $this->translate(static::localeResolver()->fallback());
     }
 
     /**
-     * Check if a translation exists for the given or active locale.
+     * All stored translations in the canonical shape, keyed by locale code — the same shape
+     * the model accepts in fill() — for API resources and edit forms:
+     * ['ar' => ['id' => 5, 'name' => '...', 'locale' => 'ar', 'created_at' => ...], ...].
+     *
+     * Loads the "translations" relation when it is not loaded yet.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function translationsToArray(): array
+    {
+        $resolver = static::localeResolver();
+        $column = $this->getTranslationLocaleColumn();
+        $result = [];
+
+        foreach ($this->translations as $translation) {
+            $stored = $translation->getAttributes()[$column] ?? null;
+            $code = $stored === null ? null : $resolver->fromStorage($stored);
+
+            if ($code !== null) {
+                $result[$code] = $translation->attributesToArray() + ['locale' => $code];
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Check if a translation exists for the given (or current) locale.
      */
     public function hasTranslation(?string $locale = null): bool
     {
@@ -260,96 +395,63 @@ trait Translatable
     }
 
     /**
-     * Get a translated attribute value.
+     * Get a translated attribute value for the given (or current) locale, or null when empty.
      */
     public function getTranslatedAttribute(string $key, ?string $locale = null): mixed
     {
-        $translation = $this->translate($locale);
+        $value = $this->translate($locale)?->getAttribute($key);
 
-        if ($translation && isset($translation->{$key}) && $translation->{$key} !== '') {
-            return $translation->{$key};
-        }
-
-        return null;
+        return $value === null || $value === '' ? null : $value;
     }
 
     /**
-     * Get the fallback value for a translatable attribute.
+     * Value used when the current locale has no translation:
+     * the fallback locale's translation, then the $translatableFallback column.
      */
     public function getTranslatableFallbackValue(string $key): mixed
     {
-        $fallbackMap = $this->getTranslatableFallback();
+        $resolver = static::localeResolver();
 
-        if (isset($fallbackMap[$key])) {
-            $fallbackColumn = $fallbackMap[$key];
-            if ($this->hasAttribute($fallbackColumn)) {
-                return $this->getAttributeFromArray($fallbackColumn);
-            }
+        if ($resolver->fallback() !== $resolver->current()
+            && ($value = $this->getTranslatedAttribute($key, $resolver->fallback())) !== null) {
+            return $value;
         }
 
-        $fallbackLocale = function_exists('config')
-            ? (config('localization.fallback_locale') ?? config('app.fallback_locale', 'en'))
-            : 'en';
-        if ($fallbackLocale !== $this->resolveCurrentLocale()) {
-            $fallbackTranslation = $this->translate($fallbackLocale);
-            if ($fallbackTranslation && isset($fallbackTranslation->{$key}) && $fallbackTranslation->{$key} !== '') {
-                return $fallbackTranslation->{$key};
-            }
+        $column = $this->getTranslatableFallback()[$key] ?? null;
+
+        if ($column !== null && $this->hasAttribute($column)) {
+            return $this->getAttributeFromArray($column);
         }
 
         return null;
     }
 
     /**
-     * Set a translation value for a given attribute.
+     * Set a translation value; an array value sets several locales (['ar' => ..., 'en' => ...]).
+     *
+     * @throws InvalidArgumentException When the locale is not available.
      */
     public function setTranslation(string $key, mixed $value, ?string $locale = null): static
     {
         if (is_array($value) && $locale === null) {
-            foreach ($value as $loc => $val) {
-                $this->setTranslation($key, $val, (string) $loc);
+            foreach ($value as $code => $localized) {
+                $this->setTranslation($key, $localized, (string) $code);
             }
 
             return $this;
         }
 
-        $locale = $locale ?? $this->resolveCurrentLocale();
+        $locale ??= static::localeResolver()->current();
 
-        if (! isset($this->pendingTranslations[$locale])) {
-            $instance = $this->exists ? $this->translation($locale)->first() : null;
-            if (! $instance) {
-                $class = $this->getTranslationModel();
-                $instance = new $class;
-                $localeColumn = $this->resolveLocaleColumn($instance);
-                if ($localeColumn === 'locale_id') {
-                    $instance->{$localeColumn} = $this->resolveLocaleId($locale);
-                } else {
-                    $instance->{$localeColumn} = $locale;
-                }
-            }
-            $this->pendingTranslations[$locale] = $instance;
-        }
-
-        $this->pendingTranslations[$locale]->{$key} = $value;
-
-        if ($locale === $this->resolveCurrentLocale() && $this->relationLoaded('translation')) {
-            $loaded = $this->getRelation('translation');
-            if ($loaded) {
-                $loaded->{$key} = $value;
-            } else {
-                $this->setRelation('translation', $this->pendingTranslations[$locale]);
-            }
-        }
+        $this->pendingTranslation($locale)->setAttribute($key, $value);
 
         return $this;
     }
 
     /**
-     * Fill multiple translations for a specific locale.
+     * Fill several attributes of one locale.
      *
-     * @param  string  $locale
      * @param  array<string, mixed>  $attributes
-     * @return $this
      */
     public function fillTranslation(string $locale, array $attributes): static
     {
@@ -361,169 +463,234 @@ trait Translatable
     }
 
     /**
-     * Save any translations queued in pending state.
+     * Fill translations from the canonical ['code' => ['attr' => value]] payload.
+     *
+     * The payload is merged: locales it omits are left untouched. A locale given as null
+     * (['en' => null]) has its translation deleted on save. Within a locale holding at least
+     * one value, empty values ('' or null) clear their attribute; a locale whose values are
+     * all empty is skipped. Non-translatable keys and unknown locales are skipped.
+     *
+     * @param  array<string, array<string, mixed>|null>  $translations
+     */
+    public function fillTranslations(array $translations): static
+    {
+        $translatable = array_flip($this->getTranslatable());
+
+        foreach ($translations as $locale => $attributes) {
+            $locale = (string) $locale;
+
+            if ($this->toLocaleStorage($locale) === null) {
+                continue;
+            }
+
+            if ($attributes === null) {
+                $this->forgetTranslation($locale);
+
+                continue;
+            }
+
+            if (! is_array($attributes)) {
+                continue;
+            }
+
+            $attributes = array_map(
+                fn ($value) => $value === '' ? null : $value,
+                array_intersect_key($attributes, $translatable)
+            );
+
+            if (array_filter($attributes, fn ($value) => $value !== null) !== []) {
+                $this->fillTranslation($locale, $attributes);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * Queue the deletion of a locale's translation; it is deleted on save.
+     */
+    public function forgetTranslation(string $locale): static
+    {
+        unset($this->pendingTranslations[$locale]);
+
+        if ($this->toLocaleStorage($locale) !== null) {
+            $this->pendingTranslationDeletions[$locale] = true;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Persist queued translations and deletions.
+     *
+     * Called by Model::finishSave() before the original attributes are synced, so isDirty()
+     * still tells whether the model itself changed. Translation rows keep their own timestamps;
+     * when only translations changed, the model's updated_at is touched once.
      */
     public function savePendingTranslations(): void
     {
-        if (empty($this->pendingTranslations)) {
+        if (! $this->exists) {
             return;
         }
 
-        $foreignKey = $this->getTranslationForeignKey();
-        $id = $this->getKey();
+        $changed = $this->deletePendingTranslations();
 
-        foreach ($this->pendingTranslations as $translation) {
-            $translation->{$foreignKey} = $id;
+        if ($this->pendingTranslations !== []) {
+            $foreignKey = $this->getTranslationForeignKey();
+            $column = $this->getTranslationLocaleColumn();
 
-            if (! $translation->exists) {
-                $localeColumn = $this->resolveLocaleColumn($translation);
-                $existing = $translation->newQuery()
-                    ->where($foreignKey, $id)
-                    ->where($localeColumn, $translation->{$localeColumn})
-                    ->first();
+            $this->getTranslationModel()::withoutTouching(function () use (&$changed, $foreignKey, $column) {
+                foreach ($this->pendingTranslations as $locale => $translation) {
+                    $translation->setAttribute($foreignKey, $this->getKey());
 
-                if ($existing) {
-                    $existing->fill($translation->getAttributes());
-                    $existing->save();
-                    continue;
+                    // A locale's row is reused, a soft-deleted one restored, so the
+                    // unique(foreign key, locale) index holds.
+                    if (! $translation->exists && ($existing = $translation->newQuery()
+                        ->when($this->translationUsesSoftDeletes(), fn ($query) => $query->withTrashed())
+                        ->where($foreignKey, $this->getKey())
+                        ->where($column, $translation->getAttribute($column))
+                        ->first())) {
+                        $translation = $existing->fill($translation->getAttributes());
+
+                        if ($this->translationUsesSoftDeletes() && $translation->trashed()) {
+                            $translation->setAttribute($translation->getDeletedAtColumn(), null);
+                        }
+                    }
+
+                    if (! $translation->exists || $translation->isDirty()) {
+                        $translation->save();
+                        $changed = true;
+                    }
+
+                    $this->resolvedTranslations[$locale] = $translation;
                 }
-            }
+            });
 
-            $translation->save();
+            $this->pendingTranslations = [];
         }
 
-        $this->pendingTranslations = [];
+        if (! $changed) {
+            return;
+        }
+
+        $this->unsetRelation('translations')->unsetRelation('localizedTranslations')->unsetRelation('translation');
+
+        // A dirty model (or a fresh insert) already got a new updated_at from its own save.
+        if (! $this->isDirty() && $this->usesTimestamps()) {
+            $this->touch();
+        }
     }
 
     /**
-     * Resolve the active application locale.
-     */
-    protected function resolveCurrentLocale(): string
-    {
-        if (function_exists('app') && app()->bound('translator')) {
-            return app()->getLocale();
-        }
-
-        return 'ar';
-    }
-
-    /**
-     * Resolve the column used to store the locale in the translation table.
-     */
-    protected function resolveLocaleColumn(Model $related): string
-    {
-        if (property_exists($related, 'localeColumn') && ! empty($related->localeColumn)) {
-            return $related->localeColumn;
-        }
-
-        if (isset($related->localeColumn) && ! empty($related->localeColumn)) {
-            return $related->localeColumn;
-        }
-
-        return 'locale_id';
-    }
-
-    /**
-     * Resolve numeric ID for a locale code if using locale_id.
-     */
-    protected function resolveLocaleId(string $localeCode): ?int
-    {
-        static $cachedLocaleIds = [];
-
-        if (array_key_exists($localeCode, $cachedLocaleIds)) {
-            return $cachedLocaleIds[$localeCode];
-        }
-
-        if (class_exists('Ugarit\\Artifacts\\I18n\\Helpers\\LocaleHelper')) {
-            $id = \Ugarit\Artifacts\I18n\Helpers\LocaleHelper::getLocaleId($localeCode);
-            if ($id !== null) {
-                return $cachedLocaleIds[$localeCode] = (int) $id;
-            }
-        }
-
-        $localeClass = class_exists('Ugarit\\Artifacts\\I18n\\Models\\Locale\\Locale')
-            ? 'Ugarit\\Artifacts\\I18n\\Models\\Locale\\Locale'
-            : (class_exists('Ugarit\\Artifacts\\I18n\\Models\\Locale') ? 'Ugarit\\Artifacts\\I18n\\Models\\Locale' : null);
-
-        if ($localeClass) {
-            try {
-                $id = $localeClass::where('code', $localeCode)->value('id');
-                return $cachedLocaleIds[$localeCode] = $id ? (int) $id : null;
-            } catch (Throwable) {
-                // Return null if table not yet migrated
-            }
-        }
-
-        return $cachedLocaleIds[$localeCode] = null;
-    }
-
-    /**
-     * Scope a query to records having a translation matching the given criteria.
+     * Delete the translations of locales queued with forgetTranslation() (or sent as null).
      *
-     * @param  \Heritage\Database\Eloquent\Builder  $query
-     * @param  string  $column
-     * @param  mixed  $value
-     * @param  string|null  $locale
-     * @return \Heritage\Database\Eloquent\Builder
+     * @return bool Whether any translation was deleted.
+     */
+    protected function deletePendingTranslations(): bool
+    {
+        if ($this->pendingTranslationDeletions === []) {
+            return false;
+        }
+
+        $locales = array_keys($this->pendingTranslationDeletions);
+        $this->pendingTranslationDeletions = [];
+
+        $deleted = $this->translations()
+            ->whereIn($this->getTranslationLocaleColumn(), array_map(fn ($code) => $this->toLocaleStorage($code), $locales))
+            ->delete();
+
+        foreach ($locales as $locale) {
+            $this->resolvedTranslations[$locale] = null;
+        }
+
+        return $deleted > 0;
+    }
+
+    /**
+     * The queued translation model for a locale, created or loaded on first use.
+     *
+     * @throws InvalidArgumentException When the locale is not available.
+     */
+    protected function pendingTranslation(string $locale): Model
+    {
+        if (isset($this->pendingTranslations[$locale])) {
+            return $this->pendingTranslations[$locale];
+        }
+
+        // Setting a value cancels a queued deletion of the same locale.
+        unset($this->pendingTranslationDeletions[$locale]);
+
+        $translation = $this->exists ? $this->translate($locale) : null;
+
+        if (! $translation) {
+            $storage = $this->toLocaleStorage($locale)
+                ?? throw new InvalidArgumentException("Locale [{$locale}] is not available for translations.");
+
+            $translation = $this->newTranslation();
+            $translation->setAttribute($this->getTranslationLocaleColumn(), $storage);
+        }
+
+        return $this->pendingTranslations[$locale] = $translation;
+    }
+
+    /**
+     * The value stored in the translation table for a locale code.
+     */
+    protected function toLocaleStorage(string $locale): string|int|null
+    {
+        return static::localeResolver()->toStorage($locale);
+    }
+
+    /**
+     * The current and fallback locale codes.
+     *
+     * @return array<int, string>
+     */
+    protected function localizedCodes(): array
+    {
+        $resolver = static::localeResolver();
+
+        return array_values(array_unique([$resolver->current(), $resolver->fallback()]));
+    }
+
+    /**
+     * Scope to records having a translation matching the given criteria.
      */
     public function scopeWhereTranslation(Builder $query, string $column, mixed $value, ?string $locale = null): Builder
     {
-        $locale = $locale ?? $this->resolveCurrentLocale();
-        $related = $this->getTranslationModel();
-        $instance = new $related;
-        $localeColumn = $this->resolveLocaleColumn($instance);
-
-        return $query->whereHas('translations', function ($q) use ($column, $value, $locale, $localeColumn) {
-            $q->where($column, $value);
-            if ($localeColumn === 'locale_id') {
-                $q->where($localeColumn, $this->resolveLocaleId($locale));
-            } else {
-                $q->where($localeColumn, $locale);
-            }
-        });
+        return $this->whereHasTranslation($query, $locale, fn ($q) => $q->where($column, $value));
     }
 
     /**
-     * Scope a query to records having a translation like the given pattern.
-     *
-     * @param  \Heritage\Database\Eloquent\Builder  $query
-     * @param  string  $column
-     * @param  string  $pattern
-     * @param  string|null  $locale
-     * @return \Heritage\Database\Eloquent\Builder
+     * Scope to records having a translation like the given pattern.
      */
     public function scopeWhereTranslationLike(Builder $query, string $column, string $pattern, ?string $locale = null): Builder
     {
-        $locale = $locale ?? $this->resolveCurrentLocale();
-        $related = $this->getTranslationModel();
-        $instance = new $related;
-        $localeColumn = $this->resolveLocaleColumn($instance);
-
-        return $query->whereHas('translations', function ($q) use ($column, $pattern, $locale, $localeColumn) {
-            $q->where($column, 'like', $pattern);
-            if ($localeColumn === 'locale_id') {
-                $q->where($localeColumn, $this->resolveLocaleId($locale));
-            } else {
-                $q->where($localeColumn, $locale);
-            }
-        });
+        return $this->whereHasTranslation($query, $locale, fn ($q) => $q->where($column, 'like', $pattern));
     }
 
     /**
-     * Scope a query to eager load translations.
-     *
-     * @param  \Heritage\Database\Eloquent\Builder  $query
-     * @param  string|null  $locale
-     * @return \Heritage\Database\Eloquent\Builder
+     * Scope to eager-load translations: the current and fallback locales, or every locale
+     * when another locale is requested.
      */
     public function scopeWithTranslation(Builder $query, ?string $locale = null): Builder
     {
-        return $query->with(['translation' => function ($q) use ($locale) {
-            if ($locale) {
-                $instance = $q->getModel();
-                $localeColumn = $this->resolveLocaleColumn($instance);
-                $q->where($localeColumn, $locale);
-            }
-        }]);
+        return $locale === null || in_array($locale, $this->localizedCodes(), true)
+            ? $query->with('localizedTranslations')
+            : $query->with('translations');
+    }
+
+    /**
+     * Constrain a query to records having a translation in a locale that passes the callback.
+     */
+    protected function whereHasTranslation(Builder $query, ?string $locale, callable $callback): Builder
+    {
+        $storage = $this->toLocaleStorage($locale ?? static::localeResolver()->current());
+        $column = $this->getTranslationLocaleColumn();
+
+        return $query->whereHas('translations', function ($q) use ($callback, $column, $storage) {
+            $callback($q);
+            $q->where($column, $storage);
+        });
     }
 }

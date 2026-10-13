@@ -7,6 +7,7 @@ namespace Heritage\Database\Eloquent;
 use Heritage\Database\Eloquent\Factories\HasFactory;
 use Heritage\Database\Eloquent\Relations\BelongsTo;
 use Heritage\Support\Str;
+use Heritage\Translation\Locales;
 
 /**
  * Class ModelTranslation
@@ -14,7 +15,7 @@ use Heritage\Support\Str;
  * Base abstract model for all multilingual translation entities in the Ugarit Ecosystem.
  *
  * Automatically provides:
- * - Disabled timestamps by default ($timestamps = false).
+ * - Its own timestamps (when the table has them); changes touch the parent's updated_at.
  * - Automatic translation table resolution (e.g. CityTranslation -> city_translations).
  * - Open mass-assignment for translated columns ($guarded = ['id']).
  * - Dynamic resolution of the parent model class and foreign key.
@@ -27,18 +28,98 @@ abstract class ModelTranslation extends Model
     use HasFactory;
 
     /**
-     * Indicates if the model should be timestamped.
+     * Indicates if the model should be timestamped. Translation rows keep their own
+     * timestamps; they are maintained only when the table has the columns.
      *
      * @var bool
      */
-    public $timestamps = false;
+    public $timestamps = true;
 
     /**
-     * The column name used for locale foreign key or code.
+     * Changing a translation marks the parent model as updated.
      *
-     * @var string
+     * @var array<int, string>
      */
-    public string $localeColumn = 'locale_id';
+    protected $touches = ['parent'];
+
+    /**
+     * The column storing the locale; null uses the LocaleResolver's column
+     * ("locale_id" with the i18n artifact, "locale" otherwise).
+     *
+     * @var string|null
+     */
+    public ?string $localeColumn = null;
+
+    /**
+     * Per-table cache of whether the table has timestamp columns.
+     *
+     * @var array<string, bool>
+     */
+    protected static array $tablesWithTimestamps = [];
+
+    /**
+     * Per-class cache of the parent's translatable attributes.
+     *
+     * @var array<string, array<int, string>>
+     */
+    protected static array $parentTranslatable = [];
+
+    /**
+     * The column storing the locale in this translation table.
+     */
+    public function getLocaleColumn(): string
+    {
+        return $this->localeColumn ?: Locales::resolver()->storageColumn();
+    }
+
+    /**
+     * The locale code of this translation (e.g. "ar"), whatever the storage.
+     */
+    public function getLocaleCode(): ?string
+    {
+        $value = $this->getAttributeFromArray($this->getLocaleColumn());
+
+        return $value === null ? null : Locales::resolver()->fromStorage($value);
+    }
+
+    /**
+     * The "locale_code" attribute ($translation->locale_code), for parcels and resources.
+     */
+    public function getLocaleCodeAttribute(): ?string
+    {
+        return $this->getLocaleCode();
+    }
+
+    /**
+     * Touch the parent only when it maintains timestamps.
+     *
+     * @return array<int, string>
+     */
+    public function getTouchedRelations()
+    {
+        $parentClass = $this->getParentModelClass();
+
+        return class_exists($parentClass) && (new $parentClass)->usesTimestamps()
+            ? parent::getTouchedRelations()
+            : [];
+    }
+
+    /**
+     * Use timestamps only when enabled and the table actually has the columns.
+     *
+     * @return bool
+     */
+    public function usesTimestamps()
+    {
+        if (! $this->timestamps) {
+            return false;
+        }
+
+        $key = $this->getConnectionName().'|'.$this->getTable();
+
+        return self::$tablesWithTimestamps[$key] ??= $this->getConnection()->getSchemaBuilder()
+            ->hasColumns($this->getTable(), [static::CREATED_AT, static::UPDATED_AT]);
+    }
 
     /**
      * The attributes that aren't mass assignable.
@@ -67,16 +148,12 @@ abstract class ModelTranslation extends Model
         ];
 
         $parentClass = $this->getParentModelClass();
-        if (class_exists($parentClass)) {
-            $parent = new $parentClass;
-            if (method_exists($parent, 'getTranslatable')) {
-                $defaults = array_merge($defaults, $parent->getTranslatable());
-            } elseif (property_exists($parent, 'translatable') && is_array($parent->translatable)) {
-                $defaults = array_merge($defaults, $parent->translatable);
-            }
-        }
 
-        return array_values(array_unique(array_merge($defaults, $fillable)));
+        $translatable = self::$parentTranslatable[$parentClass] ??= class_exists($parentClass) && method_exists($parentClass, 'getTranslatable')
+            ? (new $parentClass)->getTranslatable()
+            : [];
+
+        return array_values(array_unique(array_merge($defaults, $translatable, $fillable)));
     }
 
     /**
@@ -214,29 +291,13 @@ abstract class ModelTranslation extends Model
      */
     public function locale(): mixed
     {
-        $localeModel = function_exists('config')
-            ? config('i18n.models.locale')
-            : null;
+        // With the i18n artifact, locale_id references its Locale model (config: i18n.models.locale).
+        $localeModel = function_exists('config') ? config('i18n.models.locale') : null;
 
-        if (empty($localeModel) || ! class_exists($localeModel)) {
-            if (class_exists('Ugarit\\Artifacts\\I18n\\Models\\Locale')) {
-                $localeModel = 'Ugarit\\Artifacts\\I18n\\Models\\Locale';
-            } elseif (class_exists('Ugarit\\Artifacts\\I18n\\Models\\Locale\\Locale')) {
-                $localeModel = 'Ugarit\\Artifacts\\I18n\\Models\\Locale\\Locale';
-            }
-        }
-
-        if ($localeModel && class_exists($localeModel) && ($this->hasAttribute('locale_id') || in_array('locale_id', $this->getFillable(), true))) {
+        if (is_string($localeModel) && class_exists($localeModel) && $this->getLocaleColumn() === 'locale_id') {
             return $this->belongsTo($localeModel, 'locale_id');
         }
 
-        $code = $this->getAttribute('locale');
-
-        if ($code !== null && class_exists('Ugarit\\Artifacts\\I18n\\Helpers\\LocaleHelper')) {
-            $id = \Ugarit\Artifacts\I18n\Helpers\LocaleHelper::getLocaleId((string) $code);
-            return $id !== null ? \Ugarit\Artifacts\I18n\Helpers\LocaleHelper::getLocaleById($id) : $code;
-        }
-
-        return $code;
+        return $this->getLocaleCode();
     }
 }

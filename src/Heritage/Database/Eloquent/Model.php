@@ -677,6 +677,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function fill(array $attributes)
     {
+        // Canonical translations payload: ['translations' => ['ar' => ['name' => ...]]].
+        if (is_array($attributes['translations'] ?? null) && $this->isTranslatable()) {
+            $this->fillTranslations($attributes['translations']);
+
+            unset($attributes['translations']);
+        }
+
         $totallyGuarded = $this->totallyGuarded();
 
         $fillable = $this->fillableFromArray($attributes);
@@ -2560,12 +2567,21 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Retrieve the child route model binding relationship name for the given child type.
      *
+     * A translation parameter of a translatable model ({branch_translation}, {translation})
+     * is scoped through `translations` unless the model defines the conventional relation.
+     *
      * @param  string  $childType
      * @return string
      */
     protected function childRouteBindingRelationshipName($childType)
     {
-        return Str::plural(Str::camel($childType));
+        $relationship = Str::plural(Str::camel($childType));
+
+        if (! method_exists($this, $relationship) && $this->isTranslationRouteChild($childType)) {
+            return 'translations';
+        }
+
+        return $relationship;
     }
 
     /**

@@ -22,7 +22,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
         $app->useDatabasePath(__DIR__);
         $command->setUgarit($app);
         $creator->expects('create')
-            ->with('create_foo', __DIR__.DIRECTORY_SEPARATOR.'migrations', 'foo', true)
+            ->with('create_foo', __DIR__.DIRECTORY_SEPARATOR.'migrations', 'foo', true, false)
             ->andReturn(__DIR__.'/Fixtures/migrations/2021_04_23_110457_create_foo.php');
 
         $this->runCommand($command, ['name' => 'create_foo']);
@@ -39,7 +39,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
         $app->useDatabasePath(__DIR__);
         $command->setUgarit($app);
         $creator->expects('create')
-            ->with('create_foo', __DIR__.DIRECTORY_SEPARATOR.'migrations', 'foo', true)
+            ->with('create_foo', __DIR__.DIRECTORY_SEPARATOR.'migrations', 'foo', true, false)
             ->andReturn(__DIR__.'/Fixtures/migrations/2021_04_23_110457_create_foo.php');
 
         $this->runCommand($command, ['name' => 'create_foo']);
@@ -56,7 +56,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
         $app->useDatabasePath(__DIR__);
         $command->setUgarit($app);
         $creator->expects('create')
-            ->with('create_foo', __DIR__.DIRECTORY_SEPARATOR.'migrations', 'foo', true)
+            ->with('create_foo', __DIR__.DIRECTORY_SEPARATOR.'migrations', 'foo', true, false)
             ->andReturn(__DIR__.'/Fixtures/migrations/2021_04_23_110457_create_foo.php');
 
         $this->runCommand($command, ['name' => 'CreateFoo']);
@@ -73,7 +73,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
         $app->useDatabasePath(__DIR__);
         $command->setUgarit($app);
         $creator->expects('create')
-            ->with('create_foo', __DIR__.DIRECTORY_SEPARATOR.'migrations', 'users', true)
+            ->with('create_foo', __DIR__.DIRECTORY_SEPARATOR.'migrations', 'users', true, false)
             ->andReturn(__DIR__.'/Fixtures/migrations/2021_04_23_110457_create_foo.php');
 
         $this->runCommand($command, ['name' => 'create_foo', '--create' => 'users']);
@@ -90,7 +90,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
         $app->useDatabasePath(__DIR__);
         $command->setUgarit($app);
         $creator->expects('create')
-            ->with('create_users_table', __DIR__.DIRECTORY_SEPARATOR.'migrations', 'users', true)
+            ->with('create_users_table', __DIR__.DIRECTORY_SEPARATOR.'migrations', 'users', true, false)
             ->andReturn(__DIR__.'/Fixtures/migrations/2021_04_23_110457_create_users_table.php');
 
         $this->runCommand($command, ['name' => 'create_users_table']);
@@ -107,7 +107,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
         $command->setUgarit($app);
         $app->setBasePath('/home/ugarit');
         $creator->expects('create')
-            ->with('create_foo', '/home/ugarit/vendor/ugarit-package/migrations', 'users', true)
+            ->with('create_foo', '/home/ugarit/vendor/ugarit-package/migrations', 'users', true, false)
             ->andReturn('/home/ugarit/vendor/ugarit-package/migrations/2021_04_23_110457_create_foo.php');
         $this->runCommand($command, ['name' => 'create_foo', '--path' => 'vendor/ugarit-package/migrations', '--create' => 'users']);
     }
@@ -126,7 +126,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
             ->with('create_posts_table', __DIR__.DIRECTORY_SEPARATOR.'migrations', 'posts', true, true)
             ->andReturn(__DIR__.'/Fixtures/migrations/2021_04_23_110457_create_posts_table.php');
 
-        $this->runCommand($command, ['name' => 'create_posts_table', '--trans' => true]);
+        $this->runCommand($command, ['name' => 'create_posts_table', '--translatable' => true]);
     }
 
     public function testTranslatableShortOptionGivesCreatorProperArguments()
@@ -143,12 +143,15 @@ class DatabaseMigrationMakeCommandTest extends TestCase
             ->with('create_posts_table', __DIR__.DIRECTORY_SEPARATOR.'migrations', 'posts', true, true)
             ->andReturn(__DIR__.'/Fixtures/migrations/2021_04_23_110457_create_posts_table.php');
 
-        $this->runCommand($command, ['name' => 'create_posts_table', '--trans' => true]);
+        $this->runCommand($command, ['name' => 'create_posts_table', '-t' => true]);
     }
 
     protected function runCommand($command, $input = [])
     {
-        return $command->run(new ArrayInput($input), new NullOutput);
+        $input = new ArrayInput($input);
+        $input->setInteractive(false);
+
+        return $command->run($input, new NullOutput);
     }
 }
 

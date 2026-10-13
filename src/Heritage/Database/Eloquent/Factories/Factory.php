@@ -1063,14 +1063,8 @@ abstract class Factory
             $instance->fillTranslation((string) $locale, $attrs);
         }
 
-        // Resolve active configured locales
-        $availableLocales = function_exists('config')
-            ? array_keys(config('locale.available_locales', ['ar' => [], 'en' => []]))
-            : ['ar', 'en'];
-
-        if (empty($availableLocales)) {
-            $availableLocales = ['ar', 'en'];
-        }
+        // Locales accepted by the active LocaleResolver (config or the i18n artifact)
+        $availableLocales = \Heritage\Translation\Locales::resolver()->available();
 
         // Auto-seed translations for each translatable attribute across active locales
         foreach ($translatableAttributes as $attribute) {
