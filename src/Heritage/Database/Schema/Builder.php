@@ -8,6 +8,7 @@ use Heritage\Database\Connection;
 use Heritage\Database\PostgresConnection;
 use Heritage\Support\Str;
 use Heritage\Support\Traits\Macroable;
+use Heritage\Translation\Locales;
 use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
@@ -530,47 +531,43 @@ class Builder
     /**
      * Create a new translatable table and its paired translation table on the schema.
      *
+     * Options:
+     *  - table:         translation table name (default "{singular}_translations")
+     *  - foreign_key:   column referencing the main table (default "{singular}_id")
+     *  - locale_column: defaults to the LocaleResolver's column ("locale_id" with i18n, else "locale")
+     *  - locale_length: length of a "locale" code column (default 10)
+     *  - timestamps:    translation rows keep their own timestamps (default true)
+     *  - translation:   Closure customizing the translation table blueprint
+     * A translatable column marked unique() is unique per locale. A column marked withTranslations()
+     * stays on the main table and is added to the translation table too: softDeletes()->withTranslations()
+     * soft deletes translation rows, and the per-locale unique indexes then ignore trashed rows where
+     * the database supports partial indexes (not MySQL / MariaDB).
+     *
      * @param  string  $table
      * @param  \Closure(\Heritage\Database\Schema\Blueprint): void  $callback
-     * @param  (\Closure(\Heritage\Database\Schema\Blueprint): void)|string|array|null  $translationCallback
-     * @param  string|array|null  $optionsOrTable
-     * @param  string|null  $foreignKey
-     * @param  string|null  $localeColumn
+     * @param  array{table?: string, foreign_key?: string, locale_column?: string, locale_length?: int, timestamps?: bool, translation?: \Closure(\Heritage\Database\Schema\Blueprint): void}  $options
      * @return void
      */
-    public function createTranslatable(
-        $table,
-        Closure $callback,
-        Closure|string|array|null $translationCallback = null,
-        string|array|null $optionsOrTable = null,
-        ?string $foreignKey = null,
-        ?string $localeColumn = null
-    ) {
-        $options = [];
-        $translationTable = null;
-
-        if (is_array($translationCallback)) {
-            $options = $translationCallback;
-            $translationCallback = null;
-        } elseif (is_string($translationCallback)) {
-            $translationTable = $translationCallback;
-            $translationCallback = null;
-        }
-
-        if (is_array($optionsOrTable)) {
-            $options = array_merge($options, $optionsOrTable);
-        } elseif (is_string($optionsOrTable)) {
-            $translationTable = $optionsOrTable;
+    public function createTranslatable($table, Closure $callback, array $options = [])
+    {
+        if ($unknown = array_diff(array_keys($options), ['table', 'foreign_key', 'locale_column', 'locale_length', 'timestamps', 'translation'])) {
+            throw new InvalidArgumentException('Unknown createTranslatable() options: '.implode(', ', $unknown).'.');
         }
 
         [$schema, $tableName] = $this->parseSchemaAndTable($table);
         $defaultTranslationName = Str::singular($tableName).'_translations';
+        $resolver = Locales::resolver();
 
-        $translationTable = $translationTable ?? $options['table'] ?? (isset($schema) ? "{$schema}.{$defaultTranslationName}" : $defaultTranslationName);
-        $foreignKey = $foreignKey ?? $options['foreign_key'] ?? Str::singular($tableName).'_id';
-        $localeColumn = $localeColumn ?? $options['locale_column'] ?? 'locale_id';
+        $translationCallback = $options['translation'] ?? null;
+        $translationTable = $options['table'] ?? (isset($schema) ? "{$schema}.{$defaultTranslationName}" : $defaultTranslationName);
+        $foreignKey = $options['foreign_key'] ?? Str::singular($tableName).'_id';
+        // "locale_id" (FK to the resolver's table) with the i18n artifact, a "locale" code column otherwise.
+        $localeColumn = $options['locale_column'] ?? $resolver->storageColumn();
+        $localeTable = $localeColumn === $resolver->storageColumn() ? $resolver->storageTable() : null;
         $localeLength = $options['locale_length'] ?? 10;
-        $includeTimestamps = $options['timestamps'] ?? false;
+        // Translation rows keep their own timestamps unless disabled.
+        $includeTimestamps = $options['timestamps'] ?? true;
+        $partialUniques = [];
 
         // 1. Build the main table blueprint first to collect all column definitions
         $mainBlueprint = $this->createBlueprint($table);
@@ -583,7 +580,7 @@ class Builder
         $translationColumns = [];
 
         foreach ($mainBlueprint->getColumns() as $column) {
-            if ($column instanceof ColumnDefinition && $column->isTranslation()) {
+            if ($column instanceof ColumnDefinition && $column->isTranslatable()) {
                 $translationColumns[] = $column;
             }
         }
@@ -591,6 +588,21 @@ class Builder
         // Remove translation columns from the main table blueprint
         foreach ($translationColumns as $column) {
             $mainBlueprint->removeColumn($column->name);
+        }
+
+        // Columns kept on the main table and added to the translation table as well
+        /** @var \Heritage\Database\Schema\ColumnDefinition[] $sharedColumns */
+        $sharedColumns = [];
+        $softDeleteColumn = null;
+
+        foreach ($mainBlueprint->getColumns() as $column) {
+            if ($column instanceof ColumnDefinition && $column->isWithTranslations()) {
+                $sharedColumns[] = $column;
+
+                if ($column->isSoftDeletes()) {
+                    $softDeleteColumn = $column->name;
+                }
+            }
         }
 
         // 3. Determine the primary key type and name of the main table
@@ -622,9 +634,13 @@ class Builder
             $primaryKeyName,
             $foreignKey,
             $localeColumn,
+            $localeTable,
             $localeLength,
             $translationCallback,
-            $includeTimestamps
+            $includeTimestamps,
+            $sharedColumns,
+            $softDeleteColumn,
+            &$partialUniques
         ) {
             // Primary key on translation table
             if ($primaryKeyType === 'uuid') {
@@ -643,24 +659,47 @@ class Builder
             }
 
             // Locale column
-            if ($localeColumn === 'locale_id') {
-                $tableBlueprint->foreignId('locale_id')->constrained('locales')->cascadeOnDelete();
+            if ($localeTable !== null) {
+                $tableBlueprint->foreignId($localeColumn)->constrained($localeTable)->cascadeOnDelete();
             } else {
                 $tableBlueprint->string($localeColumn, $localeLength)->index();
             }
 
-            // Add all translated columns
+            // Add all translated columns; a unique translated column is unique per locale
+            $uniquePerLocale = [];
+
             foreach ($translationColumns as $column) {
                 $clonedAttributes = $column->getAttributes();
+
+                if (! empty($clonedAttributes['unique'])) {
+                    $uniquePerLocale[] = $clonedAttributes['name'];
+                }
+
                 unset(
                     $clonedAttributes['translation'],
                     $clonedAttributes['translatable'],
                     $clonedAttributes['translate'],
-                    $clonedAttributes['after']
+                    $clonedAttributes['after'],
+                    $clonedAttributes['unique']
                 );
 
                 $clonedColumn = new ColumnDefinition($clonedAttributes);
                 $tableBlueprint->addColumnDefinition($clonedColumn);
+            }
+
+            foreach ($sharedColumns as $column) {
+                $sharedAttributes = $column->getAttributes();
+
+                unset(
+                    $sharedAttributes['withTranslations'],
+                    $sharedAttributes['after'],
+                    $sharedAttributes['first'],
+                    $sharedAttributes['unique'],
+                    $sharedAttributes['index'],
+                    $sharedAttributes['primary']
+                );
+
+                $tableBlueprint->addColumnDefinition(new ColumnDefinition($sharedAttributes));
             }
 
             // Optional extra customizations on the translation table
@@ -668,57 +707,58 @@ class Builder
                 $translationCallback($tableBlueprint);
             }
 
-            // Compound unique index ensuring one translation per locale
+            foreach ($uniquePerLocale as $name) {
+                if ($softDeleteColumn !== null && $this->supportsPartialIndexes()) {
+                    $partialUniques[] = [$localeColumn, $name];
+                } else {
+                    $tableBlueprint->unique([$localeColumn, $name]);
+                }
+            }
+
+            // One row per locale, trashed or not: re-adding a soft-deleted locale restores its row.
             $tableBlueprint->unique([$foreignKey, $localeColumn]);
 
             if ($includeTimestamps) {
                 $tableBlueprint->timestamps();
             }
         });
+
+        foreach ($partialUniques as $columns) {
+            $this->createPartialUnique($translationTable, $columns, $softDeleteColumn);
+        }
     }
 
     /**
-     * Backward-compatible alias for createTranslatable.
+     * Whether the connection supports partial (filtered) indexes; MySQL and MariaDB do not.
      *
-     * @param  string  $table
-     * @param  \Closure(\Heritage\Database\Schema\Blueprint): void  $callback
-     * @param  (\Closure(\Heritage\Database\Schema\Blueprint): void)|string|array|null  $translationCallback
-     * @param  string|array|null  $optionsOrTable
-     * @param  string|null  $foreignKey
-     * @param  string|null  $localeColumn
-     * @return void
+     * @return bool
      */
-    public function createWithTranslation(
-        $table,
-        Closure $callback,
-        Closure|string|array|null $translationCallback = null,
-        string|array|null $optionsOrTable = null,
-        ?string $foreignKey = null,
-        ?string $localeColumn = null
-    ) {
-        $this->createTranslatable($table, $callback, $translationCallback, $optionsOrTable, $foreignKey, $localeColumn);
+    public function supportsPartialIndexes(): bool
+    {
+        return in_array($this->connection->getDriverName(), ['pgsql', 'sqlite', 'sqlsrv'], true);
     }
 
     /**
-     * Backward-compatible plural alias for createTranslatable.
+     * Create a unique index covering only the rows that are not soft deleted.
      *
      * @param  string  $table
-     * @param  \Closure(\Heritage\Database\Schema\Blueprint): void  $callback
-     * @param  (\Closure(\Heritage\Database\Schema\Blueprint): void)|string|array|null  $translationCallback
-     * @param  string|array|null  $optionsOrTable
-     * @param  string|null  $foreignKey
-     * @param  string|null  $localeColumn
+     * @param  array<int, string>  $columns
+     * @param  string  $deletedAtColumn
      * @return void
      */
-    public function createWithTranslations(
-        $table,
-        Closure $callback,
-        Closure|string|array|null $translationCallback = null,
-        string|array|null $optionsOrTable = null,
-        ?string $foreignKey = null,
-        ?string $localeColumn = null
-    ) {
-        $this->createTranslatable($table, $callback, $translationCallback, $optionsOrTable, $foreignKey, $localeColumn);
+    protected function createPartialUnique(string $table, array $columns, string $deletedAtColumn): void
+    {
+        $name = str_replace(['-', '.'], '_', strtolower(
+            $this->connection->getTablePrefix().$table.'_'.implode('_', $columns).'_unique'
+        ));
+
+        $this->connection->statement(sprintf(
+            'create unique index %s on %s (%s) where %s is null',
+            $this->grammar->wrap($name),
+            $this->grammar->wrapTable($table),
+            $this->grammar->columnize($columns),
+            $this->grammar->wrap($deletedAtColumn)
+        ));
     }
 
     /**
@@ -739,18 +779,6 @@ class Builder
     }
 
     /**
-     * Backward-compatible alias for dropTranslatable.
-     *
-     * @param  string  $table
-     * @param  string|null  $translationTable
-     * @return void
-     */
-    public function dropWithTranslation($table, ?string $translationTable = null)
-    {
-        $this->dropTranslatable($table, $translationTable);
-    }
-
-    /**
      * Drop a translatable table and its paired translation table from the schema if they exist.
      *
      * @param  string  $table
@@ -766,19 +794,6 @@ class Builder
         $this->dropIfExists($translationTable);
         $this->dropIfExists($table);
     }
-
-    /**
-     * Backward-compatible alias for dropIfExistsTranslatable.
-     *
-     * @param  string  $table
-     * @param  string|null  $translationTable
-     * @return void
-     */
-    public function dropIfExistsWithTranslation($table, ?string $translationTable = null)
-    {
-        $this->dropIfExistsTranslatable($table, $translationTable);
-    }
-
 
     /**
      * Drop a table from the schema.

@@ -37,54 +37,22 @@ use Heritage\Support\Fluent;
  * @method $this translation(bool $value = true) Mark the column as translatable for the translation table
  * @method $this translatable(bool $value = true) Mark the column as translatable for the translation table
  * @method $this translate(bool $value = true) Mark the column as translatable for the translation table
+ * @method $this withTranslations(bool $value = true) Keep the column and add it to the translation table too
  * @method $this virtualAs(string|\Heritage\Contracts\Database\Query\Expression $expression) Create a virtual generated column (MySQL/PostgreSQL/SQLite)
  */
 class ColumnDefinition extends Fluent
 {
     /**
-     * Mark the column as a translatable column (stored in the translation table).
-     *
-     * @param  bool  $value
-     * @return $this
-     */
-    public function translation(bool $value = true)
-    {
-        $this->attributes['translation'] = $value;
-
-        return $this;
-    }
-
-    /**
-     * Mark the column as a translatable column (stored in the translation table).
+     * Mark the column as translatable: createTranslatable() moves it to the translation table.
      *
      * @param  bool  $value
      * @return $this
      */
     public function translatable(bool $value = true)
     {
-        return $this->translation($value);
-    }
+        $this->attributes['translatable'] = $value;
 
-    /**
-     * Mark the column as a translatable column (stored in the translation table).
-     *
-     * @param  bool  $value
-     * @return $this
-     */
-    public function translate(bool $value = true)
-    {
-        return $this->translation($value);
-    }
-
-    /**
-     * Mark the column as a translatable column (stored in the translation table).
-     *
-     * @param  bool  $value
-     * @return $this
-     */
-    public function translated(bool $value = true)
-    {
-        return $this->translation($value);
+        return $this;
     }
 
     /**
@@ -92,9 +60,55 @@ class ColumnDefinition extends Fluent
      *
      * @return bool
      */
-    public function isTranslation(): bool
+    public function isTranslatable(): bool
     {
-        return (bool) ($this->get('translation') || $this->get('translatable') || $this->get('translated') || $this->get('translate'));
+        return (bool) $this->get('translatable');
+    }
+
+    /**
+     * Keep the column on the main table and add it to the translation table too
+     * (createTranslatable()); softDeletes()->withTranslations() soft deletes translation rows.
+     *
+     * @param  bool  $value
+     * @return $this
+     */
+    public function withTranslations(bool $value = true)
+    {
+        $this->attributes['withTranslations'] = $value;
+
+        return $this;
+    }
+
+    /**
+     * Determine if the column is also added to the translation table.
+     *
+     * @return bool
+     */
+    public function isWithTranslations(): bool
+    {
+        return (bool) $this->get('withTranslations');
+    }
+
+    /**
+     * Mark the column as the table's soft delete column (set by Blueprint::softDeletes()).
+     *
+     * @return $this
+     */
+    public function markAsSoftDeletes()
+    {
+        $this->attributes['softDeletes'] = true;
+
+        return $this;
+    }
+
+    /**
+     * Determine if the column is the table's soft delete column.
+     *
+     * @return bool
+     */
+    public function isSoftDeletes(): bool
+    {
+        return (bool) $this->get('softDeletes');
     }
 }
 

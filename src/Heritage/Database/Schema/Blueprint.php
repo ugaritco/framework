@@ -1398,7 +1398,7 @@ class Blueprint
      */
     public function softDeletes($column = 'deleted_at', $precision = null)
     {
-        return $this->timestamp($column, $precision)->nullable();
+        return $this->timestamp($column, $precision)->nullable()->markAsSoftDeletes();
     }
 
     /**
@@ -1410,7 +1410,7 @@ class Blueprint
      */
     public function softDeletesTz($column = 'deleted_at', $precision = null)
     {
-        return $this->timestampTz($column, $precision)->nullable();
+        return $this->timestampTz($column, $precision)->nullable()->markAsSoftDeletes();
     }
 
     /**
@@ -1422,7 +1422,7 @@ class Blueprint
      */
     public function softDeletesDatetime($column = 'deleted_at', $precision = null)
     {
-        return $this->dateTime($column, $precision)->nullable();
+        return $this->dateTime($column, $precision)->nullable()->markAsSoftDeletes();
     }
 
     /**
@@ -1870,7 +1870,7 @@ class Blueprint
      public function addColumnDefinition($definition)
     {
         if ($this->translatableGroup && $definition instanceof ColumnDefinition) {
-            $definition->translation(true);
+            $definition->translatable(true);
         }
 
         $this->columns[] = $definition;
@@ -2044,17 +2044,6 @@ class Blueprint
     protected function defaultTimePrecision(): ?int
     {
         return $this->connection->getSchemaBuilder()::$defaultTimePrecision;
-    }
-
-    /**
-     * Define a group of translatable columns for the translation table.
-     *
-     * @param  \Closure(self): void  $callback
-     * @return $this
-     */
-    public function translation(Closure $callback)
-    {
-        return $this->translatable($callback);
     }
 
     /**
