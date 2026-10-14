@@ -5,6 +5,7 @@ namespace Heritage\Routing;
 use BadMethodCallException;
 use Heritage\Auth\Access\AuthorizationException;
 use Heritage\Capabilities\Attributes\Authorize;
+use Heritage\Container\Container;
 use Heritage\Contracts\Container\BindingResolutionException;
 use Heritage\Contracts\Parcels\ParcelContract;
 use Heritage\Contracts\Support\Arrayable;
@@ -23,10 +24,8 @@ use Heritage\Outcomes\Outcome;
 use Heritage\Pagination\AbstractCursorPaginator;
 use Heritage\Pagination\AbstractPaginator;
 use Heritage\Parcels\Parcel;
-use Heritage\Support\Facades\Gate;
 use InvalidArgumentException;
 use LogicException;
-use ReflectionClass;
 
 /**
  * Base controller of the Ugarit pipeline: runs a Capability or Feature, presents its data with
@@ -253,7 +252,8 @@ abstract class Controller
     }
 
     /**
-     * Check the ability the action declares with #[Authorize], if any.
+     * Check the ability the action declares with #[Authorize], if any, unless the FormRequest
+     * of the current request already granted it before validation (#[ForAction]).
      *
      * @param  object  $action  The Capability or Feature.
      * @param  Parcel|ParcelContract|null  $data  The Parcel it will receive.
@@ -264,25 +264,27 @@ abstract class Controller
      */
     protected function authorizeAction(object $action, Parcel|ParcelContract|null $data): void
     {
-        $attribute = (new ReflectionClass($action))->getAttributes(Authorize::class)[0] ?? null;
+        $authorize = Authorize::of($action);
 
-        if ($attribute === null) {
+        if ($authorize === null || $this->grantedByRequest($action)) {
             return;
         }
 
-        $authorize = $attribute->newInstance();
-        $attached = $data?->getModel();
+        $authorize->check($action, $data?->getModel(), 'attach the model to its parcel (setModel() or fromModel())');
+    }
 
-        if ($authorize->model !== null
-            && ! $attached instanceof $authorize->model
-            && $authorize->requiresInstance(Gate::getPolicyFor($authorize->model))) {
-            throw new LogicException(sprintf(
-                '[%s] checks [%s] on a [%s]: attach the model to its parcel (setModel() or fromModel()).',
-                $action::class, $authorize->ability, $authorize->model
-            ));
-        }
+    /**
+     * Whether the FormRequest of the current request already granted the action's ability.
+     *
+     * @param  object  $action
+     * @return bool
+     */
+    protected function grantedByRequest(object $action): bool
+    {
+        $container = Container::getInstance();
 
-        Gate::authorize($authorize->ability, $authorize->arguments($attached));
+        return $container->bound('request')
+            && $container->make('request')->attributes->get(Authorize::GRANTED) === $action::class;
     }
 
     /**

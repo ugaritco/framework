@@ -29,6 +29,7 @@ class RequestMakeCommand extends GeneratorCommand
                     {--model= : The entity/model name this request belongs to}
                     {--t|translatable : Declare translatable fields ($translatable) in the request}
                     {--fields= : Comma-separated translatable field names (e.g. name,description)}
+                    {--action= : The Capability or Feature the request feeds, relative to the root namespace (e.g. Capabilities/Branch/SaveBranchCapability)}
                     {--f|force : Create the class even if the request already exists}';
 
     /**
@@ -267,7 +268,7 @@ class RequestMakeCommand extends GeneratorCommand
      */
     protected function buildClass($name)
     {
-        $classContent = parent::buildClass($name);
+        $classContent = $this->replaceForAction(parent::buildClass($name));
 
         if ($this->isTranslatable()) {
             $fieldsInput = (string) ($this->option('fields') ?: 'name');
@@ -302,4 +303,30 @@ class RequestMakeCommand extends GeneratorCommand
         return $classContent;
     }
 
+    /**
+     * Fill the imports and the #[ForAction] attribute naming the action given by --action.
+     *
+     * @param  string  $stub
+     * @return string
+     */
+    protected function replaceForAction(string $stub): string
+    {
+        $imports = ['Heritage\Foundation\Http\FormRequest'];
+        $attribute = '';
+
+        if ($action = $this->option('action')) {
+            $action = $this->rootNamespace().str_replace('/', '\\', ltrim($action, '\\/'));
+            $imports[] = 'Heritage\Foundation\Http\Attributes\ForAction';
+            $imports[] = $action;
+            $attribute = '#[ForAction('.class_basename($action)."::class)]\n";
+        }
+
+        sort($imports);
+
+        return str_replace(
+            ['{{ imports }}', '{{ forAction }}'],
+            [implode('', array_map(fn ($import) => "use {$import};\n", $imports)), $attribute],
+            $stub
+        );
+    }
 }

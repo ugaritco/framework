@@ -2,23 +2,12 @@
 
 namespace {{ namespace }};
 
-use Heritage\Foundation\Http\FormRequest;
-
+{{ imports }}
 /**
  * Validates payload for {{ class }}.
  */
-class {{ class }} extends FormRequest
+{{ forAction }}class {{ class }} extends FormRequest
 {
-    /**
-     * Determine whether the request is authorized.
-     *
-     * @return bool
-     */
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     /**
      * Validation rules applied to the incoming payload.
      *

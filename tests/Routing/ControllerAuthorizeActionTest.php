@@ -9,6 +9,7 @@ use Heritage\Capabilities\Capability;
 use Heritage\Container\Container;
 use Heritage\Contracts\Auth\Access\Gate as GateContract;
 use Heritage\Database\Eloquent\Model;
+use Heritage\Http\Request;
 use Heritage\Outcomes\Outcome;
 use Heritage\Parcels\Parcel;
 use Heritage\Routing\Controller;
@@ -99,6 +100,17 @@ class ControllerAuthorizeActionTest extends TestCase
             $this->assertStringContainsString(InstanceCapability::class, $e->getMessage());
             $this->assertStringContainsString(AuthorizedRecord::class, $e->getMessage());
         }
+    }
+
+    public function test_an_ability_granted_by_the_form_request_is_not_checked_again(): void
+    {
+        $request = new Request;
+        $request->attributes->set(Authorize::GRANTED, InstanceCapability::class);
+        Container::getInstance()->instance('request', $request);
+
+        $this->assertTrue((new AuthorizingController)->call(InstanceCapability::class, new AuthorizedParcel)->isSuccess());
+        $this->expectException(AuthorizationException::class);
+        (new AuthorizingController)->call(AuthorizedCapability::class, new AuthorizedParcel);
     }
 
     public function test_an_ability_requiring_a_model_runs_with_one(): void

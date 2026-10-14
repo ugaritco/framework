@@ -4,12 +4,14 @@ namespace Heritage\Foundation\Http;
 
 use Heritage\Auth\Access\AuthorizationException;
 use Heritage\Auth\Access\Response;
+use Heritage\Capabilities\Attributes\Authorize;
 use Heritage\Contracts\Container\Container;
 use Heritage\Contracts\Validation\Factory as ValidationFactory;
 use Heritage\Contracts\Validation\ValidatesWhenResolved;
 use Heritage\Contracts\Validation\Validator;
 use Heritage\Foundation\Http\Attributes\ErrorBag;
 use Heritage\Foundation\Http\Attributes\FailOnUnknownFields;
+use Heritage\Foundation\Http\Attributes\ForAction;
 use Heritage\Foundation\Http\Attributes\RedirectTo;
 use Heritage\Foundation\Http\Attributes\RedirectToRoute;
 use Heritage\Foundation\Http\Attributes\StopOnFirstFailure;
@@ -425,6 +427,8 @@ class FormRequest extends Request implements ValidatesWhenResolved
      */
     protected function passesAuthorization()
     {
+        $this->authorizeAction();
+
         if (method_exists($this, 'authorize')) {
             $result = $this->container->call([$this, 'authorize']);
 
@@ -432,6 +436,38 @@ class FormRequest extends Request implements ValidatesWhenResolved
         }
 
         return true;
+    }
+
+    /**
+     * Check the #[Authorize] ability of the action named by #[ForAction], against the route model
+     * of the ability's class, and record it on the current request for the controller.
+     *
+     * @return void
+     *
+     * @throws \Heritage\Auth\Access\AuthorizationException When the ability is denied.
+     * @throws \LogicException When the ability requires a model the route does not bind.
+     */
+    protected function authorizeAction(): void
+    {
+        $forAction = (new ReflectionClass($this))->getAttributes(ForAction::class)[0] ?? null;
+
+        if ($forAction === null) {
+            return;
+        }
+
+        $action = $forAction->newInstance()->action;
+        $authorize = Authorize::of($action);
+
+        if ($authorize === null) {
+            return;
+        }
+
+        $model = $authorize->model === null ? null : collect($this->route()?->parameters() ?? [])
+            ->first(fn ($parameter) => $parameter instanceof $authorize->model);
+
+        $authorize->check($action, $model, 'bind the model in the route');
+
+        $this->container->make('request')->attributes->set(Authorize::GRANTED, $action);
     }
 
     /**
