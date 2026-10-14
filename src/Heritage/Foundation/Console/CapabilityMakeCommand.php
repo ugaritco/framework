@@ -26,6 +26,8 @@ class CapabilityMakeCommand extends GeneratorCommand
                     {--repository= : A repository contract to inject (relative to Contracts/Repositories/ or fully-qualified)}
                     {--result= : The Result enum (relative to Enums/ or fully-qualified)}
                     {--outcome= : The Outcome class (relative to Outcomes/ or fully-qualified)}
+                    {--authorize= : The ability the capability requires (#[Authorize])}
+                    {--model= : The model the ability is about (relative to Models/ or fully-qualified)}
                     {--f|force : Create the class even if the capability already exists}';
 
     /**
@@ -122,6 +124,8 @@ class CapabilityMakeCommand extends GeneratorCommand
             PHP;
         }
 
+        [$authorize, $authorizeImports] = $this->authorizeAttribute();
+
         $replacements = [
             '{{ imports }}' => $this->renderImports([
                 'Heritage\\Capabilities\\Capability',
@@ -131,7 +135,9 @@ class CapabilityMakeCommand extends GeneratorCommand
                 $repository,
                 $result,
                 $outcome,
+                ...$authorizeImports,
             ]),
+            '{{ authorize }}' => $authorize,
             '{{ constructor }}' => $constructor,
             '{{ parcelParameter }}' => $nullable ? "?{$parcelName} \$data = null" : "{$parcelName} \$data",
             '{{ parcelDoc }}' => $nullable ? "{$parcelName}|null" : $parcelName,

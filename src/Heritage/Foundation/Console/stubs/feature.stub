@@ -12,7 +12,7 @@ namespace {{ namespace }};
  * Orchestrates several capabilities as one flow: named steps running in order inside one
  * transaction. A failed required step rolls every write back.
  */
-class {{ class }} extends Feature
+{{ authorize }}class {{ class }} extends Feature
 {
     /**
      * Execute the feature workflow.

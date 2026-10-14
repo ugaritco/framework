@@ -24,6 +24,8 @@ class FeatureMakeCommand extends GeneratorCommand
                     {--parcel= : The accepted Parcel (relative to Parcels/ or fully-qualified)}
                     {--result= : The Result enum (relative to Enums/ or fully-qualified)}
                     {--outcome= : The Outcome class (relative to Outcomes/ or fully-qualified)}
+                    {--authorize= : The ability the feature requires (#[Authorize])}
+                    {--model= : The model the ability is about (relative to Models/ or fully-qualified)}
                     {--f|force : Create the class even if the feature already exists}';
 
     /**
@@ -92,6 +94,8 @@ class FeatureMakeCommand extends GeneratorCommand
         $result = $this->companionClass('result', 'Enums');
         $outcome = $this->companionClass('outcome', 'Outcomes');
 
+        [$authorize, $authorizeImports] = $this->authorizeAttribute();
+
         $replacements = [
             '{{ imports }}' => $this->renderImports([
                 'Heritage\\Features\\Feature',
@@ -100,7 +104,9 @@ class FeatureMakeCommand extends GeneratorCommand
                 $parcel ?? 'Heritage\\Parcels\\Parcel',
                 $result,
                 $outcome,
+                ...$authorizeImports,
             ]),
+            '{{ authorize }}' => $authorize,
             '{{ parcel }}' => class_basename($parcel ?? 'Heritage\\Parcels\\Parcel'),
             '{{ flow }}' => $this->flowArguments($result, $outcome),
             '{{ success }}' => $this->outcomeExpression($result, $outcome, true),

@@ -9,9 +9,9 @@ use Heritage\Support\Str;
 /**
  * Shared scaffolding for the Capability and Feature generators.
  *
- * Resolves the companion classes given as options (--parcel, --result, --outcome, --repository)
- * relative to the artifact's conventional folders, and renders the outcome expressions and the
- * import block of the generated action.
+ * Resolves the companion classes given as options (--parcel, --result, --outcome, --repository,
+ * --model) relative to the artifact's conventional folders, and renders the outcome expressions,
+ * the #[Authorize] attribute and the import block of the generated action.
  */
 trait GeneratesDomainActions
 {
@@ -73,6 +73,26 @@ trait GeneratesDomainActions
             (bool) $outcome => class_basename($outcome).($success ? '::success()' : '::failure()'),
             default => $success ? 'Outcome::success()' : 'Outcome::failure()',
         };
+    }
+
+    /**
+     * Render the #[Authorize] attribute from --authorize and --model.
+     *
+     * @return array{0: string, 1: array<int, string|null>} The attribute line (empty without
+     *                                                      --authorize) and the classes it imports.
+     */
+    protected function authorizeAttribute(): array
+    {
+        $ability = $this->option('authorize');
+
+        if (! is_string($ability) || trim($ability) === '') {
+            return ['', []];
+        }
+
+        $model = $this->companionClass('model', 'Models');
+        $arguments = var_export(trim($ability), true).($model ? ', '.class_basename($model).'::class' : '');
+
+        return ["#[Authorize({$arguments})]\n", ['Heritage\\Capabilities\\Attributes\\Authorize', $model]];
     }
 
     /**

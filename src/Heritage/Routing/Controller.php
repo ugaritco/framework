@@ -3,6 +3,8 @@
 namespace Heritage\Routing;
 
 use BadMethodCallException;
+use Heritage\Auth\Access\AuthorizationException;
+use Heritage\Capabilities\Attributes\Authorize;
 use Heritage\Contracts\Container\BindingResolutionException;
 use Heritage\Contracts\Parcels\ParcelContract;
 use Heritage\Contracts\Support\Arrayable;
@@ -21,7 +23,10 @@ use Heritage\Outcomes\Outcome;
 use Heritage\Pagination\AbstractCursorPaginator;
 use Heritage\Pagination\AbstractPaginator;
 use Heritage\Parcels\Parcel;
+use Heritage\Support\Facades\Gate;
 use InvalidArgumentException;
+use LogicException;
+use ReflectionClass;
 
 /**
  * Base controller of the Ugarit pipeline: runs a Capability or Feature, presents its data with
@@ -31,6 +36,7 @@ use InvalidArgumentException;
  *   take every option.
  * - ResponderType::AUTO answers JSON to clients expecting JSON, so one action serves pages and APIs.
  * - A failed outcome never renders its page nor redirects as if it succeeded: see respondToFailure().
+ * - An action declaring #[Authorize] runs only once its ability is granted: see authorizeAction().
  */
 abstract class Controller
 {
@@ -227,17 +233,56 @@ abstract class Controller
     }
 
     /**
-     * Run a Capability or Feature and return its Outcome.
+     * Run a Capability or Feature and return its Outcome, once the ability it declares is granted.
      *
      * @param  string  $actionClass  Fully qualified class name of the Capability or Feature.
      * @param  Parcel|ParcelContract|null  $data  Validated Parcel input.
      * @return Outcome
+     *
+     * @throws AuthorizationException When the declared ability is denied.
      */
     protected function run(
         string $actionClass,
         Parcel|ParcelContract|null $data = null
     ): Outcome {
-        return $this->action($actionClass)->handle($data);
+        $action = $this->action($actionClass);
+
+        $this->authorizeAction($action, $data);
+
+        return $action->handle($data);
+    }
+
+    /**
+     * Check the ability the action declares with #[Authorize], if any.
+     *
+     * @param  object  $action  The Capability or Feature.
+     * @param  Parcel|ParcelContract|null  $data  The Parcel it will receive.
+     * @return void
+     *
+     * @throws AuthorizationException When the ability is denied.
+     * @throws LogicException When the ability requires a model the Parcel does not carry.
+     */
+    protected function authorizeAction(object $action, Parcel|ParcelContract|null $data): void
+    {
+        $attribute = (new ReflectionClass($action))->getAttributes(Authorize::class)[0] ?? null;
+
+        if ($attribute === null) {
+            return;
+        }
+
+        $authorize = $attribute->newInstance();
+        $attached = $data?->getModel();
+
+        if ($authorize->model !== null
+            && ! $attached instanceof $authorize->model
+            && $authorize->requiresInstance(Gate::getPolicyFor($authorize->model))) {
+            throw new LogicException(sprintf(
+                '[%s] checks [%s] on a [%s]: attach the model to its parcel (setModel() or fromModel()).',
+                $action::class, $authorize->ability, $authorize->model
+            ));
+        }
+
+        Gate::authorize($authorize->ability, $authorize->arguments($attached));
     }
 
     /**

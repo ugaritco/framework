@@ -11,7 +11,7 @@ namespace {{ namespace }};
  *
  * Encapsulates an atomic domain execution capability.
  */
-class {{ class }} extends Capability
+{{ authorize }}class {{ class }} extends Capability
 {
 {{ constructor }}
 
