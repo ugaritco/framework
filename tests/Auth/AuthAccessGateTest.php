@@ -1035,6 +1035,17 @@ class AuthAccessGateTest extends TestCase
         }, 'foo', 'bar');
     }
 
+    public function testPolicyCanBeGuessedInAFolderNamedAfterTheModel()
+    {
+        require_once __DIR__.'/../Integration/Auth/Fixtures/Models/FoldedTestUser.php';
+        require_once __DIR__.'/../Integration/Auth/Fixtures/Policies/FoldedTestUser/FoldedTestUserPolicy.php';
+
+        $this->assertInstanceOf(
+            \Heritage\Tests\Integration\Auth\Fixtures\Policies\FoldedTestUser\FoldedTestUserPolicy::class,
+            $this->getBasicGate()->getPolicyFor(\Heritage\Tests\Integration\Auth\Fixtures\Models\FoldedTestUser::class)
+        );
+    }
+
     protected function getBasicGate($isAdmin = false)
     {
         return new Gate(new Container, function () use ($isAdmin) {

@@ -716,7 +716,7 @@ class Gate implements GateContract
     }
 
     /**
-     * Guess the policy name for the given class.
+     * Guess the policy name for the given class: Policies\{Model}Policy or Policies\{Model}\{Model}Policy.
      *
      * @param  string  $class
      * @return array
@@ -734,8 +734,11 @@ class Gate implements GateContract
         return Arr::wrap(Collection::times(count($classDirnameSegments), function ($index) use ($class, $classDirnameSegments) {
             $classDirname = implode('\\', array_slice($classDirnameSegments, 0, $index));
 
-            return $classDirname.'\\Policies\\'.class_basename($class).'Policy';
-        })->when(str_contains($classDirname, '\\Models\\'), function ($collection) use ($class, $classDirname) {
+            return [
+                $classDirname.'\\Policies\\'.class_basename($class).'\\'.class_basename($class).'Policy',
+                $classDirname.'\\Policies\\'.class_basename($class).'Policy',
+            ];
+        })->flatten()->when(str_contains($classDirname, '\\Models\\'), function ($collection) use ($class, $classDirname) {
             return $collection->concat([str_replace('\\Models\\', '\\Policies\\', $classDirname).'\\'.class_basename($class).'Policy'])
                 ->concat([str_replace('\\Models\\', '\\Models\\Policies\\', $classDirname).'\\'.class_basename($class).'Policy']);
         })->reverse()->values()->first(function ($class) {

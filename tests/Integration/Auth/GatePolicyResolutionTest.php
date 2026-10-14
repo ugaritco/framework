@@ -9,8 +9,7 @@ use Heritage\Support\Facades\Event;
 use Heritage\Support\Facades\Gate;
 use Heritage\Tests\Integration\Auth\Fixtures\AuthenticationTestUser;
 use Heritage\Tests\Integration\Auth\Fixtures\Models\Policies\Nested\SubTestUserPolicy;
-use Heritage\Tests\Integration\Auth\Fixtures\Policies\AuthenticationTestUserPolicy;
-use Heritage\Tests\Integration\Auth\Fixtures\Policies\Nested\TopTestUserPolicy;
+use Heritage\Tests\Integration\Auth\Fixtures\Policies\AuthenticationTestUserPolicy;use Heritage\Tests\Integration\Auth\Fixtures\Policies\Nested\TopTestUserPolicy;
 use Orchestra\Testbench\TestCase;
 
 class GatePolicyResolutionTest extends TestCase
