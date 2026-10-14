@@ -10,6 +10,8 @@ use Heritage\Database\Eloquent\Builder;
 use Heritage\Database\Eloquent\Collection;
 use Heritage\Database\Eloquent\Model;
 use Heritage\Parcels\Parcel;
+use Heritage\Parcels\QueryParcel;
+use Heritage\Support\Str;
 use InvalidArgumentException;
 use LogicException;
 use ReflectionException;
@@ -92,6 +94,123 @@ abstract class ModelRepository implements ModelRepositoryInterface
     public function paginate(int $perPage = 15, array $columns = ['*'], string $pageName = 'page', ?int $page = null): LengthAwarePaginator
     {
         return $this->query()->paginate($perPage, $columns, $pageName, $page);
+    }
+
+    /**
+     * Run a listing: apply the parcel's filters, search its searchable columns, sort by its
+     * sort, then return one page when it sets per_page, every record otherwise.
+     *
+     * A filter calls filter{Name}(Builder $query, mixed $value) when the repository defines
+     * it; otherwise it matches its column (an array matches any of its values). Translated
+     * attributes are filtered, searched and sorted through their current-locale translation.
+     *
+     * @param  QueryParcel  $parcel  The listing criteria.
+     * @return Collection<int, TModel>|LengthAwarePaginator
+     */
+    public function browse(QueryParcel $parcel): Collection|LengthAwarePaginator
+    {
+        $query = $this->query();
+
+        foreach ($parcel->filters() as $name => $value) {
+            $this->applyFilter($query, $name, $value);
+        }
+
+        if ($parcel->search !== null && $parcel->searchable() !== []) {
+            $this->applySearch($query, $parcel->search, $parcel->searchable());
+        }
+
+        if ($parcel->sortColumn() !== null) {
+            $this->applySort($query, $parcel->sortColumn(), $parcel->sortDirection());
+        }
+
+        return $parcel->paginates()
+            ? $query->paginate($parcel->per_page, ['*'], 'page', $parcel->page)
+            : $query->get();
+    }
+
+    /**
+     * Constrain a listing by one filter.
+     *
+     * @param  Builder  $query
+     * @param  string  $name  The filter (a column or translated attribute by default).
+     * @param  mixed  $value  Its value; an array matches any of its values.
+     * @return void
+     */
+    protected function applyFilter(Builder $query, string $name, mixed $value): void
+    {
+        $method = 'filter'.Str::studly($name);
+
+        if (method_exists($this, $method)) {
+            $this->{$method}($query, $value);
+
+            return;
+        }
+
+        $model = $query->getModel();
+
+        if ($this->isTranslated($model, $name)) {
+            $resolver = $model::localeResolver();
+
+            is_array($value)
+                ? $query->whereHas('translations', fn (Builder $q) => $q->whereIn($name, $value)
+                    ->where($model->getTranslationLocaleColumn(), $resolver->toStorage($resolver->current())))
+                : $query->whereTranslation($name, $value);
+
+            return;
+        }
+
+        $column = $model->qualifyColumn($name);
+
+        is_array($value) ? $query->whereIn($column, $value) : $query->where($column, $value);
+    }
+
+    /**
+     * Constrain a listing to records whose searchable columns contain the term.
+     *
+     * @param  Builder  $query
+     * @param  string  $term
+     * @param  array<int, string>  $columns
+     * @return void
+     */
+    protected function applySearch(Builder $query, string $term, array $columns): void
+    {
+        $model = $query->getModel();
+        $pattern = "%{$term}%";
+
+        $query->where(function (Builder $query) use ($model, $columns, $pattern) {
+            foreach ($columns as $column) {
+                $this->isTranslated($model, $column)
+                    ? $query->orWhere(fn (Builder $q) => $q->whereTranslationLike($column, $pattern))
+                    : $query->orWhere($model->qualifyColumn($column), 'like', $pattern);
+            }
+        });
+    }
+
+    /**
+     * Order a listing by a column or a translated attribute.
+     *
+     * @param  Builder  $query
+     * @param  string  $column
+     * @param  string  $direction  "asc" or "desc".
+     * @return void
+     */
+    protected function applySort(Builder $query, string $column, string $direction): void
+    {
+        $this->isTranslated($query->getModel(), $column)
+            ? $query->orderByTranslation($column, $direction)
+            : $query->orderBy($query->getModel()->qualifyColumn($column), $direction);
+    }
+
+    /**
+     * Whether an attribute of the model is stored in its translations.
+     *
+     * @param  Model  $model
+     * @param  string  $attribute
+     * @return bool
+     */
+    protected function isTranslated(Model $model, string $attribute): bool
+    {
+        return method_exists($model, 'isTranslatableAttribute') && $model->isTranslatableAttribute($attribute);
     }
 
     /**

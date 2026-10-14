@@ -9,6 +9,7 @@ use Heritage\Database\Eloquent\Collection;
 use Heritage\Database\Eloquent\Model;
 use Heritage\Database\Eloquent\ModelNotFoundException;
 use Heritage\Parcels\Parcel;
+use Heritage\Parcels\QueryParcel;
 
 /**
  * Interface ModelRepositoryInterface
@@ -41,6 +42,15 @@ interface ModelRepositoryInterface extends RepositoryInterface
      * @return LengthAwarePaginator
      */
     public function paginate(int $perPage = 15, array $columns = ['*'], string $pageName = 'page', ?int $page = null): LengthAwarePaginator;
+
+    /**
+     * Run a listing: the parcel's filters, search and sort; one page when it sets per_page,
+     * every record otherwise.
+     *
+     * @param  QueryParcel  $parcel  The listing criteria.
+     * @return Collection<int, TModel>|LengthAwarePaginator
+     */
+    public function browse(QueryParcel $parcel): Collection|LengthAwarePaginator;
 
     /**
      * Find a record by its primary key.

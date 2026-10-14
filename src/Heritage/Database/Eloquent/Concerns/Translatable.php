@@ -670,6 +670,23 @@ trait Translatable
     }
 
     /**
+     * Scope to order records by a translated column in a locale (default: the current one);
+     * records without that translation sort as null.
+     */
+    public function scopeOrderByTranslation(Builder $query, string $column, string $direction = 'asc', ?string $locale = null): Builder
+    {
+        $translation = $this->newTranslation();
+
+        $value = $translation->newQuery()
+            ->select($translation->qualifyColumn($column))
+            ->whereColumn($translation->qualifyColumn($this->getTranslationForeignKey()), $this->getQualifiedKeyName())
+            ->where($translation->qualifyColumn($this->getTranslationLocaleColumn()), $this->toLocaleStorage($locale ?? static::localeResolver()->current()))
+            ->limit(1);
+
+        return $query->orderBy($value, $direction);
+    }
+
+    /**
      * Scope to eager-load translations: the current and fallback locales, or every locale
      * when another locale is requested.
      */
