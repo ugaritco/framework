@@ -4,25 +4,27 @@ declare(strict_types=1);
 
 namespace {{ namespace }};
 
-use Heritage\Features\Feature;
-use Heritage\Outcomes\Outcome;
-use Heritage\Parcels\Parcel;
+{{ imports }}
 
 /**
  * Feature: {{ class }}
  *
- * Encapsulates the workflow and orchestration logic for this feature.
+ * Orchestrates several capabilities as one flow: named steps running in order inside one
+ * transaction. A failed required step rolls every write back.
  */
 class {{ class }} extends Feature
 {
     /**
-     * Execute the feature orchestration workflow.
+     * Execute the feature workflow.
      *
-     * @param  ?Parcel  $data
+     * @param  {{ parcel }}  $data
      * @return Outcome
      */
-    public function handle(?Parcel $data): Outcome
+    protected function perform({{ parcel }} $data): Outcome
     {
-        //
+        return $this->flow({{ flow }})
+            // ->step('branch', SaveBranchCapability::class, SaveBranchParcel::fromParcel($data))
+            // ->step('notify', NotifyCapability::class, fn (FlowState $state) => ..., optional: true)
+            ->finish(fn (FlowState $state) => {{ success }});
     }
 }
