@@ -1,5 +1,109 @@
 # Release Notes for 1.x
 
+## [Unreleased]
+
+### Translations contract
+
+* feat(translation): add `Heritage\Contracts\Translation\LocaleResolver` as the single source of truth for locales used by translatable models (`current`, `fallback`, `available`, `isAvailable`, `storageColumn`, `toStorage`, `fromStorage`, `label`)
+* feat(translation): add `Heritage\Translation\ConfigLocaleResolver` (locales from `config/locale.php`, translation tables store the locale code in a `locale` column) so the kernel works without the i18n artifact
+* feat(translation): add `Heritage\Translation\Locales::resolver()` resolving `config('locale.resolver')`, then an artifact-bound resolver (the i18n artifact binds its `DatabaseLocaleResolver`, storing `locale_id`), then `ConfigLocaleResolver`
+* refactor(eloquent): rewrite `Concerns\Translatable` on top of the resolver; every public method speaks locale codes and the kernel no longer probes i18n classes by name nor hardcodes `'ar'`
+* feat(eloquent): `Model::fill()` / `create()` / `update()` accept the canonical payload `translations => [code => [attr => value]]`; add `fillTranslations()`, which **merges** the payload (omitted locales are kept, so partial updates are safe); a locale sent as `null` is deleted on save; within a locale holding a value, an empty value clears its attribute, while an all-empty locale is skipped; add `forgetTranslation($locale)`
+* feat(eloquent): add `translationsToArray()` returning stored translations keyed by locale code, the same shape forms submit, for API resources
+* feat(eloquent): reading a translatable attribute resolves the current locale, then the fallback locale, then the `$translatableFallback` column
+* perf(eloquent): eager-load the current and fallback translations (`localizedTranslations` global scope, disable with `$eagerLoadTranslations = false`) so listings read translated attributes in two queries; single-record queries (`find()`, `first()`) skip the eager load and load lazily only when an attribute is read
+* perf(translation): `Locales::resolver()` caches the resolver per application container (`Locales::flush()` to reset)
+* refactor(eloquent): replace the `eval()`-generated translation classes with a single `Heritage\Database\Eloquent\RuntimeTranslation` configured per model
+* refactor(translation)!: remove `Heritage\Helpers\LocaleHelper`; locale lookups go through the resolver, and the locale table comes from `LocaleResolver::storageTable()`
+* feat(translation): add the `translations:convert-locale-storage` command and `Heritage\Translation\LocaleStorageConverter` to convert translation tables between `locale` and `locale_id` storage (`--to`, `--table`, `--database`, `--dry-run`, `--force`)
+* fix(eloquent): `scopeWithTranslation($locale)` compared `locale_id` with a locale code; it now eager-loads the right relation
+* fix(eloquent): soft deleting a translatable model no longer hard-deletes its translations (only `forceDelete()` does)
+* fix(eloquent): pending translations are saved once, from `Model::finishSave()`, including quiet saves (`saveQuietly()`, `withoutEvents()`)
+* feat(eloquent): `ModelTranslation` keeps its own timestamps when the table has them and touches the parent's `updated_at` (`$touches = ['parent']`, skipped for parents without timestamps); a translation-only change on the parent touches it once
+* feat(eloquent): `ModelTranslation::getLocaleColumn()` (resolver column unless `$localeColumn` is set), `getLocaleCode()`; `locale()` uses `config('i18n.models.locale')` instead of probing artifact classes; cache the parent's translatable attributes in `getFillable()`
+* feat(schema): `Schema::createTranslatable()` takes the locale column from the resolver (`locale_id` + FK with i18n, `string('locale', 10)` otherwise), always gives the translation table its own timestamps (`['timestamps' => false]` to disable), accepts a `translation` closure option, and makes a `unique()` translatable column unique per locale (`unique(locale, column)`)
+* feat(factories): translatable factories seed the locales returned by the resolver instead of reading `config('locale.available_locales')` directly
+* feat(validation): `FormRequest` translatable fields must be declared in `$translatable` (no implicit `name` / `description` / `title`); flat input is moved into `translations[current]` and `validated()` exposes translatable fields only under `translations`
+* feat(validation): add `$requiredLocales` (`'any'` default, `'default'`, `'all'` or a list such as `['ar']`) to choose which locales a required translatable field needs; other locales stay optional
+* feat(validation): a locale sent as `null` / empty passes through `validated()` as `null`, so the model deletes it
+* feat(validation): add `Heritage\Validation\Rules\UniqueTranslation`, validating a translated value as unique within its locale (locale read from `translations.{locale}.{field}` or given; `ignore:` the record's own translations)
+* feat(repositories): add `Heritage\Repositories\TranslationRepository` and `TranslationRepositoryInterface` for translation models, addressed by locale code: `save()` upserts on (parent, locale), `findForLocale()`, `destroyForLocale()`
+* fix(parcels): `Parcel::fromModel()` fills `translations` with `translationsToArray()` (keyed by locale code, the shape `save()` accepts) instead of a list of rows
+* feat(eloquent): `ModelTranslation` exposes a `locale_code` attribute
+* fix(validation): detect the `required` rule by its exact name when expanding translatable rules (`required_if` / `required_with` no longer make `translations` required)
+* feat(validation): reject `translations` keys for locales the resolver does not accept (`validation.translation_locales`)
+* feat(validation): name fields in error messages from `{artifact}::{entity}.attributes.{field}.label` (and `.confirmation.label`), with the locale's label for `translations.*` keys; override with `attributes()` or `$attributeLangPrefix`
+
+### Naming: "translatable" declares, "translation(s)" is the data
+
+* refactor(schema)!: keep only `->translatable()` / `isTranslatable()`; remove `->translation()`, `->translate()`, `->translated()` and `isTranslation()`
+* refactor(schema)!: keep only `$table->translatable(Closure)`; remove `$table->translation(Closure)`
+* refactor(schema)!: `createTranslatable(string $table, Closure $callback, array $options = [])` is the only signature; the positional `translationCallback` / table / `foreignKey` / `localeColumn` arguments are removed and unknown option keys throw `InvalidArgumentException`
+* refactor(schema)!: keep only `createTranslatable()`, `dropTranslatable()` and `dropIfExistsTranslatable()`; remove `createWithTranslation()`, `createWithTranslations()`, `dropWithTranslation()` and `dropIfExistsWithTranslation()`
+* refactor(eloquent)!: rename `translationModel()` to `newTranslation()`
+* refactor(validation)!: remove the `$translatableFields` request property; use `$translatable`
+* refactor(console)!: use a single `-t|--translatable` option on `make:model`, `make:migration` and `make:request`; remove `--translation` and `--trans`
+* fix(console): the translatable `model.stub` imported the removed `Ugarit\Artifacts\I18n\Traits\Translatable`; generated models now rely on the translation support built into `Model`
+* docs: update `eloquent-translations`, `migrations`, `validation`, `localization`, `eloquent-factories` and `artifacts`
+
+### Capabilities
+
+* refactor(capabilities)!: `Capability::handle()` is final; a capability implements `perform()` and `failed(Throwable $e): Outcome`
+* feat(capabilities): the type of `perform()`'s parameter declares the accepted Parcel (nullable to also accept no input, no parameter to accept no input only); `handle()` throws `InvalidArgumentException` for any other input
+* feat(capabilities): `handle()` reports any `Throwable` from `perform()` and returns `failed()`; exceptions in `$propagate` (HTTP, authorization, validation, model not found) are rethrown
+* refactor(console): `capability.stub` generates `perform()` and `failed()`
+* refactor(capabilities)!: capabilities receive their repositories by constructor injection (`__construct(protected BranchRepositoryInterface $branches)`); remove `Capability::$repository`, `$factory`, `setRepository()`, `getRepository()` and the base constructor. An unbound repository contract is resolved by the container by convention
+* refactor(repositories)!: repositories take Parcels and return models: `all()` returns an Eloquent `Collection`, `paginate()` a `LengthAwarePaginator` of models, `find()` `?Model`, `save()` the fresh `Model`; add `findOrFail()` and a protected `query()` hook; remove `mapToParcel()`
+* refactor(repositories)!: `TranslationRepository::save()` / `findForLocale()` return the `ModelTranslation`; `TranslationRepositoryInterface` extends `ModelRepositoryInterface`
+* fix(repositories): `destroy()` accepts a `Model` too, returns false only when the key matches no record, and no longer swallows database errors (they reach the capability, which reports them)
+* fix(parcels): a Parcel records the constructor keys it was built from (`fromArray()`, `fromModel()`, `fromParcel()`); `toAttributes()` returns them, so a key given as `null` clears its column while an omitted key is left untouched. Repositories persist `toAttributes()`; `shouldFilterNulls()` only applies to a Parcel instantiated directly
+* fix(parcels): `toArray()` no longer includes the attached `model`
+* feat(enums): add `Heritage\Enums\Concerns\ResolvesResultFeedback`, implementing `ResultContract` from the case names and a `FEEDBACK` constant (`responses.{FEEDBACK}` for SUCCESS, `{FEEDBACK}_x` for SUCCESS_X, `failed_{FEEDBACK}` for FAILED, `failed_x` for FAILED_X; success 200 / SUCCESS variant, failure 400 / ERROR). Override `feedbackKey()`, `feedbackContext()`, `variant()` or `statusCode()` for some cases and fall back to the `conventional*()` methods
+* feat(capabilities): add `Heritage\Capabilities\CapabilityException` for expected domain failures: not reported, its displayable `errors()` are merged into the `failed()` outcome. Other exceptions never reach the outcome
+* feat(outcomes): add `Outcome::withErrors()`; `withContext()` / `withMergedContext()` copy the outcome instead of calling the constructor, so subclasses with their own constructor are supported
+* feat(responders): `RedirectBackResponder` flashes the outcome's `errors` with the `form` message
+* refactor(routing)!: `Controller::run()` resolves the Capability or Feature from the container through `action()`; remove `CapabilityFactory`, `FeatureFactory`, `capability()`, `feature()` and the `get/setCapabilityFactory()` / `get/setFeatureFactory()` accessors
+* feat(console): `make:capability` accepts `--parcel`, `--nullable`, `--repository`, `--result` and `--outcome`, generating the typed `perform()`, the injected repository and the success/failure outcomes; companion classes are resolved relative to their conventional folder or fully-qualified
+* fix(console): `feature.stub` declares `handle(Parcel|ParcelContract|null $data)` (the generated feature was a fatal error), checks its Parcel and runs a transaction; `make:feature` accepts `--parcel`, `--result` and `--outcome`
+* feat(console): add `make:result`, generating a Result enum with `ResolvesResultFeedback` and a `FEEDBACK` key (`--feedback`, or guessed from the action verb)
+* docs: add the Capabilities & Features page (roles, Capability shape, failures, repositories, feedback convention, Features and transactions, scaffolding)
+* refactor(outcomes)!: `Outcome::fromResult()` no longer stores the title, message, variant and status code; they are read from the Result when requested, with the current context, so `withMergedContext()` re-renders the message. Explicit constructor values still override them
+* feat(outcomes): an Outcome subclass may override `defaultContext()` (placeholders shared by an artifact, overridden by the given context) and `actions()` (derived from the result and data); add `subject()` (the data, unwrapped from a Resource) and `withData()`
+* refactor(outcomes)!: the Outcome `data` is `mixed`: capabilities return models, collections or paginators instead of Resources
+* feat(routing): `Controller::execute()` / `respond()` accept `resource:`, presenting the outcome's data with a Resource (`make()` for a model, `collection()` for a collection, paginator or array) through the new `present()`
+* fix(responders): the response carries the resolved `title`, `message`, `variant` and `statusCode` instead of the raw constructor values; arrays of Resources/Arrayables are resolved
+* refactor(console): `make:capability` / `make:feature` with `--outcome` generate `{Outcome}::fromResult(...)`
+* feat(routing): add `Controller::page()`, `back()`, `toRoute()` and `json()` shortcuts over `execute()`
+* feat(responders): add `ResponderType::AUTO`, resolved by the controller per request (`resolveResponderType()`): JSON when the client expects JSON and is not an Inertia visit, otherwise the Inertia page, the route redirect or a redirect back. The shortcuts (except `json()`) use it
+* fix(routing): a failed outcome bound for an Inertia page or a route redirect no longer renders the page or follows the route as if it succeeded; `respondToFailure()` redirects back with its feedback, or aborts 404 for a 404 outcome
+* fix(routing)!: an Inertia response without a component, or a route redirect without a route name, throws `InvalidArgumentException` instead of defaulting to `Dashboard/Index` / an empty route (also when calling `InertiaResponder` / `RedirectToRouteResponder` directly)
+* fix(responders): `JsonResponder` imports `InvalidArgumentException` (a missing outcome raised "class not found")
+* refactor(responders): `ResponderFactory` resolves responders from the container and accepts `extend(ResponderType, class)`; the controller resolves the factory from the container
+* feat(responders): add `ResponderType::VIEW` and `ViewResponder`, rendering a Blade view with `$data` (the model, or the resolved Resource), `$outcome` and the extra variables, the toast in `session('toast')` and the outcome's status code; a missing view throws
+* feat(routing): `page()` renders an Inertia component or a Blade view, chosen by the controller's `$pages` property or the new `view.pages` config (`inertia` | `blade`, env `VIEW_PAGES`); a failed outcome bound for a view redirects back
+* feat(features): `Feature::flow()`: a workflow of named steps running capabilities (or features) in order inside one transaction: `step()`, `each()` (a `Call` per item, with its own record), `onFailure()`, `finish()`; options `optional` (savepoint, the flow continues), `needs` (earlier steps that must have succeeded), `when`, `failWith`, `errorKey` (`{key}` for items) and `context`; `withoutTransaction()`, `connection()`
+* feat(features): `FlowState` separates the named results of succeeded steps (`result()` throws for any other step, `resultOr()`) from the step records (`StepStatus`: PENDING, SUCCEEDED, FAILED, SKIPPED; `SkipReason`: CONDITION_NOT_MET, DEPENDENCY_FAILED, DEPENDENCY_SKIPPED) and the flow status (`FlowStatus`); a trace with `toArray()` and test assertions (`assertSucceeded()`, `assertFailed()`, `assertSkipped()`, `assertPending()`, `assertCompleted()`, `assertHalted()`)
+* feat(outcomes): an Outcome returned by a flow carries its state, `$outcome->flow()` (`withFlow()`), never serialized; `copyWith()` may set a property that was not initialized
+* feat(features): `flow(BranchOutcome::class, Result::FAILED)`: a halted flow without `onFailure()` returns the given Outcome built from the failure's result with its errors; the second argument is the failure result of steps without their own `failWith` (and of callback exceptions, which then return the failure outcome instead of being rethrown)
+* feat(features)!: a Feature implements `perform()` instead of `handle()`, as a capability does; the final `handle()` runs it
+* feat(features)!: a Feature no longer has `transaction()` (`HasTransaction`): its flow is its only transaction and failure handling
+* feat(capabilities)!: PHP enforces the Parcel type of `perform()`: a Parcel it does not accept throws PHP's `TypeError`, rethrown as it is by `handle()` and by a flow, as is the `Error` of a class without `perform()` (`Capability::isMisuse()`), instead of a reflection-based `InvalidArgumentException`; a Parcel given to a `perform()` without a parameter is ignored
+* feat(parcels): `fromParcel()` attaches the source Parcel's model to the new Parcel
+* feat(parcels): add `Heritage\Parcels\QueryParcel` for listings: common `search`, `sort` (`-column` descending), `page`, `per_page` fields, filters as typed constructor parameters, `searchable()` / `sortable()` whitelists and `maxPerPage()`; `fromQuery()` validates the query string (`ValidationException`) and casts filters to their declared types
+* feat(repositories): add `browse(QueryParcel)` to `ModelRepository` and `ModelRepositoryInterface`; applies filters (overridable per filter with `filter{Name}()` on the repository), searches and sorts, including translated attributes in the current locale, and paginates when `per_page` is set
+* feat(eloquent): add the `orderByTranslation($column, $direction, $locale)` scope to `Translatable`
+* feat(authorization): add the `Heritage\Capabilities\Attributes\Authorize` attribute; a Capability or Feature declares the ability it requires (`#[Authorize('update', Branch::class)]`), and `Controller::run()` checks it with the policy before `handle()` (`AuthorizationException`, 403), against the Parcel's attached model or the model class. Flow steps and direct `handle()` calls are not checked. When the policy method requires a model instance and the Parcel carries none, a `LogicException` names the action and the model instead of falling back to a class-level check
+* feat(auth): policy discovery also finds a policy in a folder named after the model (`Policies\Branch\BranchPolicy`)
+* feat(authorization): add the `Heritage\Foundation\Http\Attributes\ForAction` attribute; a FormRequest naming its Capability or Feature checks that action's `#[Authorize]` ability before validation (against the route model), and the controller does not check it again. The request's own `authorize()` still runs after it. `make:request --action=` generates the attribute, and the request stubs no longer generate an `authorize()` returning `true`
+* feat(generators): `make:capability` and `make:feature` accept `--authorize=ability` and `--model=Model` (relative to `Models/`) to generate the `#[Authorize]` attribute
+* feat(generators): `make:feature` generates a Feature with `perform()` and `flow(Outcome::class, Result::FAILED)` instead of a manual parcel check and transaction
+* feat(schema): `->withTranslations()` column modifier: in `createTranslatable()` the column stays on the main table and is added to the translation table too (without its indexes or position); `ColumnDefinition::isWithTranslations()`
+* feat(schema): `softDeletes()`, `softDeletesTz()` and `softDeletesDatetime()` mark their column (`ColumnDefinition::isSoftDeletes()`); `$table->softDeletes()->withTranslations()` soft deletes translation rows
+* feat(schema): with soft deleted translations, a `unique()` translatable column gets a partial unique index (`where deleted_at is null`) on PostgreSQL, SQLite and SQL Server, and a plain one on MySQL / MariaDB; `[parent, locale]` stays unique; `Schema::supportsPartialIndexes()`
+* feat(translations): soft deleted translations: a locale set again (`fillTranslations()`, `setTranslation()`, `TranslationRepository::save()`) restores its trashed row instead of inserting one; `forceDelete()` on the parent removes trashed translations too; `Translatable::translationUsesSoftDeletes()`
+* feat(validation): `UniqueTranslation` ignores soft deleted translations only where the unique index does (partial indexes), and counts them on MySQL / MariaDB
+* feat(translations): scoped route bindings resolve a translation parameter (`translation`, `{model}_translation` or the translation class name) of a translatable model through `translations()`, so `->scoped([...])` nested translation routes return 404 for another parent's translation without a check in the controller
+
 ## [v1.02.01] - 2026-10-11
 
 * refactor(ada): completely purge legacy Service, UseCase, and DTO concepts across the framework and ecosystem
