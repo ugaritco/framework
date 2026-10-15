@@ -167,7 +167,7 @@ class VueStack implements Stack
                 continue;
             }
 
-            if ($blueprint->isTranslatable() && in_array($operation, ['create', 'edit'], true)) {
+            if ($blueprint->isTranslatable() && in_array($operation, ['create', 'edit'], true) && ! str_ends_with($partial, 'Dialog.vue')) {
                 array_push($files, ...$this->translatableFormFiles($blueprint, "{$pages}/partials", $partial));
 
                 continue;
@@ -367,11 +367,11 @@ class VueStack implements Stack
     }
 
     /**
-     * The files of a create or update partial of a translatable model, as the Branch pages are
+     * The files of a create or update form of a translatable model, as the Branch pages are
      * written: the form of its own fields (posting to the capability route) in `store/` or
-     * `update/`, the feature form with a section per locale (posting to the `{model}-feature`
-     * route) in `store/feature/` or `update/feature/`, and a dialog showing the feature form
-     * unless `asFeature` is false.
+     * `update/`, which its dialog shows, and the feature form with a section per locale
+     * (posting to the `{model}-feature` route) in `store/feature/` or `update/feature/`,
+     * which the create and edit pages show.
      *
      * @param  Blueprint  $blueprint
      * @param  string  $partials  The partials directory of the model's pages.
@@ -384,10 +384,6 @@ class VueStack implements Stack
         $alias = "@module/{$blueprint->artifact}/pages/".Str::kebab($blueprint->model)."/partials/{$folder}";
         $plain = $blueprint->plain();
         $formKey = $folder === 'store' ? '[[ storeForm ]]' : '[[ updateForm ]]';
-
-        if ($file === 'Dialog.vue') {
-            return [['path' => "{$partials}/{$partial}", 'stub' => "vue/pages/partials/{$folder}/Dialog.translatable.vue"]];
-        }
 
         $own = [
             '[[ formFields ]]' => $this->formFields($blueprint, $plain, $blueprint->lang()),
@@ -511,11 +507,11 @@ class VueStack implements Stack
             'index' => ['The '.Str::lower(Str::headline(Str::pluralStudly($blueprint->model))).' table', ['Read' => 'index/Index']],
             'show' => ['Quick view dialog', ['ShowDialog' => 'show/Dialog']],
             'create' => $feature
-                ? ['Create forms (its own fields, and the feature form with its translations), and the dialog opening them', ['Store' => 'store/Store', 'StoreFeature' => 'store/feature/Store', 'StoreDialog' => 'store/Dialog']]
+                ? ['Create forms (its own fields, which the dialog opens, and the feature form with its translations, which the create page shows)', ['Store' => 'store/Store', 'StoreFeature' => 'store/feature/Store', 'StoreDialog' => 'store/Dialog']]
                 : ['Create form, and the dialog opening it', ['Store' => 'store/Store', 'StoreDialog' => 'store/Dialog']],
             'summary' => ["Summary of a {$label}", ['Summary' => 'summary/Summary']],
             'edit' => $feature
-                ? ['Update forms (its own fields, and the feature form with its translations), and the dialog opening them', ['Update' => 'update/Update', 'UpdateFeature' => 'update/feature/Update', 'UpdateDialog' => 'update/Dialog']]
+                ? ['Update forms (its own fields, which the dialog opens, and the feature form with its translations, which the edit page shows)', ['Update' => 'update/Update', 'UpdateFeature' => 'update/feature/Update', 'UpdateDialog' => 'update/Dialog']]
                 : ['Update form, and the dialog opening it', ['Update' => 'update/Update', 'UpdateDialog' => 'update/Dialog']],
         ];
         $blocks = [];
