@@ -28,11 +28,17 @@ use function Ugarit\Prompts\text;
  *   └── src/
  *       ├── Providers/{Name}ServiceProvider.php
  *       ├── Models/
- *       ├── Http/Controllers/
+ *       ├── Contracts/Repositories/            — Repository contracts, bound by convention
+ *       ├── Repositories/
  *       ├── Policies/
+ *       ├── Enums/                             — Results of the capabilities and features
  *       ├── Parcels/
+ *       ├── Outcomes/
  *       ├── Capabilities/
  *       ├── Features/
+ *       ├── Http/Controllers/
+ *       ├── Http/Requests/
+ *       ├── Http/Resources/
  *       └── Rules/
  */
 #[AsCommand(name: 'make:artifact')]
@@ -143,11 +149,17 @@ class ArtifactMakeCommand extends Command
      */
     protected array $srcDirectories = [
         'Models',
-        'Http/Controllers',
+        'Contracts/Repositories',
+        'Repositories',
         'Policies',
+        'Enums',
         'Parcels',
+        'Outcomes',
         'Capabilities',
         'Features',
+        'Http/Controllers',
+        'Http/Requests',
+        'Http/Resources',
         'Rules',
     ];
 
@@ -464,7 +476,7 @@ class ArtifactMakeCommand extends Command
         if (! $isMinimal) {
             $this->newLine();
             $this->components->twoColumnDetail('<fg=yellow>Directories created</>', '');
-            foreach (['Models', 'Http/Controllers', 'Policies', 'DTOs', 'Services', 'UseCases', 'Features', 'Rules'] as $dir) {
+            foreach ($this->srcDirectories as $dir) {
                 $this->components->twoColumnDetail(
                     "  <fg=gray>src/{$dir}</>",
                     "artifacts/{$name}/src/{$dir}"
