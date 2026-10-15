@@ -21,7 +21,8 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useFormHandlers } from '@/composables/useFormHandlers';
-import { create, store } from '@/routes/[[ model ]]';[[ slugImports ]]
+import { create } from '@/routes/[[ model ]]';
+import { store } from '@/routes/[[ model ]]-feature';[[ slugImports ]]
 import { Form, usePage } from '@inertiajs/vue3';
 import {
     create[[ Model ]]InitialValues,

@@ -21,7 +21,8 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useFormHandlers } from '@/composables/useFormHandlers';
-import { edit, update } from '@/routes/[[ model ]]';
+import { edit } from '@/routes/[[ model ]]';
+import { update } from '@/routes/[[ model ]]-feature';
 import { Form, usePage } from '@inertiajs/vue3';
 import {
     empty[[ Model ]]Translation,

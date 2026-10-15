@@ -249,7 +249,8 @@ class Blueprint
     }
 
     /**
-     * The rules of the model's store request, as field => rule string.
+     * The rules of the model's store request, as field => rule string: its features' request
+     * (columns and translated attributes) when it has one, else its capabilities'.
      *
      * @param  Filesystem  $files
      * @param  string  $base
@@ -259,7 +260,11 @@ class Blueprint
      */
     protected static function rules(Filesystem $files, string $base, string $artifact, string $model): array
     {
-        $path = "{$base}/artifacts/{$artifact}/src/Http/Requests/{$model}/Capabilities/Store{$model}Request.php";
+        $path = "{$base}/artifacts/{$artifact}/src/Http/Requests/{$model}/Features/Store{$model}Request.php";
+
+        if (! $files->exists($path)) {
+            $path = "{$base}/artifacts/{$artifact}/src/Http/Requests/{$model}/Capabilities/Store{$model}Request.php";
+        }
 
         if (! $files->exists($path)) {
             return [];
