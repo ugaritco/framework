@@ -6,6 +6,7 @@ namespace Heritage\Foundation\Console;
 
 use Heritage\Console\GeneratorCommand;
 use Heritage\Foundation\Console\Concerns\InspectsModel;
+use Heritage\Foundation\Console\Ui\Blueprint;
 use Heritage\Support\Str;
 use InvalidArgumentException;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -164,6 +165,10 @@ class RequestMakeCommand extends GeneratorCommand
      */
     protected function getStub()
     {
+        if ($this->confirmsDestroy()) {
+            return $this->resolveStubPath('/stubs/request.destroy.stub');
+        }
+
         if ($this->isTranslatable()) {
             return $this->resolveStubPath('/stubs/request.translatable.stub');
         }
@@ -286,6 +291,10 @@ class RequestMakeCommand extends GeneratorCommand
      */
     protected function buildClass($name)
     {
+        if ($this->confirmsDestroy()) {
+            return $this->buildDestroyClass($name);
+        }
+
         $classContent = $this->replaceForAction(parent::buildClass($name));
         $columnRules = $this->operationRules();
 
@@ -336,8 +345,77 @@ class RequestMakeCommand extends GeneratorCommand
     }
 
     /**
+     * Whether the request validates the deletion of an existing --model, which must then be
+     * confirmed by typing one of its fields.
+     *
+     * @return bool
+     */
+    protected function confirmsDestroy(): bool
+    {
+        return $this->option('operation') === 'destroy' && $this->modelInstance($this->modelClass()) !== null;
+    }
+
+    /**
+     * Build the destroy request of the --model: the typed `confirmation` must match the
+     * confirmation field of the record bound to the route.
+     *
+     * @param  string  $name  The fully-qualified request name.
+     * @return string The generated source.
+     */
+    protected function buildDestroyClass(string $name): string
+    {
+        $model = $this->modelClass();
+        $basename = class_basename($model);
+        $confirm = $this->confirmField();
+
+        $classContent = $this->replaceForAction(parent::buildClass($name), [$model, 'Heritage\Validation\Rule']);
+
+        return str_replace(
+            ['{{ model }}', '{{ variable }}', '{{ parameter }}', '{{ confirm }}', '{{ confirmLabel }}', '{{ label }}'],
+            [$basename, Str::camel($basename), Str::snake($basename), $confirm, str_replace('_', ' ', $confirm), Str::snake($basename, ' ')],
+            $classContent
+        );
+    }
+
+    /**
+     * The field typed to confirm the deletion of the --model, chosen as the generated delete
+     * page chooses it (Blueprint::confirmField()): the slug, else the label field when it is
+     * required and not translated, else the id.
+     *
+     * @return string
+     */
+    protected function confirmField(): string
+    {
+        $model = $this->modelClass();
+        $instance = $this->modelInstance($model);
+        $translatable = $this->modelTranslatable($model);
+        $columns = $this->tableColumns($instance?->getTable());
+        $types = $this->modelColumns($model);
+        $fields = [];
+
+        foreach ([...array_keys($types), ...$translatable] as $field) {
+            $column = $columns[$field] ?? null;
+            $string = $column === null
+                ? ! str_ends_with($field, '_id') && ($types[$field] ?? 'string') === 'string'
+                : in_array(strtolower($column['type_name']), ['varchar', 'char', 'character varying', 'nvarchar', 'string'], true);
+
+            $fields[$field] = [
+                'name' => $field,
+                'kind' => $string ? 'string' : 'other',
+                'rule' => '',
+                'required' => ! ($column['nullable'] ?? false),
+                'nullable' => (bool) ($column['nullable'] ?? false),
+                'translatable' => in_array($field, $translatable, true),
+                'related' => null,
+            ];
+        }
+
+        return (new Blueprint((string) $this->option('artifact'), class_basename($model), $fields))->confirmField();
+    }
+
+    /**
      * The rules of --operation: the --model columns, typed by their casts, for store and
-     * update; the `force` flag for destroy.
+     * update; the `force` flag for a destroy request without a model.
      *
      * @return array<int, string> Rule lines of the rules() array.
      *
@@ -461,11 +539,12 @@ class RequestMakeCommand extends GeneratorCommand
      * Fill the imports and the #[ForAction] attribute naming the action given by --action.
      *
      * @param  string  $stub
+     * @param  array<int, string>  $imports  Further classes to import.
      * @return string
      */
-    protected function replaceForAction(string $stub): string
+    protected function replaceForAction(string $stub, array $imports = []): string
     {
-        $imports = ['Heritage\Foundation\Http\FormRequest'];
+        $imports = ['Heritage\Foundation\Http\FormRequest', ...$imports];
         $attribute = '';
 
         if ($action = $this->option('action')) {

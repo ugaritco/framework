@@ -1,0 +1,30 @@
+<?php
+
+namespace {{ namespace }};
+
+{{ imports }}
+/**
+ * Validates the deletion of a {{ label }}, confirmed by typing its {{ confirmLabel }}.
+ */
+{{ forAction }}class {{ class }} extends FormRequest
+{
+    /**
+     * Validation rules applied to the incoming payload: the typed confirmation must be the
+     * {{ confirmLabel }} of the {{ label }} being deleted, and `force` deletes it permanently.
+     *
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        ${{ variable }} = $this->route('{{ parameter }}');
+
+        return [
+            'confirmation' => [
+                'required',
+                'string',
+                Rule::in(${{ variable }} instanceof {{ model }} ? [(string) ${{ variable }}->{{ confirm }}] : []),
+            ],
+            'force' => 'sometimes|boolean',
+        ];
+    }
+}
