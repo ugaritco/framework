@@ -34,6 +34,7 @@ namespace Heritage\Support\Facades;
  * @method static void table(string $table, \Closure $callback)
  * @method static void create(string $table, \Closure $callback)
  * @method static void createTranslatable(string $table, \Closure $callback, array $options = [])
+ * @method static void tableTranslatable(string $table, \Closure $callback, array $options = [])
  * @method static void drop(string $table)
  * @method static void dropIfExists(string $table)
  * @method static void dropTranslatable(string $table, ?string $translationTable = null)

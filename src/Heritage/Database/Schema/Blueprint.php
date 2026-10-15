@@ -2079,6 +2079,19 @@ class Blueprint
 
         return $this;
     }
+
+    /**
+     * Set the commands on the blueprint.
+     *
+     * @param  \Heritage\Support\Fluent[]  $commands
+     * @return $this
+     */
+    public function setCommands(array $commands)
+    {
+        $this->commands = $commands;
+
+        return $this;
+    }
 }
 
 

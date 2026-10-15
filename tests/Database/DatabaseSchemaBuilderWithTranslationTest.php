@@ -173,4 +173,82 @@ class DatabaseSchemaBuilderWithTranslationTest extends TestCase
 
         Schema::dropIfExistsTranslatable('tags');
     }
+
+    /**
+     * tableTranslatable() routes translated columns to the translation table and plain ones to the main table,
+     * then sends drops of translated columns back to the translation table along with their per-locale unique.
+     */
+    public function testTableTranslatableAddsAndDropsColumns()
+    {
+        Schema::createTranslatable('genres', function (Blueprint $table) {
+            $table->id();
+            $table->string('name')->translatable();
+        }, ['locale_column' => 'locale']);
+
+        Schema::tableTranslatable('genres', function (Blueprint $table) {
+            $table->string('color')->nullable();
+            $table->string('subtitle')->nullable()->translatable();
+            $table->string('alias')->nullable()->unique()->translatable();
+        });
+
+        $this->assertContains('color', Schema::getColumnListing('genres'));
+        $this->assertNotContains('subtitle', Schema::getColumnListing('genres'));
+        $this->assertNotContains('alias', Schema::getColumnListing('genres'));
+        $this->assertContains('subtitle', Schema::getColumnListing('genre_translations'));
+        $this->assertContains('alias', Schema::getColumnListing('genre_translations'));
+        $this->assertNotContains('color', Schema::getColumnListing('genre_translations'));
+
+        $connection = $this->db->getConnection();
+        $first = $connection->table('genres')->insertGetId([]);
+        $second = $connection->table('genres')->insertGetId([]);
+        $connection->table('genre_translations')->insert(['genre_id' => $first, 'locale' => 'en', 'name' => 'A', 'alias' => 'same']);
+        $connection->table('genre_translations')->insert(['genre_id' => $first, 'locale' => 'ar', 'name' => 'B', 'alias' => 'same']);
+
+        try {
+            $connection->table('genre_translations')->insert(['genre_id' => $second, 'locale' => 'en', 'name' => 'C', 'alias' => 'same']);
+            $this->fail('A duplicate alias in one locale must be rejected.');
+        } catch (\Heritage\Database\QueryException) {
+            $this->addToAssertionCount(1);
+        }
+
+        Schema::tableTranslatable('genres', function (Blueprint $table) {
+            $table->dropColumn(['subtitle', 'alias', 'color']);
+        });
+
+        $this->assertNotContains('color', Schema::getColumnListing('genres'));
+        $this->assertNotContains('subtitle', Schema::getColumnListing('genre_translations'));
+        $this->assertNotContains('alias', Schema::getColumnListing('genre_translations'));
+        $this->assertContains('name', Schema::getColumnListing('genre_translations'));
+
+        Schema::dropIfExistsTranslatable('genres');
+    }
+
+    /**
+     * withTranslations() columns are added to both tables, and unknown options are rejected.
+     */
+    public function testTableTranslatableSharedColumnsAndOptions()
+    {
+        Schema::createTranslatable('labels', function (Blueprint $table) {
+            $table->id();
+            $table->string('name')->translatable();
+        }, ['locale_column' => 'locale']);
+
+        Schema::tableTranslatable('labels', function (Blueprint $table) {
+            $table->softDeletes()->withTranslations();
+        });
+
+        $this->assertContains('deleted_at', Schema::getColumnListing('labels'));
+        $this->assertContains('deleted_at', Schema::getColumnListing('label_translations'));
+
+        try {
+            Schema::tableTranslatable('labels', function (Blueprint $table) {
+                $table->string('x')->nullable();
+            }, ['foreign_key' => 'label_fk']);
+            $this->fail('Unknown options must be rejected.');
+        } catch (\InvalidArgumentException) {
+            $this->addToAssertionCount(1);
+        }
+
+        Schema::dropIfExistsTranslatable('labels');
+    }
 }

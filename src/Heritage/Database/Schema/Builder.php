@@ -729,6 +729,144 @@ class Builder
     }
 
     /**
+     * Modify a translatable table and its paired translation table, as createTranslatable() creates them.
+     *
+     * A column marked translatable() is added to the translation table, unique per locale when it is
+     * unique() (ignoring trashed rows where the translation table soft deletes and the database
+     * supports partial indexes); a column marked withTranslations() is added to both tables; any
+     * other column to the main table. dropColumn() drops each column from the table holding it,
+     * with the indexes of the translation table covering it.
+     *
+     * Options:
+     *  - table:         translation table name (default "{singular}_translations")
+     *  - locale_column: defaults to the LocaleResolver's column ("locale_id" with i18n, else "locale")
+     *  - translation:   Closure customizing the translation table blueprint
+     *
+     * @param  string  $table
+     * @param  \Closure(\Heritage\Database\Schema\Blueprint): void  $callback
+     * @param  array{table?: string, locale_column?: string, translation?: \Closure(\Heritage\Database\Schema\Blueprint): void}  $options
+     * @return void
+     */
+    public function tableTranslatable($table, Closure $callback, array $options = [])
+    {
+        if ($unknown = array_diff(array_keys($options), ['table', 'locale_column', 'translation'])) {
+            throw new InvalidArgumentException('Unknown tableTranslatable() options: '.implode(', ', $unknown).'.');
+        }
+
+        [$schema, $tableName] = $this->parseSchemaAndTable($table);
+        $defaultTranslationName = Str::singular($tableName).'_translations';
+        $translationTable = $options['table'] ?? (isset($schema) ? "{$schema}.{$defaultTranslationName}" : $defaultTranslationName);
+        $localeColumn = $options['locale_column'] ?? Locales::resolver()->storageColumn();
+        $translationCallback = $options['translation'] ?? null;
+
+        $mainBlueprint = $this->createBlueprint($table);
+
+        $callback($mainBlueprint);
+
+        // Translated columns move to the translation table; shared ones are added to both
+        $translationColumns = [];
+        $sharedColumns = [];
+
+        foreach ($mainBlueprint->getColumns() as $column) {
+            if ($column instanceof ColumnDefinition && $column->isTranslatable()) {
+                $translationColumns[] = $column;
+            } elseif ($column instanceof ColumnDefinition && $column->isWithTranslations()) {
+                $sharedColumns[] = $column;
+            }
+        }
+
+        foreach ($translationColumns as $column) {
+            $mainBlueprint->removeColumn($column->name);
+        }
+
+        // Dropped columns held by the translation table are dropped from it
+        $translationDrops = [];
+        $commands = [];
+
+        foreach ($mainBlueprint->getCommands() as $command) {
+            if ($command->name === 'dropColumn') {
+                $translated = array_values(array_filter(
+                    $command->columns,
+                    fn (string $column) => $this->hasColumn($translationTable, $column)
+                ));
+                $translationDrops = [...$translationDrops, ...$translated];
+                $command->columns = array_values(array_diff($command->columns, $translated));
+
+                if ($command->columns === []) {
+                    continue;
+                }
+            }
+
+            $commands[] = $command;
+        }
+
+        $mainBlueprint->setCommands($commands);
+
+        $this->build($mainBlueprint);
+
+        if ($translationColumns === [] && $sharedColumns === [] && $translationDrops === [] && ! $translationCallback instanceof Closure) {
+            return;
+        }
+
+        $softDeletes = $this->hasColumn($translationTable, 'deleted_at');
+        $partialUniques = [];
+
+        $this->table($translationTable, function (Blueprint $translation) use (
+            $translationTable,
+            $translationColumns,
+            $sharedColumns,
+            $translationDrops,
+            $translationCallback,
+            $localeColumn,
+            $softDeletes,
+            &$partialUniques
+        ) {
+            if ($translationDrops !== []) {
+                foreach ($this->getIndexes($translationTable) as $index) {
+                    if (! $index['primary'] && array_intersect($index['columns'], $translationDrops) !== []) {
+                        $index['unique'] ? $translation->dropUnique($index['name']) : $translation->dropIndex($index['name']);
+                    }
+                }
+            }
+
+            foreach ($translationColumns as $column) {
+                $attributes = $column->getAttributes();
+                $unique = ! empty($attributes['unique']);
+
+                unset($attributes['translation'], $attributes['translatable'], $attributes['translate'], $attributes['after'], $attributes['unique']);
+
+                $translation->addColumnDefinition(new ColumnDefinition($attributes));
+
+                if ($unique && $softDeletes && $this->supportsPartialIndexes()) {
+                    $partialUniques[] = [$localeColumn, $attributes['name']];
+                } elseif ($unique) {
+                    $translation->unique([$localeColumn, $attributes['name']]);
+                }
+            }
+
+            foreach ($sharedColumns as $column) {
+                $attributes = $column->getAttributes();
+
+                unset($attributes['withTranslations'], $attributes['after'], $attributes['first'], $attributes['unique'], $attributes['index'], $attributes['primary']);
+
+                $translation->addColumnDefinition(new ColumnDefinition($attributes));
+            }
+
+            if ($translationDrops !== []) {
+                $translation->dropColumn($translationDrops);
+            }
+
+            if ($translationCallback instanceof Closure) {
+                $translationCallback($translation);
+            }
+        });
+
+        foreach ($partialUniques as $columns) {
+            $this->createPartialUnique($translationTable, $columns, 'deleted_at');
+        }
+    }
+
+    /**
      * Whether the connection supports partial (filtered) indexes; MySQL and MariaDB do not.
      *
      * @return bool
