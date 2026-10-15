@@ -1,0 +1,70 @@
+<?php
+
+namespace {{ rootNamespace }}\Http\Controllers\{{ model }}\Capabilities;
+
+use Heritage\Routing\Controller;
+use {{ translationClass }};
+use {{ rootNamespace }}\Capabilities\{{ model }}\Translation\Destroy{{ model }}TranslationCapability;
+use {{ rootNamespace }}\Capabilities\{{ model }}\Translation\Save{{ model }}TranslationCapability;
+use {{ rootNamespace }}\Http\Requests\{{ model }}\Capabilities\Translation\Destroy{{ model }}TranslationRequest;
+use {{ rootNamespace }}\Http\Requests\{{ model }}\Capabilities\Translation\Store{{ model }}TranslationRequest;
+use {{ rootNamespace }}\Http\Requests\{{ model }}\Capabilities\Translation\Update{{ model }}TranslationRequest;
+use {{ rootNamespace }}\Http\Resources\{{ model }}\Translation\{{ model }}TranslationResource;
+use {{ rootNamespace }}\Models\{{ model }};
+use {{ rootNamespace }}\Parcels\{{ model }}\Capabilities\Translation\Destroy{{ model }}TranslationParcel;
+use {{ rootNamespace }}\Parcels\{{ model }}\Capabilities\Translation\Save{{ model }}TranslationParcel;
+
+/**
+ * Handles the HTTP endpoints of the {{ model }} translations, nested under their {{ label }}.
+ */
+class {{ model }}TranslationController extends Controller
+{
+    /**
+     * Create the translation of a {{ label }} for one locale.
+     *
+     * @param  Store{{ model }}TranslationRequest  $request  Validated creation payload.
+     * @param  {{ model }}  ${{ modelVariable }}  Resolved via route-model binding.
+     * @return mixed
+     */
+    public function store(Store{{ model }}TranslationRequest $request, {{ model }} ${{ modelVariable }})
+    {
+        return $this->back(
+            Save{{ model }}TranslationCapability::class,
+            Save{{ model }}TranslationParcel::fromArray([...$request->validated(), '{{ foreignKey }}' => ${{ modelVariable }}->id]),
+            {{ model }}TranslationResource::class,
+        );
+    }
+
+    /**
+     * Update a translation of a {{ label }}.
+     *
+     * @param  Update{{ model }}TranslationRequest  $request  Validated update payload.
+     * @param  {{ model }}  ${{ modelVariable }}  Resolved via route-model binding.
+     * @param  {{ translationName }}  ${{ translationVariable }}  Resolved through the {{ label }} (404 for another {{ label }}'s).
+     * @return mixed
+     */
+    public function update(Update{{ model }}TranslationRequest $request, {{ model }} ${{ modelVariable }}, {{ translationName }} ${{ translationVariable }})
+    {
+        return $this->back(
+            Save{{ model }}TranslationCapability::class,
+            Save{{ model }}TranslationParcel::fromArray($request->validated())->setModel(${{ translationVariable }}),
+            {{ model }}TranslationResource::class,
+        );
+    }
+
+    /**
+     * Delete a translation of a {{ label }}.
+     *
+     * @param  Destroy{{ model }}TranslationRequest  $request  Validated deletion payload.
+     * @param  {{ model }}  ${{ modelVariable }}  Resolved via route-model binding.
+     * @param  {{ translationName }}  ${{ translationVariable }}  Resolved through the {{ label }} (404 for another {{ label }}'s).
+     * @return mixed
+     */
+    public function destroy(Destroy{{ model }}TranslationRequest $request, {{ model }} ${{ modelVariable }}, {{ translationName }} ${{ translationVariable }})
+    {
+        return $this->back(
+            Destroy{{ model }}TranslationCapability::class,
+            Destroy{{ model }}TranslationParcel::fromArray(['{{ foreignKey }}' => ${{ modelVariable }}->id])->setModel(${{ translationVariable }}),
+        );
+    }
+}

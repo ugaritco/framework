@@ -74,12 +74,18 @@ class CapabilitiesMakeCommand extends GeneratorCommand
             $this->components->warn("[{$modelClass}] does not exist yet; the parcels, rules and resource fields stay empty until its \$fillable does.");
         }
 
+        $translatable = $this->modelTranslatable($modelClass) !== [];
+
         $this->makeFoundations($model);
         $this->makeCapabilities($model);
         $this->makeHttp($model);
         $this->makeLang($model, $modelClass);
 
-        $routes = $this->routes($model);
+        if ($translatable) {
+            $this->makeTranslation($model, $modelClass);
+        }
+
+        $routes = $this->routes($model, $translatable);
 
         if ($this->option('routes')) {
             $this->registerRoutes($routes);
@@ -97,21 +103,34 @@ class CapabilitiesMakeCommand extends GeneratorCommand
     }
 
     /**
-     * The routes of the slice, keyed by the alias of their controller.
+     * The routes of the slice, keyed by the alias of their controller: the resource, and the
+     * translations nested under it for a translatable model.
      *
      * @param  string  $model
+     * @param  bool  $translatable
      * @return array<string, array{0: class-string, 1: string}> Alias => [controller, route].
      */
-    protected function routes(string $model): array
+    protected function routes(string $model, bool $translatable): array
     {
         $controllers = trim($this->rootNamespace(), '\\')."\\Http\\Controllers\\{$model}\\Capabilities";
-
-        return [
+        $kebab = Str::kebab($model);
+        $routes = [
             "{$model}CapabilitiesController" => [
                 "{$controllers}\\{$model}Controller",
-                "Route::resource('".Str::kebab($model)."', {$model}CapabilitiesController::class);",
+                "Route::resource('{$kebab}', {$model}CapabilitiesController::class);",
             ],
         ];
+
+        if ($translatable) {
+            $parameter = Str::snake($model);
+            $routes["{$model}TranslationCapabilitiesController"] = [
+                "{$controllers}\\{$model}TranslationController",
+                "Route::resource('{{$parameter}}/{$kebab}-translation', {$model}TranslationCapabilitiesController::class)"
+                ."->only(['store', 'update', 'destroy'])->scoped(['{$parameter}_translation' => 'id']);",
+            ];
+        }
+
+        return $routes;
     }
 
     /**
@@ -254,6 +273,233 @@ class CapabilitiesMakeCommand extends GeneratorCommand
 
         $this->generate('make:resource', ['name' => "{$model}Resource", '--model' => $model]);
         $this->generate('make:controller', ['name' => "{$model}Controller", '--capabilities' => true, '--model' => $model]);
+    }
+
+    /**
+     * Generate the translations sub-resource of a translatable model: its results, repository,
+     * parcels, capabilities (authorized by the "translate" ability), form requests, resource and
+     * controller, each translation addressed by its locale code.
+     *
+     * @param  string  $model
+     * @param  class-string  $modelClass
+     * @return void
+     */
+    protected function makeTranslation(string $model, string $modelClass): void
+    {
+        foreach (['Save' => 'translation.saved', 'Destroy' => 'translation.deleted'] as $operation => $feedback) {
+            $this->generate('make:result', [
+                'name' => "{$model}/Capabilities/Translation/{$operation}{$model}TranslationResult",
+                '--feedback' => $feedback,
+            ]);
+        }
+
+        $instance = new $modelClass;
+        $translatable = $this->modelTranslatable($modelClass);
+        $foreignKey = $instance->getTranslationForeignKey();
+        $translationClass = $instance->getTranslationModel();
+        $rules = $this->translationRules($model, $instance->getTable(), $translatable);
+        $unique = array_keys(array_filter($rules, fn (array $rule) => $rule['unique']));
+        $root = trim($this->rootNamespace(), '\\');
+        $confirm = array_values(array_intersect(['name', 'title'], $translatable))[0] ?? $translatable[0];
+
+        $replace = [
+            '{{ rootNamespace }}' => $root,
+            '{{ model }}' => $model,
+            '{{ modelVariable }}' => Str::camel($model),
+            '{{ label }}' => Str::lower(Str::headline($model)),
+            '{{ foreignKey }}' => $foreignKey,
+            '{{ routeParameter }}' => Str::snake($model),
+            '{{ translationParameter }}' => Str::snake($model).'_translation',
+            '{{ translationClass }}' => $translationClass,
+            '{{ translationName }}' => class_basename($translationClass),
+            '{{ translationVariable }}' => Str::camel($model).'Translation',
+            '{{ confirm }}' => $confirm,
+            '{{ confirmLabel }}' => str_replace('_', ' ', $confirm),
+            '{{ fieldDocs }}' => implode("\n", array_map(fn (string $field) => "     * @param  string|null  \${$field}  Translated ".str_replace('_', ' ', $field).'.', $translatable)),
+            '{{ fieldParameters }}' => implode("\n", array_map(fn (string $field) => "        public ?string \${$field} = null,", $translatable)),
+            '{{ fields }}' => implode("\n", array_map(fn (string $field) => "            '{$field}' => \$this->{$field},", $translatable)),
+        ];
+
+        $saveCapability = "{$root}\\Capabilities\\{$model}\\Translation\\Save{$model}TranslationCapability";
+        $files = [
+            'repository.interface' => ["Contracts\\Repositories\\{$model}\\{$model}TranslationRepositoryInterface", []],
+            'repository' => ["Repositories\\{$model}\\{$model}TranslationRepository", []],
+            'parcel.save' => ["Parcels\\{$model}\\Capabilities\\Translation\\Save{$model}TranslationParcel", []],
+            'parcel.destroy' => ["Parcels\\{$model}\\Capabilities\\Translation\\Destroy{$model}TranslationParcel", []],
+            'capability.save' => ["Capabilities\\{$model}\\Translation\\Save{$model}TranslationCapability", []],
+            'capability.destroy' => ["Capabilities\\{$model}\\Translation\\Destroy{$model}TranslationCapability", []],
+            'request.store' => ["Http\\Requests\\{$model}\\Capabilities\\Translation\\Store{$model}TranslationRequest", [
+                '{{ imports }}' => $this->renderUses([
+                    'Closure', 'Heritage\\Foundation\\Http\\Attributes\\ForAction', 'Heritage\\Foundation\\Http\\FormRequest',
+                    'Heritage\\Translation\\Locales', 'Heritage\\Validation\\Rule', $saveCapability, $modelClass,
+                    ...($unique !== [] ? ['Heritage\\Validation\\Rules\\UniqueTranslation'] : []),
+                ]),
+                '{{ rules }}' => $this->renderTranslationRules($model, $rules, 'store', $foreignKey),
+            ]],
+            'request.update' => ["Http\\Requests\\{$model}\\Capabilities\\Translation\\Update{$model}TranslationRequest", [
+                '{{ imports }}' => $this->renderUses([
+                    'Heritage\\Foundation\\Http\\Attributes\\ForAction', 'Heritage\\Foundation\\Http\\FormRequest', $saveCapability,
+                    ...($unique !== [] ? ['Heritage\\Database\\Eloquent\\ModelTranslation', 'Heritage\\Validation\\Rules\\UniqueTranslation', $modelClass] : []),
+                ]),
+                '{{ translation }}' => $unique !== [] ? "\$translation = \$this->route('".Str::snake($model)."_translation');\n\n        " : '',
+                '{{ rules }}' => $this->renderTranslationRules($model, $rules, 'update', $foreignKey),
+            ]],
+            'request.destroy' => ["Http\\Requests\\{$model}\\Capabilities\\Translation\\Destroy{$model}TranslationRequest", []],
+            'resource' => ["Http\\Resources\\{$model}\\Translation\\{$model}TranslationResource", []],
+            'controller' => ["Http\\Controllers\\{$model}\\Capabilities\\{$model}TranslationController", []],
+        ];
+
+        $types = [
+            'repository.interface' => 'Repository contract', 'repository' => 'Repository', 'parcel' => 'Parcel',
+            'capability' => 'Capability', 'request' => 'Request', 'resource' => 'Resource', 'controller' => 'Controller',
+        ];
+
+        foreach ($files as $stub => [$class, $extra]) {
+            $path = $this->getPath("{$root}\\{$class}");
+            $type = $types[$stub] ?? $types[Str::before($stub, '.')];
+
+            if ($this->files->exists($path) && ! $this->option('force')) {
+                $this->components->error(sprintf('%s [%s] already exists.', $type, realpath($path)));
+
+                continue;
+            }
+
+            $source = str_replace(array_keys([...$replace, ...$extra]), array_values([...$replace, ...$extra]), $this->files->get($this->translationStub($stub)));
+
+            $this->makeDirectory($path);
+            $this->files->put($path, $this->sortUses($source));
+            $this->components->info(sprintf('%s [%s] created successfully.', $type, realpath($path)));
+        }
+    }
+
+    /**
+     * The rules of the translatable attributes, read from the model's store request (a plain
+     * string when it has none), and whether the migrations make each unique per locale.
+     *
+     * @param  string  $model
+     * @param  string  $table
+     * @param  array<int, string>  $translatable
+     * @return array<string, array{rule: string, unique: bool}>
+     */
+    protected function translationRules(string $model, string $table, array $translatable): array
+    {
+        $request = $this->getPath(trim($this->rootNamespace(), '\\')."\\Http\\Requests\\{$model}\\Capabilities\\Store{$model}Request");
+        $source = $this->files->exists($request) ? Str::after($this->files->get($request), 'function rules(') : '';
+        $migrations = $this->migrationsSource($table);
+        $rules = [];
+
+        foreach ($translatable as $field) {
+            $rule = preg_match("/'{$field}'\\s*=>\\s*'([^']*)'/", $source, $match) ? $match[1] : 'nullable|string';
+            $unique = (bool) preg_match("/\\('{$field}'[^;]*->unique\\(\\)[^;]*->translatable\\(\\)|\\('{$field}'[^;]*->translatable\\(\\)[^;]*->unique\\(\\)/", $migrations);
+
+            $rules[$field] = ['rule' => $rule, 'unique' => $unique];
+        }
+
+        return $rules;
+    }
+
+    /**
+     * The source of the migrations that create or alter a table.
+     *
+     * @param  string  $table
+     * @return string
+     */
+    protected function migrationsSource(string $table): string
+    {
+        $artifact = $this->getArtifactOption();
+        $directory = $artifact ? $this->ugarit->basePath("artifacts/{$artifact}/database/migrations") : $this->ugarit->databasePath('migrations');
+
+        if (! $this->files->isDirectory($directory)) {
+            return '';
+        }
+
+        $source = '';
+
+        foreach ($this->files->files($directory) as $file) {
+            $content = $this->files->get($file->getPathname());
+
+            if (str_contains($content, "'{$table}'") || str_contains($content, "'".Str::singular($table)."_translations'")) {
+                $source .= $content;
+            }
+        }
+
+        return $source;
+    }
+
+    /**
+     * The rule lines of the translated attributes; an attribute unique per locale is checked
+     * with UniqueTranslation (ignoring the record of the updated translation).
+     *
+     * @param  string  $model
+     * @param  array<string, array{rule: string, unique: bool}>  $rules
+     * @param  string  $operation  "store" or "update".
+     * @param  string  $foreignKey
+     * @return string
+     */
+    protected function renderTranslationRules(string $model, array $rules, string $operation, string $foreignKey): string
+    {
+        $lines = [];
+
+        foreach ($rules as $field => ['rule' => $rule, 'unique' => $unique]) {
+            if (! $unique) {
+                $lines[] = "            '{$field}' => '{$rule}',";
+
+                continue;
+            }
+
+            $unique = $operation === 'store'
+                ? "new UniqueTranslation({$model}::class, locale: (string) \$this->input('locale')),"
+                : "new UniqueTranslation(\n                    {$model}::class,\n                    locale: \$translation instanceof ModelTranslation ? \$translation->getLocaleCode() : null,\n                    ignore: \$translation instanceof ModelTranslation ? \$translation->{$foreignKey} : null,\n                ),";
+            $parts = array_map(fn (string $part) => "                '{$part}',", array_filter(explode('|', $rule), fn (string $part) => ! str_starts_with($part, 'unique')));
+
+            $lines[] = "            '{$field}' => [\n".implode("\n", $parts)."\n                {$unique}\n            ],";
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * The "use" statements of the given classes, sorted.
+     *
+     * @param  array<int, string>  $classes
+     * @return string
+     */
+    protected function renderUses(array $classes): string
+    {
+        $classes = array_unique($classes);
+        sort($classes);
+
+        return implode("\n", array_map(fn (string $class) => "use {$class};", $classes));
+    }
+
+    /**
+     * Sort the "use" statements heading a generated class.
+     *
+     * @param  string  $source
+     * @return string
+     */
+    protected function sortUses(string $source): string
+    {
+        return preg_replace_callback('/^(?:use [^;]+;\n)+/m', function (array $block) {
+            $uses = array_unique(explode("\n", trim($block[0])));
+            sort($uses);
+
+            return implode("\n", $uses)."\n";
+        }, $source, 1);
+    }
+
+    /**
+     * The stub of a translation slice file: the application's stubs/translation/{name}.stub,
+     * else the framework's.
+     *
+     * @param  string  $name
+     * @return string
+     */
+    protected function translationStub(string $name): string
+    {
+        return file_exists($custom = $this->ugarit->basePath("stubs/translation/{$name}.stub"))
+            ? $custom
+            : __DIR__."/stubs/translation/{$name}.stub";
     }
 
     /**

@@ -68,7 +68,8 @@ class ResourceMakeCommand extends GeneratorCommand
 
     /**
      * Build the class, listing the model's id, columns, translatable attributes and timestamps
-     * as the resource fields when --model is given.
+     * as the resource fields when --model is given; a translatable model also returns its
+     * loaded translations keyed by locale code.
      *
      * @param  string  $name
      * @return string
@@ -85,6 +86,10 @@ class ResourceMakeCommand extends GeneratorCommand
 
         $fields = ['id', ...array_keys($this->modelColumns($model)), ...$this->modelTranslatable($model), 'created_at', 'updated_at'];
         $lines = array_map(fn ($field) => "            '{$field}' => \$this->{$field},", array_unique($fields));
+
+        if ($this->modelTranslatable($model) !== []) {
+            $lines[] = "            'translations' => \$this->whenLoaded('translations', fn () => (object) \$this->translationsToArray()),";
+        }
 
         return str_replace(
             ['{{ model }}', '{{ fields }}'],

@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ rootNamespace }}\Parcels\{{ model }}\Capabilities\Translation;
+
+use Heritage\Parcels\Parcel;
+
+/**
+ * Parcel used when saving the translation of a {{ model }} for one locale.
+ *
+ * Addressed by an attached translation model, or by {{ foreignKey }} + locale code.
+ */
+class Save{{ model }}TranslationParcel extends Parcel
+{
+    /**
+     * Create a new parcel instance.
+     *
+     * @param  int|null  ${{ foreignKey }}  The translated {{ label }}.
+     * @param  string|null  $locale  Locale code ("ar", "en").
+{{ fieldDocs }}
+     */
+    public function __construct(
+        public ?int ${{ foreignKey }} = null,
+        public ?string $locale = null,
+{{ fieldParameters }}
+    ) {}
+}

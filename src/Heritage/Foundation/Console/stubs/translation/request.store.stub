@@ -1,0 +1,36 @@
+<?php
+
+namespace {{ rootNamespace }}\Http\Requests\{{ model }}\Capabilities\Translation;
+
+{{ imports }}
+
+/**
+ * Validates the translation of a {{ model }} for one locale, which it must not have yet.
+ */
+#[ForAction(Save{{ model }}TranslationCapability::class)]
+class Store{{ model }}TranslationRequest extends FormRequest
+{
+    /**
+     * Validation rules applied to the incoming payload.
+     *
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        ${{ modelVariable }} = $this->route('{{ routeParameter }}');
+
+        return [
+            'locale' => [
+                'required',
+                'string',
+                Rule::in(Locales::resolver()->available()),
+                function (string $attribute, mixed $value, Closure $fail) use (${{ modelVariable }}) {
+                    if (${{ modelVariable }} instanceof {{ model }} && ${{ modelVariable }}->hasTranslation((string) $value)) {
+                        $fail('validation.unique')->translate();
+                    }
+                },
+            ],
+{{ rules }}
+        ];
+    }
+}

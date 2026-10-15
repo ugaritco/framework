@@ -1,0 +1,15 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ rootNamespace }}\Contracts\Repositories\{{ model }};
+
+use Heritage\Contracts\Repositories\TranslationRepositoryInterface;
+
+/**
+ * Contract for the persistence of {{ model }} translations, addressed by locale code.
+ */
+interface {{ model }}TranslationRepositoryInterface extends TranslationRepositoryInterface
+{
+    // Define translation-specific retrieval methods when required.
+}

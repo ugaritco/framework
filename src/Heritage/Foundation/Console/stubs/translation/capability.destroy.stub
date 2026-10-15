@@ -1,0 +1,64 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ rootNamespace }}\Capabilities\{{ model }}\Translation;
+
+use Heritage\Capabilities\Attributes\Authorize;
+use Heritage\Capabilities\Capability;
+use Heritage\Outcomes\Outcome;
+use InvalidArgumentException;
+use Throwable;
+use {{ rootNamespace }}\Contracts\Repositories\{{ model }}\{{ model }}TranslationRepositoryInterface;
+use {{ rootNamespace }}\Enums\{{ model }}\Capabilities\Translation\Destroy{{ model }}TranslationResult;
+use {{ rootNamespace }}\Models\{{ model }};
+use {{ rootNamespace }}\Outcomes\{{ model }}\{{ model }}Outcome;
+use {{ rootNamespace }}\Parcels\{{ model }}\Capabilities\Translation\Destroy{{ model }}TranslationParcel;
+
+/**
+ * Deletes the translation of a {{ model }}: an attached translation model, or the
+ * translation of {{ foreignKey }} + locale code.
+ */
+#[Authorize('translate', {{ model }}::class)]
+class Destroy{{ model }}TranslationCapability extends Capability
+{
+    /**
+     * @param  {{ model }}TranslationRepositoryInterface  $translations  {{ model }} translation data access.
+     */
+    public function __construct(protected {{ model }}TranslationRepositoryInterface $translations)
+    {
+    }
+
+    /**
+     * Delete a translation row.
+     *
+     * @param  Destroy{{ model }}TranslationParcel  $data  The attached translation model, or {{ foreignKey }} + locale.
+     * @return Outcome Successful outcome, also when the locale had no translation.
+     *
+     * @throws InvalidArgumentException When the parcel addresses no translation (reported, then failed()).
+     */
+    protected function perform(Destroy{{ model }}TranslationParcel $data): Outcome
+    {
+        if (! $data->getModel() && ($data->{{ foreignKey }} === null || $data->locale === null)) {
+            throw new InvalidArgumentException('A translation is addressed by an attached model or by {{ foreignKey }} and locale.');
+        }
+
+        // Deleting a locale without a translation is a no-op, not a failure.
+        $data->getModel()
+            ? $this->translations->destroy($data)
+            : $this->translations->destroyForLocale($data->{{ foreignKey }}, $data->locale);
+
+        return {{ model }}Outcome::fromResult(Destroy{{ model }}TranslationResult::SUCCESS);
+    }
+
+    /**
+     * Build the outcome returned when perform() throws.
+     *
+     * @param  Throwable  $e  The reported exception.
+     * @return Outcome Failed outcome without payload.
+     */
+    protected function failed(Throwable $e): Outcome
+    {
+        return {{ model }}Outcome::fromResult(Destroy{{ model }}TranslationResult::FAILED);
+    }
+}

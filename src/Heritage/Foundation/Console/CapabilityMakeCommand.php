@@ -185,12 +185,13 @@ class CapabilityMakeCommand extends GeneratorCommand
     protected function summary(?string $operation): string
     {
         $model = $this->modelLabel();
+        $translations = $this->modelTranslatable($this->modelClass()) !== [] ? ' with its translations' : '';
 
         return match ($operation) {
             'index' => "Lists the {$model} records matching the criteria: filtered, searched and sorted, as one page or all.",
             'create' => "Prepares the {$model} creation form (no persistence).",
-            'show' => "Loads a {$model} for display.",
-            'edit' => "Loads a {$model} for its edit form.",
+            'show' => "Loads a {$model}{$translations} for display.",
+            'edit' => "Loads a {$model}{$translations} for its edit form.",
             'save' => "Creates a {$model}, or updates the attached one.",
             'destroy' => "Deletes a {$model} (permanently with `force`).",
             default => 'Encapsulates an atomic domain execution capability.',
@@ -212,6 +213,7 @@ class CapabilityMakeCommand extends GeneratorCommand
         $success = fn (?string $data = null) => $this->outcomeExpression($result, $outcome, true, $data);
         $failure = $this->outcomeExpression($result, $outcome, false);
         $record = '$'.lcfirst($this->modelLabel());
+        $loaded = $this->modelTranslatable($this->modelClass()) !== [] ? "{$record}->loadMissing(['translations'])" : $record;
 
         $lines = match ($operation) {
             'index' => ['return '.$success("\$this->{$property}->browse(\$data ?? new {$parcel})").';'],
@@ -223,7 +225,7 @@ class CapabilityMakeCommand extends GeneratorCommand
                 "    return {$failure};",
                 '}',
                 '',
-                'return '.$success($record).';',
+                'return '.$success($loaded).';',
             ],
             'save' => ['return '.$success("\$this->{$property}->save(\$data)").';'],
             'destroy' => [

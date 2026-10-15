@@ -3,6 +3,7 @@
 namespace Heritage\Foundation\Console;
 
 use Heritage\Console\GeneratorCommand;
+use Heritage\Foundation\Console\Concerns\InspectsModel;
 use Heritage\Support\Str;
 use LogicException;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -14,6 +15,8 @@ use function Ugarit\Prompts\suggest;
 #[AsCommand(name: 'make:policy')]
 class PolicyMakeCommand extends GeneratorCommand
 {
+    use InspectsModel;
+
     /**
      * The name and signature of the console command.
      *
@@ -53,7 +56,43 @@ class PolicyMakeCommand extends GeneratorCommand
 
         $model = $this->option('model');
 
-        return $model ? $this->replaceModel($stub, $model) : $stub;
+        if (! $model) {
+            return $stub;
+        }
+
+        $stub = $this->replaceModel($stub, $model);
+
+        return $this->modelTranslatable($this->modelClass()) !== [] ? $this->addTranslateAbility($stub) : $stub;
+    }
+
+    /**
+     * Add the "translate" ability, required by the translation capabilities of a translatable model.
+     *
+     * @param  string  $stub
+     * @return string
+     */
+    protected function addTranslateAbility(string $stub): string
+    {
+        $model = class_basename(str_replace('/', '\\', (string) $this->option('model')));
+        $user = class_basename($this->userProviderModel());
+        $variable = '$'.Str::camel($user);
+
+        $method = <<<PHP
+
+            /**
+             * Add, edit or delete the translations of {$model} records.
+             *
+             * @param  {$user}  {$variable}
+             * @return bool
+             */
+            public function translate({$user} {$variable}): bool
+            {
+                return true;
+            }
+        }
+        PHP;
+
+        return preg_replace('/\}\s*$/', $method."\n", $stub, 1);
     }
 
     /**

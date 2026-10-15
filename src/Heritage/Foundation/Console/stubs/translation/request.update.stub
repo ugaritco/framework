@@ -1,0 +1,24 @@
+<?php
+
+namespace {{ rootNamespace }}\Http\Requests\{{ model }}\Capabilities\Translation;
+
+{{ imports }}
+
+/**
+ * Validates the update of one {{ model }} translation; its locale does not change.
+ */
+#[ForAction(Save{{ model }}TranslationCapability::class)]
+class Update{{ model }}TranslationRequest extends FormRequest
+{
+    /**
+     * Validation rules applied to the incoming payload.
+     *
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        {{ translation }}return [
+{{ rules }}
+        ];
+    }
+}

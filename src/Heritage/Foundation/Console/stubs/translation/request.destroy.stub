@@ -1,0 +1,34 @@
+<?php
+
+namespace {{ rootNamespace }}\Http\Requests\{{ model }}\Capabilities\Translation;
+
+use Heritage\Database\Eloquent\ModelTranslation;
+use Heritage\Foundation\Http\Attributes\ForAction;
+use Heritage\Foundation\Http\FormRequest;
+use Heritage\Validation\Rule;
+use {{ rootNamespace }}\Capabilities\{{ model }}\Translation\Destroy{{ model }}TranslationCapability;
+
+/**
+ * Validates the deletion of one {{ model }} translation, confirmed by typing its {{ confirmLabel }}.
+ */
+#[ForAction(Destroy{{ model }}TranslationCapability::class)]
+class Destroy{{ model }}TranslationRequest extends FormRequest
+{
+    /**
+     * Validation rules applied to the incoming payload.
+     *
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        $translation = $this->route('{{ translationParameter }}');
+
+        return [
+            '{{ confirm }}_confirmation' => [
+                'required',
+                'string',
+                Rule::in($translation instanceof ModelTranslation ? [(string) $translation->{{ confirm }}] : []),
+            ],
+        ];
+    }
+}

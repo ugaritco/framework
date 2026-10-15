@@ -1,0 +1,26 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ rootNamespace }}\Parcels\{{ model }}\Capabilities\Translation;
+
+use Heritage\Parcels\Parcel;
+
+/**
+ * Parcel used when deleting the translation of a {{ model }}.
+ *
+ * Addressed by an attached translation model, or by {{ foreignKey }} + locale code.
+ */
+class Destroy{{ model }}TranslationParcel extends Parcel
+{
+    /**
+     * Create a new parcel instance.
+     *
+     * @param  int|null  ${{ foreignKey }}  The translated {{ label }}.
+     * @param  string|null  $locale  Locale code ("ar", "en").
+     */
+    public function __construct(
+        public ?int ${{ foreignKey }} = null,
+        public ?string $locale = null,
+    ) {}
+}

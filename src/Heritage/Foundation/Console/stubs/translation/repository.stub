@@ -1,0 +1,27 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ rootNamespace }}\Repositories\{{ model }};
+
+use Heritage\Database\Eloquent\Model;
+use Heritage\Repositories\TranslationRepository;
+use {{ rootNamespace }}\Contracts\Repositories\{{ model }}\{{ model }}TranslationRepositoryInterface;
+use {{ rootNamespace }}\Models\{{ model }};
+
+/**
+ * Persistence of {{ model }} translations, addressed by locale code: saving upserts the
+ * translation of a {{ label }} and locale.
+ */
+class {{ model }}TranslationRepository extends TranslationRepository implements {{ model }}TranslationRepositoryInterface
+{
+    /**
+     * Create a new repository instance.
+     *
+     * @param  Model|null  $model  Translation model instance; defaults to the {{ model }} translation model.
+     */
+    public function __construct(?Model $model = null)
+    {
+        parent::__construct($model ?? (new {{ model }})->newTranslation());
+    }
+}

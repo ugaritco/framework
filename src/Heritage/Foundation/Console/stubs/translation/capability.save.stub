@@ -1,0 +1,54 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ rootNamespace }}\Capabilities\{{ model }}\Translation;
+
+use Heritage\Capabilities\Attributes\Authorize;
+use Heritage\Capabilities\Capability;
+use Heritage\Outcomes\Outcome;
+use Throwable;
+use {{ rootNamespace }}\Contracts\Repositories\{{ model }}\{{ model }}TranslationRepositoryInterface;
+use {{ rootNamespace }}\Enums\{{ model }}\Capabilities\Translation\Save{{ model }}TranslationResult;
+use {{ rootNamespace }}\Models\{{ model }};
+use {{ rootNamespace }}\Outcomes\{{ model }}\{{ model }}Outcome;
+use {{ rootNamespace }}\Parcels\{{ model }}\Capabilities\Translation\Save{{ model }}TranslationParcel;
+
+/**
+ * Creates or updates the translation of a {{ model }} for one locale.
+ *
+ * A parcel without an attached model is addressed by {{ foreignKey }} + locale code: the
+ * translation of that locale is created, or updated when it exists.
+ */
+#[Authorize('translate', {{ model }}::class)]
+class Save{{ model }}TranslationCapability extends Capability
+{
+    /**
+     * @param  {{ model }}TranslationRepositoryInterface  $translations  {{ model }} translation data access.
+     */
+    public function __construct(protected {{ model }}TranslationRepositoryInterface $translations)
+    {
+    }
+
+    /**
+     * Persist a translation row.
+     *
+     * @param  Save{{ model }}TranslationParcel  $data  The translated values, addressed by attached model or {{ foreignKey }} + locale.
+     * @return Outcome Successful outcome carrying the saved translation.
+     */
+    protected function perform(Save{{ model }}TranslationParcel $data): Outcome
+    {
+        return {{ model }}Outcome::fromResult(Save{{ model }}TranslationResult::SUCCESS, $this->translations->save($data));
+    }
+
+    /**
+     * Build the outcome returned when perform() throws (an unknown locale included).
+     *
+     * @param  Throwable  $e  The reported exception.
+     * @return Outcome Failed outcome without payload.
+     */
+    protected function failed(Throwable $e): Outcome
+    {
+        return {{ model }}Outcome::fromResult(Save{{ model }}TranslationResult::FAILED);
+    }
+}
