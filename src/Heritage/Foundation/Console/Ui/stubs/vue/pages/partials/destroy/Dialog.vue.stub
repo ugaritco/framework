@@ -1,0 +1,84 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { Destroy } from '@module/[[ module ]]/pages/[[ model ]]/partials';
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import { Trash } from 'lucide-vue-next';
+import { ref } from 'vue';
+
+/**
+ * [[ Model ]] delete dialog: the delete confirmation form in a modal.
+ */
+
+interface Props {
+    /** The [[ label ]] to delete. */
+    [[ modelCamel ]]: [[ Model ]];
+
+    /** Renders an icon trigger instead of the default text button. */
+    asIcon?: boolean;
+}
+
+withDefaults(defineProps<Props>(), {
+    asIcon: false,
+});
+
+/** Whether the dialog is open. */
+const open = ref(false);
+</script>
+
+<template>
+    <Dialog v-model:open="open">
+        <DialogTrigger as-child @click.stop>
+            <Button
+                v-if="!asIcon"
+                appearance="outline"
+                color="danger"
+                data-test="destroy-[[ model ]]-button"
+            >
+                {{ $t('actions.destroy') }}
+            </Button>
+
+            <Button
+                v-else
+                appearance="outline"
+                color="neutral"
+                size="sm"
+                data-test="destroy-[[ model ]]-button"
+            >
+                <Trash class="h-4 w-4 text-destructive" />
+            </Button>
+        </DialogTrigger>
+
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle class="text-red">
+                    {{
+                        $t('presentation.destroy.title', {
+                            model_singular: $t('[[ lang ]].singular'),
+                            entity: String([[ entityLabel ]]),
+                        })
+                    }}
+                </DialogTitle>
+                <DialogDescription>
+                    <span
+                        v-html="
+                            $t('presentation.destroy.description', {
+                                model_singular: $t('[[ lang ]].singular'),
+                                entity: String([[ entityLabel ]]),
+                            })
+                        "
+                    />
+                </DialogDescription>
+            </DialogHeader>
+
+            <Destroy :[[ modelCamel ]]="[[ modelCamel ]]" @success="open = false" />
+        </DialogContent>
+    </Dialog>
+</template>

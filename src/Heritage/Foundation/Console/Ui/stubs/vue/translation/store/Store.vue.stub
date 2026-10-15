@@ -1,0 +1,129 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import {
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from '@/components/ui/form';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { useFormHandlers } from '@/composables/useFormHandlers';
+import { store } from '@/routes/[[ model ]]-translation';
+import { Form, usePage } from '@inertiajs/vue3';
+import {
+    create[[ Model ]]TranslationInitialValues,
+    create[[ Model ]]TranslationSchema,
+} from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/store/form';
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { Locale } from '@module/i18n/types/locale';
+import { LoaderCircle } from 'lucide-vue-next';
+[[ translationFormImports ]]
+
+/**
+ * [[ Model ]] translation create form: the translated fields of one locale, given or chosen
+ * among the locales offered.
+ */
+
+interface Props {
+    /** The translated [[ label ]]. */
+    [[ modelCamel ]]: [[ Model ]];
+
+    /** The locales offered (all of the application by default). */
+    locales?: Locale[];
+
+    /** The locale of the translation, which is then not chosen. */
+    locale?: Locale;
+}
+
+const props = defineProps<Props>();
+
+/** Emitted after the translation is created. */
+const emit = defineEmits(['success']);
+
+/** Form helpers bound to the create schema, for the given locale if any. */
+const { meta, resetForm, handleError } = useFormHandlers(
+    create[[ Model ]]TranslationSchema,
+    create[[ Model ]]TranslationInitialValues(props.locale?.code),
+);
+
+/** The locales to choose from. */
+const choices = () => props.locales ?? (usePage().props.locales as Locale[]);
+
+/** Resets the form and notifies the parent after a successful create. */
+const onSuccess = () => {
+    resetForm();
+    emit('success');
+};
+</script>
+
+<template>
+    <Form
+        v-slot="{ processing }"
+        v-bind="store.form({ [[ routeParameter ]]: [[ modelCamel ]].id })"
+        :on-before="() => meta.valid"
+        :on-success="onSuccess"
+        :on-error="handleError"
+        class="grid grid-cols-6 gap-4"
+    >
+        <!-- Locale -->
+        <input v-if="locale" type="hidden" name="locale" :value="locale.code" />
+
+        <FormField v-else v-slot="{ componentField }" name="locale">
+            <FormItem class="col-span-6">
+                <FormLabel>
+                    {{ $t('i18n::language.name') }}
+                    <span class="text-red">*</span>
+                </FormLabel>
+                <FormControl>
+                    <Select v-bind="componentField">
+                        <SelectTrigger class="w-full">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem
+                                v-for="choice in choices()"
+                                :key="choice.code"
+                                :value="choice.code"
+                            >
+                                {{ choice.language.native_name }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                </FormControl>
+                <FormMessage />
+            </FormItem>
+        </FormField>
+
+[[ translationFormFields ]]
+
+        <!-- Actions -->
+        <div class="col-span-6 flex justify-start gap-2">
+            <Button
+                type="submit"
+                appearance="solid"
+                color="primary"
+                :disabled="processing || !meta.valid"
+            >
+                <LoaderCircle v-if="processing" class="h-4 w-4 animate-spin" />
+                {{ $t('actions.translation.create') }}
+            </Button>
+
+            <Button
+                type="button"
+                appearance="outline"
+                color="neutral"
+                :disabled="processing"
+                @click="resetForm()"
+            >
+                {{ $t('actions.reset') }}
+            </Button>
+        </div>
+    </Form>
+</template>

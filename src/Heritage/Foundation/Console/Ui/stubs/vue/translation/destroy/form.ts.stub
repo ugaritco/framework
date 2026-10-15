@@ -1,0 +1,28 @@
+import type { [[ Model ]]Translation } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]-translation';
+import { toTypedSchema } from '@vee-validate/zod';
+import { trans } from 'laravel-vue-i18n';
+import * as z from 'zod';
+
+/**
+ * Initial values of the [[ label ]] translation delete form.
+ */
+export const destroy[[ Model ]]TranslationInitialValues = () => ({
+    [[ translationLabel ]]_confirmation: '',
+});
+
+/**
+ * Validation schema of the [[ label ]] translation delete form: the translated
+ * [[ translationLabelTitle ]] must be typed to confirm.
+ */
+export const destroy[[ Model ]]TranslationSchema = (translation: [[ Model ]]Translation) =>
+    toTypedSchema(
+        z.object({
+            [[ translationLabel ]]_confirmation: z
+                .string()
+                .refine((value) => value === String(translation.[[ translationLabel ]] ?? ''), {
+                    message: trans('validation.match', {
+                        attribute: String(translation.[[ translationLabel ]] ?? ''),
+                    }),
+                }),
+        }),
+    );

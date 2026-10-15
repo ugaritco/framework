@@ -1,0 +1,90 @@
+<script setup lang="ts">
+import HeadingSmall from '@/components/HeadingSmall.vue';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { show as module } from '@/routes/[[ module ]]/module';
+[[ @index ]]
+import { index } from '@/routes/[[ model ]]';
+[[ @end ]]
+import type { BreadcrumbItem } from '@/types';
+import { [[ Module ]]Layout } from '@module/[[ module ]]/layouts';
+[[ @edit|destroy ]]
+import { [[ layoutPartials ]] } from '@module/[[ module ]]/pages/[[ model ]]/partials';
+[[ @end ]]
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import { trans } from 'laravel-vue-i18n';
+import { computed } from 'vue';
+
+/**
+ * [[ Model ]] show page shell: breadcrumb trail, header with the [[ label ]] actions, and a tab per
+ * section, each filled through its slot.
+ */
+
+interface Props {
+    /** The [[ label ]] shown. */
+    data: [[ Model ]];
+}
+
+const props = defineProps<Props>();
+
+/** Emitted when the active tab changes. */
+const emit = defineEmits(['tab-change']);
+
+/** Breadcrumb trail: module, [[ labels ]], the [[ label ]]. */
+const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
+    { title: trans('[[ module ]]::module.name'), href: module().url },
+    { title: trans('[[ lang ]].plural_definite'), href: [[ indexHref ]] },
+    { title: String([[ propsLabel ]]), href: '#' },
+]);
+</script>
+
+<template>
+    <[[ Module ]]Layout :breadcrumbs="breadcrumbItems">
+        <!-- Header with the [[ label ]] actions -->
+        <div
+            class="flex items-center justify-between rounded-xl bg-primary/3 p-4 ring-1 ring-primary/5"
+        >
+            <HeadingSmall
+                :title="
+                    $t('presentation.show.title', {
+                        model_singular: $t('[[ lang ]].singular'),
+                        entity: String([[ dataLabel ]]),
+                    })
+                "
+                :description="
+                    $t('presentation.show.description', {
+                        model_singular: $t('[[ lang ]].singular'),
+                        entity: String([[ dataLabel ]]),
+                    })
+                "
+            />
+[[ @edit|destroy ]]
+
+            <div class="flex gap-4">
+[[ @edit ]]
+                <UpdateDialog :[[ modelCamel ]]="data" />
+[[ @end ]]
+[[ @destroy ]]
+                <DestroyDialog :[[ modelCamel ]]="data" />
+[[ @end ]]
+            </div>
+[[ @end ]]
+        </div>
+
+        <!-- Sections -->
+        <Tabs
+            default-value="summary"
+            class="flex min-h-0 flex-1 flex-col"
+            @update:model-value="emit('tab-change', $event)"
+        >
+            <TabsList class="w-full justify-start">
+                <TabsTrigger value="summary">
+                    {{ $t('pages.summary') }}
+                </TabsTrigger>[[ tabTriggers ]]
+            </TabsList>
+
+            <TabsContent value="summary">
+                <slot name="summary" />
+            </TabsContent>[[ tabContents ]]
+        </Tabs>
+    </[[ Module ]]Layout>
+</template>

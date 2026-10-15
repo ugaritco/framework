@@ -1,0 +1,82 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { Update } from '@module/[[ module ]]/pages/[[ model ]]/partials';
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import { Edit } from 'lucide-vue-next';
+import { ref } from 'vue';
+
+/**
+ * [[ Model ]] update dialog: the update form in a modal, opened by a text or icon trigger.
+ */
+
+interface Props {
+    /** The [[ label ]] being edited. */
+    [[ modelCamel ]]: [[ Model ]];
+
+    /** Renders an icon trigger instead of the default text button. */
+    asIcon?: boolean;
+}
+
+withDefaults(defineProps<Props>(), {
+    asIcon: false,
+});
+
+/** Whether the dialog is open. */
+const open = ref(false);
+</script>
+
+<template>
+    <Dialog v-model:open="open">
+        <DialogTrigger as-child @click.stop>
+            <Button
+                v-if="!asIcon"
+                appearance="outline"
+                color="primary"
+                data-test="update-[[ model ]]-button"
+            >
+                {{ $t('actions.edit') }}
+            </Button>
+
+            <Button
+                v-else
+                appearance="outline"
+                color="neutral"
+                size="sm"
+                data-test="update-[[ model ]]-button"
+            >
+                <Edit class="h-4 w-4 text-primary" />
+            </Button>
+        </DialogTrigger>
+
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>
+                    {{
+                        $t('presentation.edit.title', {
+                            model_singular: $t('[[ lang ]].singular'),
+                            entity: String([[ entityLabel ]]),
+                        })
+                    }}
+                </DialogTitle>
+                <DialogDescription>
+                    {{
+                        $t('presentation.edit.description', {
+                            model_singular: $t('[[ lang ]].singular'),
+                            entity: String([[ entityLabel ]]),
+                        })
+                    }}
+                </DialogDescription>
+            </DialogHeader>
+
+            <Update :[[ modelCamel ]]="[[ modelCamel ]]" @success="open = false" />
+        </DialogContent>
+    </Dialog>
+</template>

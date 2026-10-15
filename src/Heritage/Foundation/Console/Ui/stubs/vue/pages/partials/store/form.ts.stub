@@ -1,0 +1,18 @@
+import { toTypedSchema } from '@vee-validate/zod';
+import * as z from 'zod';
+[[ formHelpers ]]
+/**
+ * Initial values of the [[ label ]] create form.
+ */
+export const create[[ Model ]]InitialValues = () => ({
+[[ storeValues ]]
+});
+
+/**
+ * Validation schema of the [[ label ]] create form.
+ */
+export const create[[ Model ]]Schema = toTypedSchema(
+    z.object({
+[[ schemaFields ]]
+    }),
+);

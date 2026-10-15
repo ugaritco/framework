@@ -1,0 +1,51 @@
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import { toTypedSchema } from '@vee-validate/zod';
+import * as z from 'zod';
+[[ formHelpers ]]
+/**
+ * The empty values of one locale's section.
+ */
+export const empty[[ Model ]]Translation = () => ({
+[[ translationBlank ]]
+});
+
+/**
+ * The values of a [[ label ]] in the shape of the update form: its translations keyed by locale
+ * code when they are loaded, else its values in the current locale, whose section always exists.
+ */
+export const update[[ Model ]]InitialValues = ([[ modelCamel ]]: [[ Model ]], locale: string) => {
+    const translations: Record<string, ReturnType<typeof empty[[ Model ]]Translation>> = [[ modelCamel ]].translations
+        ? Object.fromEntries(
+              Object.entries([[ modelCamel ]].translations).map(([code, translation]) => [
+                  code,
+                  {
+[[ translationRecordValues ]]
+                  },
+              ]),
+          )
+        : {
+              [locale]: {
+[[ translationFlatValues ]]
+              },
+          };
+
+    return {
+[[ plainUpdateValues ]]
+        translations: { [locale]: empty[[ Model ]]Translation(), ...translations },
+    };
+};
+
+/**
+ * Validation schema of the [[ label ]] update form, every locale section included.
+ */
+export const update[[ Model ]]Schema = toTypedSchema(
+    z.object({
+[[ plainSchemaFields ]]
+        translations: z.record(
+            z.string(),
+            z.object({
+[[ localeSchemaFields ]]
+            }),
+        ),
+    }),
+);

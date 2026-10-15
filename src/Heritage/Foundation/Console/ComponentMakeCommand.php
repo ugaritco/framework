@@ -4,6 +4,8 @@ namespace Heritage\Foundation\Console;
 
 use Heritage\Console\Concerns\CreatesMatchingTest;
 use Heritage\Console\GeneratorCommand;
+use Heritage\Foundation\Console\Ui\Blueprint;
+use Heritage\Foundation\Console\Ui\Concerns\GeneratesUi;
 use Heritage\Foundation\Inspiring;
 use Heritage\Support\Collection;
 use Heritage\Support\Str;
@@ -13,7 +15,7 @@ use Symfony\Component\Console\Input\InputOption;
 #[AsCommand(name: 'make:component')]
 class ComponentMakeCommand extends GeneratorCommand
 {
-    use CreatesMatchingTest;
+    use CreatesMatchingTest, GeneratesUi;
 
     /**
      * The console command name.
@@ -27,7 +29,7 @@ class ComponentMakeCommand extends GeneratorCommand
      *
      * @var string
      */
-    protected $description = 'Create a new view component class';
+    protected $description = 'Create a component of the frontend stack, or a view component class';
 
     /**
      * The type of class being generated.
@@ -37,12 +39,19 @@ class ComponentMakeCommand extends GeneratorCommand
     protected $type = 'Component';
 
     /**
-     * Execute the console command.
+     * Execute the console command: a component of the frontend stack when one is used (or a type
+     * is given), else, or with --stack=blade, --view or --inline, a Blade view component.
      *
-     * @return void
+     * @return int|bool|null
      */
     public function handle()
     {
+        $blade = $this->option('stack') === 'blade' || $this->option('view') || $this->option('inline');
+
+        if (! $blade && ($this->option('type') !== null || $this->detectStack() !== null)) {
+            return $this->writeUiComponent();
+        }
+
         if ($this->option('view')) {
             return $this->writeView();
         }
@@ -54,6 +63,67 @@ class ComponentMakeCommand extends GeneratorCommand
         if (! $this->option('inline')) {
             $this->writeView();
         }
+    }
+
+    /**
+     * Write a component of the frontend stack: in the artifact's panel module with --artifact (in
+     * its model's partials with --model), else in resources/js/components.
+     *
+     * @return int
+     */
+    protected function writeUiComponent(): int
+    {
+        if (! $stack = $this->stack()) {
+            return self::FAILURE;
+        }
+
+        $type = (string) ($this->option('type') ?: 'blank');
+        $types = $stack->componentTypes();
+        $artifact = $this->getArtifactOption();
+        $model = $this->option('model') ? Str::studly((string) $this->option('model')) : null;
+
+        if (! isset($types[$type])) {
+            $this->components->error("Unknown component type [{$type}]; choose among: ".implode(', ', array_keys($types)).'.');
+
+            return self::FAILURE;
+        }
+
+        if ($types[$type] && $model === null) {
+            $this->components->error("A [{$type}] component presents a model; give it with --model.");
+
+            return self::FAILURE;
+        }
+
+        if ($model !== null && $artifact === null) {
+            $this->components->error('Give the artifact of the model with --artifact.');
+
+            return self::FAILURE;
+        }
+
+        $blueprint = null;
+
+        if ($model !== null) {
+            if (! class_exists(Blueprint::modelClass($artifact, $model))) {
+                $this->components->error('The model ['.Blueprint::modelClass($artifact, $model)."] does not exist; create it with make:model {$model} --artifact={$artifact} --all.");
+
+                return self::FAILURE;
+            }
+
+            $blueprint = Blueprint::read($this->files, $this->ugarit->basePath(), $artifact, $model);
+        }
+
+        $name = implode('/', array_map(fn (string $segment) => Str::studly($segment), explode('/', str_replace('\\', '/', (string) $this->argument('name')))));
+        $directory = $blueprint ? 'pages/'.Str::kebab($model).'/partials' : 'components';
+        [$root, $alias] = $artifact !== null ? [$this->modulePath($artifact), "@module/{$artifact}"] : [$this->ugarit->basePath('resources/js'), '@'];
+
+        $this->writeFiles(
+            $root,
+            $stack->componentFiles($type, "{$directory}/{$name}", "{$alias}/{$directory}/{$name}", $blueprint),
+            $blueprint ? $stack->pageReplacements($blueprint, []) : []
+        );
+        $this->printReport();
+
+        return self::SUCCESS;
     }
 
     /**
@@ -187,6 +257,9 @@ class ComponentMakeCommand extends GeneratorCommand
             ['view', null, InputOption::VALUE_NONE, 'Create an anonymous component with only a view'],
             ['path', null, InputOption::VALUE_REQUIRED, 'The location where the component view should be created'],
             ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the component already exists'],
+            ['type', null, InputOption::VALUE_REQUIRED, 'The frontend component type: blank, dialog, form, table, select or summary'],
+            ['model', null, InputOption::VALUE_REQUIRED, 'The model a frontend component presents (with --artifact)'],
+            ['stack', null, InputOption::VALUE_REQUIRED, 'The frontend stack (vue), or blade for a view component; detected from package.json by default'],
         ];
     }
 }

@@ -1,0 +1,119 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import {
+    DestroyDialog,
+    Summary,
+    UpdateDialog,
+} from '@module/[[ module ]]/pages/[[ model ]]/partials/translation';
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { [[ Model ]]Translation } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]-translation';
+import type { Locale } from '@module/i18n/types/locale';
+import { Eye } from 'lucide-vue-next';
+import { ref } from 'vue';
+
+/**
+ * [[ Model ]] translation quick view: the summary of one locale's translation, with its edit
+ * and delete actions.
+ */
+
+interface Props {
+    /** The translated [[ label ]]. */
+    [[ modelCamel ]]: [[ Model ]];
+
+    /** The translation shown. */
+    translation: [[ Model ]]Translation;
+
+    /** The locale of the translation. */
+    locale: Locale;
+
+    /** Renders an icon trigger instead of the default text button. */
+    asIcon?: boolean;
+}
+
+withDefaults(defineProps<Props>(), {
+    asIcon: false,
+});
+
+/** Whether the dialog is open. */
+const open = ref(false);
+</script>
+
+<template>
+    <Dialog v-model:open="open">
+        <DialogTrigger as-child>
+            <slot>
+                <Button
+                    v-if="!asIcon"
+                    appearance="outline"
+                    color="primary"
+                    data-test="show-[[ model ]]-translation-button"
+                >
+                    {{ $t('actions.show') }}
+                </Button>
+
+                <Button
+                    v-else
+                    appearance="outline"
+                    color="neutral"
+                    size="sm"
+                    data-test="show-[[ model ]]-translation-button"
+                >
+                    <Eye class="h-4 w-4 text-primary" />
+                </Button>
+            </slot>
+        </DialogTrigger>
+
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>
+                    {{
+                        $t('presentation.translation.show.title', {
+                            model_singular: $t('[[ lang ]].singular'),
+                            entity: String([[ entityLabel ]]),
+                        })
+                    }}
+                </DialogTitle>
+                <DialogDescription>
+                    <span
+                        v-html="
+                            $t('presentation.translation.show.description', {
+                                model_singular: $t('[[ lang ]].singular'),
+                                entity: String([[ entityLabel ]]),
+                                locale: String(locale?.language.name ?? translation.locale),
+                            })
+                        "
+                    />
+                </DialogDescription>
+            </DialogHeader>
+
+            <Separator />
+            <Summary :translation="translation" />
+            <Separator />
+
+            <DialogFooter>
+                <div class="flex justify-start gap-4">
+                    <UpdateDialog
+                        :[[ modelCamel ]]="[[ modelCamel ]]"
+                        :translation="translation"
+                        :locale="locale"
+                    />
+                    <DestroyDialog
+                        :[[ modelCamel ]]="[[ modelCamel ]]"
+                        :translation="translation"
+                        :locale="locale"
+                    />
+                </div>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+</template>

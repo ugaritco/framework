@@ -1,0 +1,126 @@
+import { Badge } from '@/components/ui/badge';
+import DataTableColumnHeader from '@/components/ui/table/data/DataTableColumnHeader.vue';
+import { since } from '@/lib/time';
+import { usePage } from '@inertiajs/vue3';
+import {
+    DestroyDialog,
+    ShowDialog,
+    UpdateDialog,
+} from '@module/[[ module ]]/pages/[[ model ]]/partials/translation';
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type {
+    [[ Model ]]Translation,
+    [[ Model ]]TranslationColumnMeta,
+} from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]-translation';
+import type { Locale } from '@module/i18n/types/locale';
+import type { ColumnDef, FilterFn } from '@tanstack/vue-table';
+import { trans } from 'laravel-vue-i18n';
+import { computed, h } from 'vue';
+
+/** Matches the rows whose cell contains the searched text. */
+const contains: FilterFn<[[ Model ]]Translation> = (row, id, value: string) =>
+    String(row.getValue(id) ?? '').includes(value);
+
+/** The locale of a translation row. */
+const localeOf = (code: string) =>
+    (usePage().props.locales as Locale[]).find(
+        (locale) => locale.code === code,
+    ) as Locale;
+
+/**
+ * The columns of the [[ label ]] translations table: the locale, the translated fields, the last
+ * update, and the actions on each translation of the given [[ label ]].
+ */
+export function use[[ Model ]]TranslationColumns([[ modelCamel ]]: [[ Model ]]) {
+    return computed<ColumnDef<[[ Model ]]Translation>[]>(() => [
+        /** The locale, as a badge. */
+        {
+            accessorKey: 'locale',
+            header: ({ column }) =>
+                h(DataTableColumnHeader, {
+                    column,
+                    title: trans('i18n::language.name'),
+                }),
+            cell: ({ row }) =>
+                h(Badge, { variant: 'default' }, () =>
+                    String(localeOf(row.getValue('locale'))?.language.name ?? row.getValue('locale')),
+                ),
+            filterFn: contains,
+            enableHiding: false,
+            meta: {
+                title: trans('i18n::language.name'),
+                searchable: true,
+                filterable: false,
+                filterOption: [],
+            } as [[ Model ]]TranslationColumnMeta,
+        },
+
+[[ translationColumns ]]
+
+        /** The last update, relative and exact. */
+        {
+            accessorKey: 'updated_at',
+            header: ({ column }) =>
+                h(DataTableColumnHeader, {
+                    column,
+                    title: trans('[[ lang ]].attributes.updated_at.label'),
+                }),
+            cell: ({ row }) => {
+                const date = row.getValue('updated_at') as string;
+
+                return h('div', { class: 'flex flex-col' }, [
+                    h('span', { class: 'text-xs font-medium' }, since(date)),
+                    h('span', { class: 'text-[10px] text-muted-foreground' }, date),
+                ]);
+            },
+            enableSorting: true,
+            enableHiding: true,
+            meta: {
+                title: trans('[[ lang ]].attributes.updated_at.label'),
+                searchable: false,
+                filterable: false,
+                filterOption: [],
+            } as [[ Model ]]TranslationColumnMeta,
+        },
+
+        /** The actions on the translation. */
+        {
+            id: 'actions',
+            header: ({ column }) =>
+                h(DataTableColumnHeader, {
+                    column,
+                    title: trans('actions.label'),
+                    class: 'text-center',
+                }),
+            cell: ({ row }) =>
+                h('div', { class: 'flex items-center justify-center gap-2' }, [
+                    h(ShowDialog, {
+                        translation: row.original,
+                        [[ modelCamel ]],
+                        locale: localeOf(row.original.locale),
+                        asIcon: true,
+                    }),
+                    h(UpdateDialog, {
+                        translation: row.original,
+                        [[ modelCamel ]],
+                        locale: localeOf(row.original.locale),
+                        asIcon: true,
+                    }),
+                    h(DestroyDialog, {
+                        translation: row.original,
+                        [[ modelCamel ]],
+                        locale: localeOf(row.original.locale),
+                        asIcon: true,
+                    }),
+                ]),
+            enableSorting: false,
+            enableHiding: false,
+            meta: {
+                title: trans('actions.label'),
+                searchable: false,
+                filterable: false,
+                filterOption: [],
+            } as [[ Model ]]TranslationColumnMeta,
+        },
+    ]);
+}

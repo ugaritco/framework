@@ -7,22 +7,23 @@ namespace Heritage\Foundation\Console\Concerns;
 use Heritage\Database\Console\Field;
 
 /**
- * Adds entries to existing PHP source without rewriting it: an item to an array or a parameter list,
- * a member before the end of a class, an import. Each edit keeps the file's indentation and line
- * endings, and reports a place it cannot find by returning null.
+ * Adds entries to existing PHP, TypeScript or JSON source without rewriting it: an item to an array,
+ * an object or a parameter list, a member before the end of a class, an import. Each edit keeps the
+ * file's indentation and line endings, and reports a place it cannot find by returning null.
  */
 trait EditsSource
 {
     /**
-     * Add an item to the array or parameter list opened by the given pattern.
+     * Add an item to the array, object or parameter list opened by the given pattern.
      *
      * @param  string  $source
-     * @param  string  $opening  A regex matching up to and including the opening "[" or "(".
+     * @param  string  $opening  A regex matching up to and including the opening "[", "(" or "{".
      * @param  string  $item  The item without its trailing comma; extra lines are indented relative to it.
      * @param  string|null  $before  Insert before the item line containing this text, when there is one.
+     * @param  bool  $trailingComma  Whether the last item of a multi-line list ends with a comma (not in JSON).
      * @return string|null The edited source, or null when the list is not found.
      */
-    protected function addToList(string $source, string $opening, string $item, ?string $before = null): ?string
+    protected function addToList(string $source, string $opening, string $item, ?string $before = null, bool $trailingComma = true): ?string
     {
         if (! preg_match($opening, $source, $match, PREG_OFFSET_CAPTURE)) {
             return null;
@@ -75,6 +76,10 @@ trait EditsSource
             return substr_replace($source, $lines.($spaced ? $eol : ''), $at, 0);
         }
 
+        if (! $trailingComma) {
+            $lines = $body.$eol;
+        }
+
         if ($spaced) {
             $lines = $eol.$lines;
         }
@@ -91,10 +96,10 @@ trait EditsSource
     }
 
     /**
-     * The items of the array or parameter list opened by the given pattern, as written.
+     * The items of the array, object or parameter list opened by the given pattern, as written.
      *
      * @param  string  $source
-     * @param  string  $opening  A regex matching up to and including the opening "[" or "(".
+     * @param  string  $opening  A regex matching up to and including the opening "[", "(" or "{".
      * @return string|null The source between the brackets, or null when the list is not found.
      */
     protected function listContent(string $source, string $opening): ?string
@@ -151,6 +156,35 @@ trait EditsSource
     }
 
     /**
+     * Add a TypeScript import statement after the last import of a script (or of a Vue file's
+     * script), unless the source has that exact statement.
+     *
+     * @param  string  $source
+     * @param  string  $statement  The whole statement, e.g. "import { index as books } from '@/routes/book';".
+     * @return string
+     */
+    protected function addScriptImport(string $source, string $statement): string
+    {
+        if (str_contains($source, $statement)) {
+            return $source;
+        }
+
+        $eol = str_contains($source, "\r\n") ? "\r\n" : "\n";
+
+        if (preg_match_all('/^import\b[^;]*;/m', $source, $imports, PREG_OFFSET_CAPTURE)) {
+            [$last, $offset] = end($imports[0]);
+
+            return substr_replace($source, $eol.$statement, $offset + strlen($last), 0);
+        }
+
+        if (preg_match('/<script[^>]*>\r?\n/', $source, $script, PREG_OFFSET_CAPTURE)) {
+            return substr_replace($source, $statement.$eol, $script[0][1] + strlen($script[0][0]), 0);
+        }
+
+        return $statement.$eol.$source;
+    }
+
+    /**
      * Import a class in its alphabetical place among the file's imports, unless it is imported already.
      *
      * @param  string  $source
@@ -187,12 +221,12 @@ trait EditsSource
      *
      * @param  string  $source
      * @param  int  $offset  The position right after the opening bracket.
-     * @param  string  $opening  "[" or "(".
+     * @param  string  $opening  "[", "(" or "{".
      * @return int|null
      */
     protected function closingBracket(string $source, int $offset, string $opening): ?int
     {
-        $closing = ['(' => ')', '[' => ']'][$opening];
+        $closing = ['(' => ')', '[' => ']', '{' => '}'][$opening];
         $depth = 1;
         $length = strlen($source);
 

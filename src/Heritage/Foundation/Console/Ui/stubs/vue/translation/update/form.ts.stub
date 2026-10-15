@@ -1,0 +1,19 @@
+import type { [[ Model ]]Translation } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]-translation';
+import { toTypedSchema } from '@vee-validate/zod';
+import * as z from 'zod';
+
+/**
+ * The values of a [[ label ]] translation in the shape of its update form.
+ */
+export const update[[ Model ]]TranslationInitialValues = (translation: [[ Model ]]Translation) => ({
+[[ translationValues ]]
+});
+
+/**
+ * Validation schema of the [[ label ]] translation update form; its locale does not change.
+ */
+export const update[[ Model ]]TranslationSchema = toTypedSchema(
+    z.object({
+[[ translationSchemaFields ]]
+    }),
+);

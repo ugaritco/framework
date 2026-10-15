@@ -1,0 +1,66 @@
+<script setup lang="ts">
+import HeadingSmall from '@/components/HeadingSmall.vue';
+import { show as module } from '@/routes/[[ module ]]/module';
+import { index } from '@/routes/[[ model ]]';
+import type { BreadcrumbItem } from '@/types';
+import { Head } from '@inertiajs/vue3';
+import { [[ Module ]]Layout } from '@module/[[ module ]]/layouts';
+import { [[ indexPartials ]] } from '@module/[[ module ]]/pages/[[ model ]]/partials';
+import type { [[ Model ]]Collection } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import { trans } from 'laravel-vue-i18n';
+import { computed } from 'vue';
+
+/**
+ * [[ Models ]] index page: heading, create action and the [[ labels ]] table.
+ */
+
+interface Props {
+    /** [[ Models ]] returned from the backend. */
+    data: [[ Model ]]Collection;
+}
+
+defineProps<Props>();
+
+/** Breadcrumb trail of the index page. */
+const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
+    { title: trans('[[ module ]]::module.name'), href: module().url },
+    { title: trans('[[ lang ]].plural_definite'), href: index().url },
+]);
+</script>
+
+<template>
+    <Head
+        :title="
+            $t('presentation.index.title', {
+                plural_definite: $t('[[ lang ]].plural_definite'),
+            })
+        "
+    />
+
+    <[[ Module ]]Layout :breadcrumbs="breadcrumbItems">
+        <!-- Header with the create action -->
+        <div
+            class="flex items-center justify-between rounded-xl bg-primary/3 p-4 ring-1 ring-primary/5"
+        >
+            <HeadingSmall
+                :title="
+                    $t('presentation.index.title', {
+                        plural_definite: $t('[[ lang ]].plural_definite'),
+                    })
+                "
+                :description="
+                    $t('presentation.index.description', {
+                        plural_definite: $t('[[ lang ]].plural_definite'),
+                    })
+                "
+            />
+[[ @create ]]
+
+            <StoreDialog />
+[[ @end ]]
+        </div>
+
+        <!-- [[ Models ]] table -->
+        <Read :[[ models ]]="data" />
+    </[[ Module ]]Layout>
+</template>

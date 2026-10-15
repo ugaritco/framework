@@ -1,0 +1,33 @@
+import { toTypedSchema } from '@vee-validate/zod';
+import * as z from 'zod';
+[[ formHelpers ]]
+/**
+ * The empty values of one locale's section.
+ */
+export const empty[[ Model ]]Translation = () => ({
+[[ translationBlank ]]
+});
+
+/**
+ * Initial values of the [[ label ]] create form: the translated fields travel in `translations`,
+ * keyed by locale code.
+ */
+export const create[[ Model ]]InitialValues = () => ({
+[[ plainStoreValues ]]
+    translations: {} as Record<string, ReturnType<typeof empty[[ Model ]]Translation>>,
+});
+
+/**
+ * Validation schema of the [[ label ]] create form, every locale section included.
+ */
+export const create[[ Model ]]Schema = toTypedSchema(
+    z.object({
+[[ plainSchemaFields ]]
+        translations: z.record(
+            z.string(),
+            z.object({
+[[ localeSchemaFields ]]
+            }),
+        ),
+    }),
+);

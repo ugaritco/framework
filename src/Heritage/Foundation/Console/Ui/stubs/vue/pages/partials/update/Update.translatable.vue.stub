@@ -1,0 +1,249 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from '@/components/ui/form';
+import { Separator } from '@/components/ui/separator';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { useFormHandlers } from '@/composables/useFormHandlers';
+import { edit, update } from '@/routes/[[ model ]]';
+import { Form, usePage } from '@inertiajs/vue3';
+import {
+    empty[[ Model ]]Translation,
+    update[[ Model ]]InitialValues,
+    update[[ Model ]]Schema,
+} from '@module/[[ module ]]/pages/[[ model ]]/partials/update/form';
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { Locale } from '@module/i18n/types/locale';
+import {
+    LoaderCircle,
+    Plus,
+    SquareArrowOutUpLeft,
+    Trash2,
+} from 'lucide-vue-next';
+import { computed, ref } from 'vue';
+[[ formImports ]]
+
+/**
+ * [[ Model ]] update form: its fields, a section of translated fields per locale, submission,
+ * reset, and a shortcut to the edit page. A stored locale whose section is removed is sent
+ * empty, which deletes its translation.
+ */
+
+interface Props {
+    /** The [[ label ]] being edited. */
+    [[ modelCamel ]]: [[ Model ]];
+}
+
+const props = defineProps<Props>();
+
+/** Emitted after the [[ label ]] is updated. */
+const emit = defineEmits(['success']);
+
+/** The locales of the application, and the current one, whose section cannot be removed. */
+const page = usePage();
+const currentLocale = (page.props.locale as Locale).code;
+const allLocales = page.props.locales as Locale[];
+
+/** Form helpers bound to the update schema and the [[ label ]]'s values. */
+const { meta, resetForm, handleError, setFieldValue, values } = useFormHandlers(
+    update[[ Model ]]Schema,
+    update[[ Model ]]InitialValues(props.[[ modelCamel ]], currentLocale),
+);
+
+/** The locale codes shown initially: the current one, then the stored translations. */
+const initialLocales = () => Object.keys(values.translations ?? {});
+
+/** The locale codes whose section is shown. */
+const activeLocales = ref<string[]>(initialLocales());
+
+/** The stored locales whose section was removed: sent empty to delete their translation. */
+const removedLocales = computed(() =>
+    Object.keys(props.[[ modelCamel ]].translations ?? {}).filter(
+        (code) => !activeLocales.value.includes(code),
+    ),
+);
+
+/** The locales without a section yet. */
+const availableLocales = computed(() =>
+    allLocales.filter((locale) => !activeLocales.value.includes(locale.code)),
+);
+
+/** The name of a locale in its own language. */
+const localeName = (code: string) =>
+    allLocales.find((locale) => locale.code === code)?.language?.native_name ?? code;
+
+/** Shows the section of a locale, its fields empty. */
+const addLocale = (code: string) => {
+    if (!activeLocales.value.includes(code)) {
+        activeLocales.value.push(code);
+        setFieldValue(`translations.${code}`, empty[[ Model ]]Translation());
+    }
+};
+
+/** Removes the section of a locale other than the current one, with its values. */
+const removeLocale = (code: string) => {
+    if (code === currentLocale) return;
+
+    activeLocales.value = activeLocales.value.filter((active) => active !== code);
+
+    const translations = { ...values.translations };
+    delete translations[code];
+    setFieldValue('translations', translations);
+};
+
+/** Restores the [[ label ]]'s values and their sections. */
+const resetLocales = () => {
+    resetForm();
+    activeLocales.value = initialLocales();
+};
+
+/** Notifies the parent after a successful update. */
+const onSuccess = () => {
+    emit('success');
+};
+</script>
+
+<template>
+    <Form
+        v-slot="{ processing }"
+        v-bind="update.form([[ modelCamel ]].id)"
+        :on-before="() => meta.valid"
+        :on-success="onSuccess"
+        :on-error="handleError"
+        class="grid grid-cols-6 gap-4"
+    >
+[[ plainFormFields ]]
+
+        <!-- A section of translated fields per locale -->
+        <div
+            v-for="code in activeLocales"
+            :key="code"
+            class="col-span-6 grid grid-cols-6 gap-4"
+        >
+            <div class="col-span-6 flex items-center gap-4">
+                <div class="rounded-lg bg-muted px-3 py-2 text-xs font-bold">
+                    {{ localeName(code) }}
+                </div>
+
+                <Separator class="flex-1" />
+
+                <div class="flex items-center gap-2">
+                    <Button
+                        v-if="code !== currentLocale"
+                        type="button"
+                        appearance="outline"
+                        color="danger"
+                        size="sm"
+                        @click="removeLocale(code)"
+                    >
+                        <Trash2 class="h-4 w-4" />
+                    </Button>
+
+                    <DropdownMenu
+                        v-if="
+                            availableLocales.length > 0 &&
+                            code === activeLocales[activeLocales.length - 1]
+                        "
+                    >
+                        <DropdownMenuTrigger as-child>
+                            <Button
+                                type="button"
+                                appearance="outline"
+                                color="neutral"
+                                size="sm"
+                            >
+                                <Plus class="h-4 w-4" />
+                                {{ $t('actions.translation.create') }}
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                                v-for="available in availableLocales"
+                                :key="available.code"
+                                @click="addLocale(available.code)"
+                            >
+                                {{ available.language.native_name }}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+            </div>
+
+[[ localeFormFields ]]
+        </div>
+
+        <!-- Removed stored locales: an empty value deletes the translation -->
+        <input
+            v-for="code in removedLocales"
+            :key="`removed-${code}`"
+            type="hidden"
+            :name="`translations.${code}`"
+            value=""
+        />
+
+        <!-- Actions -->
+        <div class="col-span-6 flex justify-between gap-2">
+            <div class="flex gap-2">
+                <Button
+                    type="submit"
+                    appearance="solid"
+                    color="primary"
+                    :disabled="processing || !meta.dirty || !meta.valid"
+                >
+                    <LoaderCircle
+                        v-if="processing"
+                        class="h-4 w-4 animate-spin"
+                    />
+                    {{ $t('actions.edit') }}
+                </Button>
+
+                <Button
+                    type="button"
+                    appearance="outline"
+                    color="neutral"
+                    :disabled="processing"
+                    @click="resetLocales()"
+                >
+                    {{ $t('actions.reset') }}
+                </Button>
+            </div>
+
+            <!-- Open the edit page -->
+            <TooltipProvider :delay-duration="0">
+                <Tooltip>
+                    <TooltipTrigger as-child>
+                        <Button
+                            type="button"
+                            appearance="outline"
+                            color="neutral"
+                            as="a"
+                            :href="edit.url([[ modelCamel ]].id)"
+                            :disabled="processing"
+                        >
+                            <SquareArrowOutUpLeft class="h-4 w-4" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>{{ $t('actions.open_in_full_page') }}</p>
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+        </div>
+    </Form>
+</template>

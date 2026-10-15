@@ -1,0 +1,126 @@
+<script setup lang="ts">
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import DataTable from '@/components/ui/table/data/DataTable.vue';
+import { usePage } from '@inertiajs/vue3';
+import { StoreDialog } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation';
+import { use[[ Model ]]TranslationColumns } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/index/data/columns';
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { [[ Model ]]Translation } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]-translation';
+import type { Locale } from '@module/i18n/types/locale';
+import { AlertCircle, AlertTriangle } from 'lucide-vue-next';
+import { computed } from 'vue';
+
+/**
+ * [[ Model ]] translations tab: an alert when the [[ label ]] has no translation or misses some
+ * locales (each offering to add one), and the table of its translations.
+ */
+
+interface Props {
+    /** The translations of the [[ label ]], keyed by locale code. */
+    translations: Record<string, [[ Model ]]Translation>;
+
+    /** The translated [[ label ]]. */
+    [[ modelCamel ]]: [[ Model ]];
+}
+
+const props = defineProps<Props>();
+
+/** The locales of the application. */
+const locales = computed(() => (usePage().props.locales as Locale[]) || []);
+
+/** The translations, as table rows. */
+const rows = computed(() => Object.values(props.translations ?? {}));
+
+/** The locales the [[ label ]] has no translation in. */
+const missingLocales = computed(() => {
+    const translated = Object.keys(props.translations ?? {});
+
+    return locales.value.filter((locale) => !translated.includes(locale.code));
+});
+
+/** The columns of the translations table. */
+const columns = use[[ Model ]]TranslationColumns(props.[[ modelCamel ]]);
+
+/** Whether the [[ label ]] has no translation at all. */
+const hasNoTranslations = computed(() => rows.value.length === 0);
+
+/** Whether some locales are missing, the [[ label ]] having other translations. */
+const hasMissingTranslations = computed(
+    () => missingLocales.value.length > 0 && !hasNoTranslations.value,
+);
+</script>
+
+<template>
+    <div class="min-h-0 flex-1 space-y-4">
+        <!-- No translation -->
+        <Alert
+            v-if="hasNoTranslations"
+            class="border-red bg-red/10 text-red [&>svg]:text-red"
+        >
+            <AlertCircle class="h-4 w-4" />
+            <AlertTitle>
+                {{
+                    $t('presentation.states.no_translations.title', {
+                        model_singular: $t('[[ lang ]].singular'),
+                        entity: String([[ entityLabel ]]),
+                    })
+                }}
+            </AlertTitle>
+
+            <AlertDescription class="flex items-center justify-between gap-4">
+                <span>
+                    {{
+                        $t('presentation.states.no_translations.description', {
+                            model_singular: $t('[[ lang ]].singular'),
+                            entity: String([[ entityLabel ]]),
+                        })
+                    }}
+                </span>
+
+                <div class="flex flex-wrap gap-2">
+                    <StoreDialog :[[ modelCamel ]]="[[ modelCamel ]]" />
+                </div>
+            </AlertDescription>
+        </Alert>
+
+        <!-- Missing locales -->
+        <Alert
+            v-if="hasMissingTranslations"
+            class="border-yellow bg-yellow/10 text-yellow [&>svg]:text-yellow"
+        >
+            <AlertTriangle class="h-4 w-4" />
+            <AlertTitle>
+                {{
+                    $t('presentation.states.missing_translations.title', {
+                        model_singular: $t('[[ lang ]].singular'),
+                        entity: String([[ entityLabel ]]),
+                    })
+                }}
+            </AlertTitle>
+
+            <AlertDescription class="flex items-center justify-between gap-4">
+                <span
+                    v-html="
+                        $t('presentation.states.missing_translations.description', {
+                            model_singular: $t('[[ lang ]].singular'),
+                            entity: String([[ entityLabel ]]),
+                            locales: missingLocales
+                                .map((locale) => locale.language.name)
+                                .join(', '),
+                        })
+                    "
+                />
+
+                <div class="flex flex-wrap gap-2">
+                    <StoreDialog
+                        :[[ modelCamel ]]="[[ modelCamel ]]"
+                        :locales="missingLocales"
+                    />
+                </div>
+            </AlertDescription>
+        </Alert>
+
+        <!-- Translations -->
+        <DataTable :data="rows" :columns="columns" />
+    </div>
+</template>

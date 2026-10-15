@@ -1,0 +1,58 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { ref } from 'vue';
+
+/**
+ * [[ summary ]]: a modal whose trigger and content are given through its slots; the content
+ * receives `close`.
+ */
+
+interface Props {
+    /** The title of the dialog, and of its default trigger. */
+    title: string;
+
+    /** The text under the title. */
+    description?: string;
+}
+
+defineProps<Props>();
+
+/** Whether the dialog is open. */
+const open = ref(false);
+
+/** Closes the dialog. */
+const close = () => {
+    open.value = false;
+};
+</script>
+
+<template>
+    <Dialog v-model:open="open">
+        <DialogTrigger as-child>
+            <slot name="trigger">
+                <Button appearance="solid" color="primary">
+                    {{ title }}
+                </Button>
+            </slot>
+        </DialogTrigger>
+
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>{{ title }}</DialogTitle>
+                <DialogDescription v-if="description">
+                    {{ description }}
+                </DialogDescription>
+            </DialogHeader>
+
+            <slot :close="close" />
+        </DialogContent>
+    </Dialog>
+</template>

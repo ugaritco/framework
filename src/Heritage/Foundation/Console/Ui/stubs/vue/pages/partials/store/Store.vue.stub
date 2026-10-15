@@ -1,0 +1,106 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import {
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from '@/components/ui/form';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { useFormHandlers } from '@/composables/useFormHandlers';
+import { create, store } from '@/routes/[[ model ]]';
+import { Form } from '@inertiajs/vue3';
+import {
+    create[[ Model ]]InitialValues,
+    create[[ Model ]]Schema,
+} from '[[ storeForm ]]';
+import { LoaderCircle, SquareArrowOutUpLeft } from 'lucide-vue-next';
+[[ formImports ]]
+
+/**
+ * [[ Model ]] create form: validation, submission, reset, and a shortcut to the create page.
+ */
+
+/** Emitted after the [[ label ]] is created. */
+const emit = defineEmits(['success']);
+
+/** Form helpers bound to the create schema and initial values. */
+const { meta, resetForm, handleError } = useFormHandlers(
+    create[[ Model ]]Schema,
+    create[[ Model ]]InitialValues(),
+);
+
+/** Resets the form and notifies the parent after a successful create. */
+const onSuccess = () => {
+    resetForm();
+    emit('success');
+};
+</script>
+
+<template>
+    <Form
+        v-slot="{ processing }"
+        v-bind="store.form()"
+        :on-before="() => meta.valid"
+        :on-success="onSuccess"
+        :on-error="handleError"
+        class="grid grid-cols-6 gap-4"
+    >
+[[ formFields ]]
+
+        <!-- Actions -->
+        <div class="col-span-6 flex justify-between gap-2">
+            <div class="flex gap-2">
+                <Button
+                    type="submit"
+                    appearance="solid"
+                    color="primary"
+                    :disabled="processing || !meta.dirty || !meta.valid"
+                >
+                    <LoaderCircle
+                        v-if="processing"
+                        class="h-4 w-4 animate-spin"
+                    />
+                    {{ $t('actions.create') }}
+                </Button>
+
+                <Button
+                    type="button"
+                    appearance="outline"
+                    color="neutral"
+                    :disabled="processing"
+                    @click="resetForm()"
+                >
+                    {{ $t('actions.reset') }}
+                </Button>
+            </div>
+
+            <!-- Open the create page -->
+            <TooltipProvider :delay-duration="0">
+                <Tooltip>
+                    <TooltipTrigger as-child>
+                        <Button
+                            type="button"
+                            appearance="outline"
+                            color="neutral"
+                            as="a"
+                            :href="create.url()"
+                            :disabled="processing"
+                        >
+                            <SquareArrowOutUpLeft class="h-4 w-4" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>{{ $t('actions.open_in_full_page') }}</p>
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+        </div>
+    </Form>
+</template>

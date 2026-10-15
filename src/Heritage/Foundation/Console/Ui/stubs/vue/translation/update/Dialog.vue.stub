@@ -1,0 +1,98 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { Update } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation';
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { [[ Model ]]Translation } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]-translation';
+import type { Locale } from '@module/i18n/types/locale';
+import { Edit } from 'lucide-vue-next';
+import { ref } from 'vue';
+
+/**
+ * [[ Model ]] translation update dialog: the update form of one locale in a modal, opened by a
+ * text or icon trigger.
+ */
+
+interface Props {
+    /** The translated [[ label ]]. */
+    [[ modelCamel ]]: [[ Model ]];
+
+    /** The locale of the translation. */
+    locale: Locale;
+
+    /** The translation being edited. */
+    translation: [[ Model ]]Translation;
+
+    /** Renders an icon trigger instead of the default text button. */
+    asIcon?: boolean;
+}
+
+withDefaults(defineProps<Props>(), {
+    asIcon: false,
+});
+
+/** Whether the dialog is open. */
+const open = ref(false);
+</script>
+
+<template>
+    <Dialog v-model:open="open">
+        <DialogTrigger as-child @click.stop>
+            <Button
+                v-if="!asIcon"
+                appearance="outline"
+                color="primary"
+                data-test="update-[[ model ]]-translation-button"
+            >
+                {{ $t('actions.translation.edit') }}
+            </Button>
+
+            <Button
+                v-else
+                appearance="outline"
+                color="neutral"
+                size="sm"
+                data-test="update-[[ model ]]-translation-button"
+            >
+                <Edit class="h-4 w-4 text-primary" />
+            </Button>
+        </DialogTrigger>
+
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>
+                    {{
+                        $t('presentation.translation.edit.title', {
+                            model_singular: $t('[[ lang ]].singular'),
+                            entity: String([[ entityLabel ]]),
+                        })
+                    }}
+                </DialogTitle>
+                <DialogDescription>
+                    <span
+                        v-html="
+                            $t('presentation.translation.edit.description', {
+                                model_singular: $t('[[ lang ]].singular'),
+                                entity: String([[ entityLabel ]]),
+                                locale: String(locale?.language.name ?? translation.locale),
+                            })
+                        "
+                    />
+                </DialogDescription>
+            </DialogHeader>
+
+            <Update
+                :[[ modelCamel ]]="[[ modelCamel ]]"
+                :translation="translation"
+                @success="open = false"
+            />
+        </DialogContent>
+    </Dialog>
+</template>

@@ -1,0 +1,20 @@
+<script setup lang="ts">
+import DataTable from '@/components/ui/table/data/DataTable.vue';
+import { columns } from '[[ columnsPath ]]';
+import type { [[ Model ]]Collection } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+
+/**
+ * [[ Models ]] table: the shared DataTable with the [[ label ]] columns.
+ */
+
+interface Props {
+    /** [[ Models ]] returned from the backend. */
+    [[ models ]]: [[ Model ]]Collection;
+}
+
+defineProps<Props>();
+</script>
+
+<template>
+    <DataTable :data="[[ models ]]" :columns="columns" />
+</template>

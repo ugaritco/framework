@@ -1,0 +1,54 @@
+<script setup lang="ts">
+import HeadingSmall from '@/components/HeadingSmall.vue';
+import { show as module } from '@/routes/[[ module ]]/module';
+[[ @index ]]
+import { index } from '@/routes/[[ model ]]';
+[[ @end ]]
+import type { BreadcrumbItem } from '@/types';
+import { Head } from '@inertiajs/vue3';
+import { [[ Module ]]Layout } from '@module/[[ module ]]/layouts';
+import { Store } from '@module/[[ module ]]/pages/[[ model ]]/partials';
+import { trans } from 'laravel-vue-i18n';
+import { computed } from 'vue';
+
+/**
+ * [[ Model ]] create page: the create form in a full page.
+ */
+
+/** Breadcrumb trail of the create page. */
+const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
+    { title: trans('[[ module ]]::module.name'), href: module().url },
+    { title: trans('[[ lang ]].plural_definite'), href: [[ indexHref ]] },
+    {
+        title: trans('presentation.create.title', {
+            model_singular: trans('[[ lang ]].singular'),
+        }),
+        href: '#',
+    },
+]);
+</script>
+
+<template>
+    <Head :title="$t('[[ lang ]].plural')" />
+
+    <[[ Module ]]Layout :breadcrumbs="breadcrumbItems">
+        <div
+            class="flex items-center justify-between rounded-xl bg-primary/3 p-4 ring-1 ring-primary/5"
+        >
+            <HeadingSmall
+                :title="
+                    $t('presentation.create.title', {
+                        model_singular: $t('[[ lang ]].singular'),
+                    })
+                "
+                :description="
+                    $t('presentation.create.description', {
+                        model_singular: $t('[[ lang ]].singular'),
+                    })
+                "
+            />
+        </div>
+
+        <Store />
+    </[[ Module ]]Layout>
+</template>

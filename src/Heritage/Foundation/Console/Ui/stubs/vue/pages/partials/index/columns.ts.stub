@@ -1,0 +1,129 @@
+import type {
+    [[ Model ]],
+    [[ Model ]]ColumnMeta,
+} from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { ColumnDef, FilterFn } from '@tanstack/vue-table';
+import { computed, h } from 'vue';
+
+import { Checkbox } from '@/components/ui/checkbox';
+import DataTableColumnHeader from '@/components/ui/table/data/DataTableColumnHeader.vue';
+import { since } from '@/lib/time';[[ actionImports ]]
+import { trans } from 'laravel-vue-i18n';
+[[ columnImports ]]
+
+/** Matches the rows whose cell contains the searched text. */
+const contains: FilterFn<[[ Model ]]> = (row, id, value: string) =>
+    String(row.getValue(id) ?? '').includes(value);
+[[ columnSetup ]]
+
+/**
+ * [[ Model ]] table columns: headers, cells, filtering and row actions of the shared DataTable;
+ * `meta` builds its search and filter controls.
+ */
+export const columns = computed<ColumnDef<[[ Model ]]>[]>(() => [
+    /** Row selection. */
+    {
+        id: 'select',
+        header: ({ table }) =>
+            h(Checkbox, {
+                modelValue:
+                    table.getIsAllPageRowsSelected() ||
+                    (table.getIsSomePageRowsSelected() && 'indeterminate'),
+                'onUpdate:modelValue': (value) =>
+                    table.toggleAllPageRowsSelected(!!value),
+                class: 'translate-y-0.5',
+            }),
+        cell: ({ row }) =>
+            h(Checkbox, {
+                modelValue: row.getIsSelected(),
+                'onUpdate:modelValue': (value) => row.toggleSelected(!!value),
+                class: 'translate-y-0.5',
+            }),
+        enableSorting: false,
+        enableHiding: false,
+        meta: {
+            title: '#',
+            searchable: false,
+            filterable: false,
+            filterOption: [],
+        } as [[ Model ]]ColumnMeta,
+    },
+
+    /** Identifier. */
+    {
+        accessorKey: 'id',
+        header: ({ column }) => h(DataTableColumnHeader, { column, title: '#' }),
+        cell: ({ row }) => h('div', String(row.getValue('id'))),
+        filterFn: contains,
+        enableSorting: true,
+        enableHiding: true,
+        meta: {
+            title: '#',
+            searchable: true,
+            filterable: false,
+            filterOption: [],
+        } as [[ Model ]]ColumnMeta,
+    },
+[[ columns ]]
+    /** Last update, relative and exact. */
+    {
+        accessorKey: 'updated_at',
+        header: ({ column }) =>
+            h(DataTableColumnHeader, {
+                column,
+                title: trans('[[ lang ]].attributes.updated_at.label'),
+            }),
+        cell: ({ row }) =>
+            h('div', { class: 'flex flex-col' }, [
+                h('span', {
+                    class: 'text-xs font-medium',
+                    innerHTML: since(row.getValue('updated_at')),
+                }),
+                h(
+                    'span',
+                    { class: 'text-[10px] text-muted-foreground' },
+                    row.getValue('updated_at') as string,
+                ),
+            ]),
+        filterFn: contains,
+        enableSorting: true,
+        enableHiding: true,
+        meta: {
+            title: trans('[[ lang ]].attributes.updated_at.label'),
+            searchable: false,
+            filterable: false,
+            filterOption: [],
+        } as [[ Model ]]ColumnMeta,
+    },
+[[ @show|edit|destroy ]]
+
+    /** Row actions: [[ rowActions ]]. */
+    {
+        id: 'actions',
+        header: ({ column }) =>
+            h(DataTableColumnHeader, {
+                column,
+                title: trans('actions.label'),
+                class: 'text-center',
+            }),
+        cell: ({ row }) =>
+            h('div', { class: 'flex items-center justify-center gap-2' }, [
+[[ @show ]]
+                h(ShowDialog, { [[ modelCamel ]]: row.original, asIcon: true }),
+[[ @end ]]
+[[ @edit ]]
+                h(UpdateDialog, { [[ modelCamel ]]: row.original, asIcon: true }),
+[[ @end ]]
+[[ @destroy ]]
+                h(DestroyDialog, { [[ modelCamel ]]: row.original, asIcon: true }),
+[[ @end ]]
+            ]),
+        meta: {
+            title: trans('actions.label'),
+            searchable: false,
+            filterable: false,
+            filterOption: [],
+        } as [[ Model ]]ColumnMeta,
+    },
+[[ @end ]]
+]);

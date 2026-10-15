@@ -100,6 +100,8 @@ use Heritage\Foundation\Console\StorageUnlinkCommand;
 use Heritage\Foundation\Console\StubPublishCommand;
 use Heritage\Foundation\Console\TestMakeCommand;
 use Heritage\Foundation\Console\TraitMakeCommand;
+use Heritage\Foundation\Console\Ui\PagesMakeCommand;
+use Heritage\Foundation\Console\Ui\PanelMakeCommand;
 use Heritage\Foundation\Console\UpCommand;
 use Heritage\Foundation\Console\VendorPublishCommand;
 use Heritage\Foundation\Console\ViewCacheCommand;
@@ -268,6 +270,10 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
         'TraitMake' => TraitMakeCommand::class,
         'VendorPublish' => VendorPublishCommand::class,
         'ViewMake' => ViewMakeCommand::class,
+
+        // Frontend (panel) generators, apart from the backend ones above
+        'PanelMake' => PanelMakeCommand::class,
+        'PagesMake' => PagesMakeCommand::class,
     ];
 
     /**

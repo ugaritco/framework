@@ -1,0 +1,33 @@
+[[ typeImports ]]import { z } from 'zod';
+
+/**
+ * [[ Model ]] entity schema: the contract of [[ Model ]]Resource.
+ */
+export const [[ Model ]] = z.object({
+    id: z.number(),
+[[ typeFields ]]
+    created_at: z.string(),
+    updated_at: z.string(),[[ typeTranslations ]]
+});
+
+/**
+ * [[ Model ]] collection schema: the listing returned by the backend.
+ */
+export const [[ Model ]]Collection = z.object({
+    data: z.array([[ Model ]]),
+    meta: z.record(z.any()).optional(),
+});
+
+/**
+ * Metadata of a [[ label ]] table column: its title, and whether it is searched or filtered.
+ */
+export const [[ Model ]]ColumnMeta = z.object({
+    title: z.string().optional(),
+    searchable: z.boolean().default(false),
+    filterable: z.boolean().default(false),
+    filterOption: z.array(z.any()).default([]),
+});
+
+export type [[ Model ]] = z.infer<typeof [[ Model ]]>;
+export type [[ Model ]]Collection = z.infer<typeof [[ Model ]]Collection>;
+export type [[ Model ]]ColumnMeta = z.infer<typeof [[ Model ]]ColumnMeta>;

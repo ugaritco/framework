@@ -1,0 +1,131 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { show } from '@/routes/[[ model ]]';
+[[ showDialogImports ]]
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import { Eye, SquareArrowOutUpLeft } from 'lucide-vue-next';
+import { ref } from 'vue';
+
+/**
+ * [[ Model ]] quick view: the [[ label ]] summary in a modal, with its actions and a shortcut to
+ * its page.
+ */
+
+interface Props {
+    /** The [[ label ]] shown. */
+    [[ modelCamel ]]: [[ Model ]];
+
+    /** Renders an icon trigger instead of the default text button. */
+    asIcon?: boolean;
+}
+
+withDefaults(defineProps<Props>(), {
+    asIcon: false,
+});
+
+/** Whether the dialog is open. */
+const open = ref(false);
+</script>
+
+<template>
+    <Dialog v-model:open="open">
+        <DialogTrigger as-child>
+            <slot>
+                <Button
+                    v-if="!asIcon"
+                    appearance="outline"
+                    color="primary"
+                    data-test="show-[[ model ]]-button"
+                >
+                    {{ $t('actions.show') }}
+                </Button>
+
+                <Button
+                    v-else
+                    appearance="outline"
+                    color="neutral"
+                    size="sm"
+                    data-test="show-[[ model ]]-button"
+                >
+                    <Eye class="h-4 w-4 text-primary" />
+                </Button>
+            </slot>
+        </DialogTrigger>
+
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>
+                    {{
+                        $t('presentation.show.title', {
+                            model_singular: $t('[[ lang ]].singular'),
+                            entity: String([[ entityLabel ]]),
+                        })
+                    }}
+                </DialogTitle>
+                <DialogDescription>
+                    <span
+                        v-html="
+                            $t('presentation.show.description', {
+                                model_singular: $t('[[ lang ]].singular'),
+                                entity: String([[ entityLabel ]]),
+                            })
+                        "
+                    />
+                </DialogDescription>
+            </DialogHeader>
+
+            <Separator />
+
+            <Summary :[[ modelCamel ]]="[[ modelCamel ]]" />
+
+            <Separator />
+
+            <DialogFooter>
+                <div class="flex w-full justify-between gap-4">
+                    <div class="flex justify-start gap-4">
+[[ @edit ]]
+                        <UpdateDialog :[[ modelCamel ]]="[[ modelCamel ]]" />
+[[ @end ]]
+[[ @destroy ]]
+                        <DestroyDialog :[[ modelCamel ]]="[[ modelCamel ]]" />
+[[ @end ]]
+                    </div>
+
+                    <TooltipProvider :delay-duration="0">
+                        <Tooltip>
+                            <TooltipTrigger as-child>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    as="a"
+                                    :href="show.url([[ modelCamel ]].id)"
+                                >
+                                    <SquareArrowOutUpLeft class="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>{{ $t('actions.open_in_full_page') }}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                </div>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+</template>

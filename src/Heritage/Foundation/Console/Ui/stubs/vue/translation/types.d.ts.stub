@@ -1,0 +1,25 @@
+import { z } from 'zod';
+
+/**
+ * [[ Model ]] translation schema: the contract of [[ Model ]]TranslationResource, one locale's values.
+ */
+export const [[ Model ]]Translation = z.object({
+    id: z.number(),
+    locale: z.string(),
+[[ translationTypeFields ]]
+    created_at: z.string(),
+    updated_at: z.string(),
+});
+
+/**
+ * Metadata of a [[ label ]] translation table column: its title, and whether it is searched or filtered.
+ */
+export const [[ Model ]]TranslationColumnMeta = z.object({
+    title: z.string().optional(),
+    searchable: z.boolean().default(false),
+    filterable: z.boolean().default(false),
+    filterOption: z.array(z.any()).default([]),
+});
+
+export type [[ Model ]]Translation = z.infer<typeof [[ Model ]]Translation>;
+export type [[ Model ]]TranslationColumnMeta = z.infer<typeof [[ Model ]]TranslationColumnMeta>;

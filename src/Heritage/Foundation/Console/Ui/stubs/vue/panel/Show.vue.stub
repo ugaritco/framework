@@ -1,0 +1,67 @@
+<script setup lang="ts">
+import HeadingSmall from '@/components/HeadingSmall.vue';
+import { Card } from '@/components/ui/card';
+import { show } from '@/routes/[[ module ]]/module';
+import type { BreadcrumbItem } from '@/types';
+import { Head, Link } from '@inertiajs/vue3';
+import { [[ Module ]]Layout } from '@module/[[ module ]]/layouts';
+import { [[ moduleCamel ]]Entities } from '@module/[[ module ]]/navigation';
+import { trans } from 'laravel-vue-i18n';
+import { ChevronLeft } from 'lucide-vue-next';
+import { computed } from 'vue';
+
+/**
+ * [[ title ]] module summary page: the module's description and a card per entity.
+ */
+
+/** Breadcrumb trail of the summary page. */
+const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
+    { title: trans('[[ module ]]::module.name'), href: show().url },
+    { title: trans('pages.summary'), href: show().url },
+]);
+
+/** The entities of the module, each linking to its listing. */
+const entities = computed(() => [[ moduleCamel ]]Entities());
+</script>
+
+<template>
+    <Head :title="$t('[[ module ]]::module.name')" />
+
+    <[[ Module ]]Layout :breadcrumbs="breadcrumbItems">
+        <!-- Header -->
+        <div
+            class="flex items-center justify-between rounded-xl bg-primary/3 p-4 ring-1 ring-primary/5"
+        >
+            <HeadingSmall
+                :title="$t('[[ module ]]::module.name')"
+                :description="$t('[[ module ]]::module.description')"
+            />
+        </div>
+
+        <!-- Entities -->
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <Link
+                v-for="entity in entities"
+                :key="entity.title"
+                :href="entity.href"
+                class="group"
+            >
+                <Card
+                    class="flex flex-row items-center gap-4 border-none bg-primary/3 p-4 transition-colors group-hover:bg-primary/6"
+                >
+                    <div
+                        class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+                    >
+                        <component :is="entity.icon" class="size-5" />
+                    </div>
+                    <p class="flex-1 truncate text-sm font-bold">
+                        {{ entity.title }}
+                    </p>
+                    <ChevronLeft
+                        class="size-4 text-muted-foreground transition-transform group-hover:-translate-x-1 ltr:rotate-180"
+                    />
+                </Card>
+            </Link>
+        </div>
+    </[[ Module ]]Layout>
+</template>

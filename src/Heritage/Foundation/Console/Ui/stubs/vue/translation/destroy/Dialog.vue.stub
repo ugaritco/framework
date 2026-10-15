@@ -1,0 +1,98 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { Destroy } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation';
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { [[ Model ]]Translation } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]-translation';
+import type { Locale } from '@module/i18n/types/locale';
+import { Trash } from 'lucide-vue-next';
+import { ref } from 'vue';
+
+/**
+ * [[ Model ]] translation delete dialog: the delete form of one locale in a modal, opened by a
+ * text or icon trigger.
+ */
+
+interface Props {
+    /** The translated [[ label ]]. */
+    [[ modelCamel ]]: [[ Model ]];
+
+    /** The locale of the translation. */
+    locale: Locale;
+
+    /** The translation to delete. */
+    translation: [[ Model ]]Translation;
+
+    /** Renders an icon trigger instead of the default text button. */
+    asIcon?: boolean;
+}
+
+withDefaults(defineProps<Props>(), {
+    asIcon: false,
+});
+
+/** Whether the dialog is open. */
+const open = ref(false);
+</script>
+
+<template>
+    <Dialog v-model:open="open">
+        <DialogTrigger as-child>
+            <Button
+                v-if="!asIcon"
+                appearance="outline"
+                color="danger"
+                data-test="destroy-[[ model ]]-translation-button"
+            >
+                {{ $t('actions.translation.delete') }}
+            </Button>
+
+            <Button
+                v-else
+                appearance="outline"
+                color="neutral"
+                size="sm"
+                data-test="destroy-[[ model ]]-translation-button"
+            >
+                <Trash class="h-4 w-4 text-destructive" />
+            </Button>
+        </DialogTrigger>
+
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>
+                    {{
+                        $t('presentation.translation.destroy.title', {
+                            model_singular: $t('[[ lang ]].singular'),
+                            entity: String([[ entityLabel ]]),
+                        })
+                    }}
+                </DialogTitle>
+                <DialogDescription>
+                    <span
+                        v-html="
+                            $t('presentation.translation.destroy.description', {
+                                model_singular: $t('[[ lang ]].singular'),
+                                entity: String([[ entityLabel ]]),
+                                locale: String(locale?.language.name ?? translation.locale),
+                            })
+                        "
+                    />
+                </DialogDescription>
+            </DialogHeader>
+
+            <Destroy
+                :[[ modelCamel ]]="[[ modelCamel ]]"
+                :translation="translation"
+                @success="open = false"
+            />
+        </DialogContent>
+    </Dialog>
+</template>

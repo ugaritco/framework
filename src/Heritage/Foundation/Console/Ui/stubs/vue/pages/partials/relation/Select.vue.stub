@@ -1,0 +1,54 @@
+<script setup lang="ts">
+import {
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from '@/components/ui/form';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { use[[ Related ]]Options } from '[[ optionsPath ]]';
+
+/**
+ * The `[[ field ]]` field of the [[ label ]] forms: a select of the [[ relatedLabels ]].
+ */
+
+const { options, loading } = use[[ Related ]]Options();
+</script>
+
+<template>
+    <FormField v-slot="{ componentField }" name="[[ field ]]">
+        <FormItem class="col-span-6">
+            <FormLabel>
+                {{ $t('[[ fieldLabel ]]') }}[[ requiredMark ]]
+            </FormLabel>
+            <FormControl>
+                <Select v-bind="componentField" :disabled="loading">
+                    <SelectTrigger class="w-full">
+                        <SelectValue
+                            :placeholder="
+                                $t('[[ fieldPlaceholder ]]')
+                            "
+                        />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem
+                            v-for="option in options"
+                            :key="option.id"
+                            :value="option.id"
+                        >
+                            {{ option.[[ relatedLabelField ]] || option.id }}
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+            </FormControl>
+            <FormMessage />
+        </FormItem>
+    </FormField>
+</template>

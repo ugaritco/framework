@@ -1,0 +1,27 @@
+<script setup lang="ts">
+import { Head } from '@inertiajs/vue3';
+import [[ Model ]]Layout from '@module/[[ module ]]/layouts/[[ Model ]]Layout.vue';
+import { Summary } from '@module/[[ module ]]/pages/[[ model ]]/partials';[[ showImports ]]
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+
+/**
+ * [[ Model ]] show page: the [[ label ]]'s sections in the [[ label ]] layout.
+ */
+
+interface Props {
+    /** The [[ label ]] returned from the backend. */
+    data: [[ Model ]];
+}
+
+defineProps<Props>();
+</script>
+
+<template>
+    <Head :title="$t('[[ lang ]].singular') + ' - ' + String([[ dataLabel ]])" />
+
+    <[[ Model ]]Layout :data="data">
+        <template #summary>
+            <Summary :[[ modelCamel ]]="data" />
+        </template>[[ showSlots ]]
+    </[[ Model ]]Layout>
+</template>

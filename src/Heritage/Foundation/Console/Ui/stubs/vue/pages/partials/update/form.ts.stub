@@ -1,0 +1,19 @@
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import { toTypedSchema } from '@vee-validate/zod';
+import * as z from 'zod';
+[[ formHelpers ]]
+/**
+ * The values of a [[ label ]] in the shape of the update form.
+ */
+export const update[[ Model ]]InitialValues = ([[ modelCamel ]]: [[ Model ]]) => ({
+[[ updateValues ]]
+});
+
+/**
+ * Validation schema of the [[ label ]] update form.
+ */
+export const update[[ Model ]]Schema = toTypedSchema(
+    z.object({
+[[ schemaFields ]]
+    }),
+);

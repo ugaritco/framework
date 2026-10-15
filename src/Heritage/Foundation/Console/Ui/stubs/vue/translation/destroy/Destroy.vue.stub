@@ -1,0 +1,107 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import {
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { useFormHandlers } from '@/composables/useFormHandlers';
+import { destroy } from '@/routes/[[ model ]]-translation';
+import { Form } from '@inertiajs/vue3';
+import {
+    destroy[[ Model ]]TranslationInitialValues,
+    destroy[[ Model ]]TranslationSchema,
+} from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/destroy/form';
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { [[ Model ]]Translation } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]-translation';
+import { LoaderCircle } from 'lucide-vue-next';
+
+/**
+ * [[ Model ]] translation delete form: deletes once the translated [[ translationLabelTitle ]] is typed.
+ */
+
+interface Props {
+    /** The translated [[ label ]]. */
+    [[ modelCamel ]]: [[ Model ]];
+
+    /** The translation to delete. */
+    translation: [[ Model ]]Translation;
+}
+
+const props = defineProps<Props>();
+
+/** Emitted after the translation is deleted. */
+const emit = defineEmits(['success']);
+
+/** Form helpers bound to the confirmation schema of this translation. */
+const { meta, resetForm, handleError } = useFormHandlers(
+    destroy[[ Model ]]TranslationSchema(props.translation),
+    destroy[[ Model ]]TranslationInitialValues(),
+);
+
+/** Resets the form and notifies the parent after a successful delete. */
+const onSuccess = () => {
+    resetForm();
+    emit('success');
+};
+</script>
+
+<template>
+    <Form
+        v-slot="{ processing }"
+        v-bind="
+            destroy.form({
+                [[ routeParameter ]]: [[ modelCamel ]].id,
+                [[ translationParameter ]]: translation.id,
+            })
+        "
+        :on-before="() => meta.valid"
+        :on-success="onSuccess"
+        :on-error="handleError"
+        class="grid grid-cols-6 gap-4"
+    >
+        <!-- Confirmation -->
+        <FormField v-slot="{ componentField }" name="[[ translationLabel ]]_confirmation">
+            <FormItem class="col-span-6">
+                <FormLabel>
+                    {{ $t('[[ lang ]].attributes.[[ translationLabel ]].label') }}
+                    <span class="text-red">*</span>
+                </FormLabel>
+                <FormControl>
+                    <Input
+                        type="text"
+                        :placeholder="String(translation.[[ translationLabel ]] ?? '')"
+                        v-bind="componentField"
+                    />
+                </FormControl>
+                <FormMessage />
+            </FormItem>
+        </FormField>
+
+        <!-- Actions -->
+        <div class="col-span-6 flex justify-start gap-2">
+            <Button
+                type="submit"
+                appearance="solid"
+                color="danger"
+                :disabled="processing || !meta.dirty || !meta.valid"
+            >
+                <LoaderCircle v-if="processing" class="h-4 w-4 animate-spin" />
+                {{ $t('actions.translation.delete') }}
+            </Button>
+
+            <Button
+                type="button"
+                appearance="outline"
+                color="neutral"
+                :disabled="processing"
+                @click="resetForm()"
+            >
+                {{ $t('actions.reset') }}
+            </Button>
+        </div>
+    </Form>
+</template>

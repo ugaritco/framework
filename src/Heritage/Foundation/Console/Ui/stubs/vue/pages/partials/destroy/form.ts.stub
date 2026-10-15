@@ -1,0 +1,30 @@
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import { toTypedSchema } from '@vee-validate/zod';
+import { trans } from 'laravel-vue-i18n';
+import * as z from 'zod';
+
+/**
+ * Initial values of the [[ label ]] delete form.
+ */
+export const destroy[[ Model ]]InitialValues = () => ({
+    confirmation: '',
+    force: false,
+});
+
+/**
+ * Validation schema of the [[ label ]] delete form: the [[ confirmLabel ]] must be typed to
+ * confirm, and `force` deletes permanently.
+ */
+export const destroy[[ Model ]]Schema = ([[ modelCamel ]]: [[ Model ]]) =>
+    toTypedSchema(
+        z.object({
+            confirmation: z
+                .string()
+                .refine((value) => value === String([[ entityConfirm ]]), {
+                    message: trans('validation.match', {
+                        attribute: [[ confirmTrans ]],
+                    }),
+                }),
+            force: z.boolean(),
+        }),
+    );

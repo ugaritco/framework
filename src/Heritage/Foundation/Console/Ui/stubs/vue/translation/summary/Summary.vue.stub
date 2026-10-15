@@ -1,0 +1,62 @@
+<script lang="ts" setup>
+import { since } from '@/lib/time';
+import type { [[ Model ]]Translation } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]-translation';
+import { [[ translationSummaryIcons ]] } from 'lucide-vue-next';
+
+/**
+ * [[ Model ]] translation summary: one locale's translated fields and timestamps.
+ */
+
+interface Props {
+    /** The translation shown. */
+    translation: [[ Model ]]Translation;
+}
+
+defineProps<Props>();
+</script>
+
+<template>
+    <div class="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2">
+[[ translationSummaryItems ]]
+
+        <!-- Created at -->
+        <div class="flex min-w-0 items-start gap-3">
+            <div class="shrink-0 rounded-lg bg-muted p-2">
+                <CalendarDays class="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div class="flex min-w-0 flex-col gap-1">
+                <span
+                    class="truncate text-xs font-medium tracking-wider text-muted-foreground uppercase"
+                >
+                    {{ $t('[[ lang ]].attributes.created_at.label') }}
+                </span>
+                <span class="text-xs break-words text-primary">
+                    {{ since(translation.created_at) }}
+                </span>
+                <span class="text-xs font-semibold break-words">
+                    {{ translation.created_at }}
+                </span>
+            </div>
+        </div>
+
+        <!-- Updated at -->
+        <div class="flex min-w-0 items-start gap-3">
+            <div class="shrink-0 rounded-lg bg-muted p-2">
+                <RefreshCw class="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div class="flex min-w-0 flex-col gap-1">
+                <span
+                    class="truncate text-xs font-medium tracking-wider text-muted-foreground uppercase"
+                >
+                    {{ $t('[[ lang ]].attributes.updated_at.label') }}
+                </span>
+                <span class="text-xs break-words text-primary">
+                    {{ since(translation.updated_at) }}
+                </span>
+                <span class="text-xs font-semibold break-words">
+                    {{ translation.updated_at }}
+                </span>
+            </div>
+        </div>
+    </div>
+</template>

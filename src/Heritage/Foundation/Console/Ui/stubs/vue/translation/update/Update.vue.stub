@@ -1,0 +1,90 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import {
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from '@/components/ui/form';
+import { useFormHandlers } from '@/composables/useFormHandlers';
+import { update } from '@/routes/[[ model ]]-translation';
+import { Form } from '@inertiajs/vue3';
+import {
+    update[[ Model ]]TranslationInitialValues,
+    update[[ Model ]]TranslationSchema,
+} from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/update/form';
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { [[ Model ]]Translation } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]-translation';
+import { LoaderCircle } from 'lucide-vue-next';
+[[ translationFormImports ]]
+
+/**
+ * [[ Model ]] translation update form: the translated fields of one locale.
+ */
+
+interface Props {
+    /** The translated [[ label ]]. */
+    [[ modelCamel ]]: [[ Model ]];
+
+    /** The translation being edited. */
+    translation: [[ Model ]]Translation;
+}
+
+const props = defineProps<Props>();
+
+/** Emitted after the translation is updated. */
+const emit = defineEmits(['success']);
+
+/** Form helpers bound to the update schema and the translation's values. */
+const { meta, resetForm, handleError } = useFormHandlers(
+    update[[ Model ]]TranslationSchema,
+    update[[ Model ]]TranslationInitialValues(props.translation),
+);
+
+/** Notifies the parent after a successful update. */
+const onSuccess = () => {
+    emit('success');
+};
+</script>
+
+<template>
+    <Form
+        v-slot="{ processing }"
+        v-bind="
+            update.form({
+                [[ routeParameter ]]: [[ modelCamel ]].id,
+                [[ translationParameter ]]: translation.id,
+            })
+        "
+        :on-before="() => meta.valid"
+        :on-success="onSuccess"
+        :on-error="handleError"
+        class="grid grid-cols-6 gap-4"
+    >
+[[ translationFormFields ]]
+
+        <!-- Actions -->
+        <div class="col-span-6 flex justify-start gap-2">
+            <Button
+                type="submit"
+                appearance="solid"
+                color="primary"
+                :disabled="processing || !meta.dirty || !meta.valid"
+            >
+                <LoaderCircle v-if="processing" class="h-4 w-4 animate-spin" />
+                {{ $t('actions.translation.edit') }}
+            </Button>
+
+            <Button
+                type="button"
+                appearance="outline"
+                color="neutral"
+                :disabled="processing"
+                @click="resetForm()"
+            >
+                {{ $t('actions.reset') }}
+            </Button>
+        </div>
+    </Form>
+</template>

@@ -1,0 +1,35 @@
+import { trans } from 'laravel-vue-i18n';
+import { CheckCircle, XCircle } from 'lucide-vue-next';
+import { h } from 'vue';
+
+/**
+ * Activation options of the status filter.
+ */
+export const getStatuses = () => [
+    {
+        value: true,
+        label: trans('statuses.activation.active'),
+        icon: h(CheckCircle),
+    },
+    {
+        value: false,
+        label: trans('statuses.activation.inactive'),
+        icon: h(XCircle),
+    },
+];
+
+/**
+ * Yes / no options of a boolean filter.
+ */
+export const getBooleans = () => [
+    {
+        value: true,
+        label: trans('statuses.boolean.yes'),
+        icon: h(CheckCircle),
+    },
+    {
+        value: false,
+        label: trans('statuses.boolean.no'),
+        icon: h(XCircle),
+    },
+];

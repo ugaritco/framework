@@ -1,0 +1,97 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { Store } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation';
+import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { Locale } from '@module/i18n/types/locale';
+import { Languages } from 'lucide-vue-next';
+import { ref } from 'vue';
+
+/**
+ * [[ Model ]] translation create dialog: the create form in a modal, opened by a text or icon
+ * trigger, or the content of its default slot.
+ */
+
+interface Props {
+    /** The translated [[ label ]]. */
+    [[ modelCamel ]]: [[ Model ]];
+
+    /** The locales offered (all of the application by default). */
+    locales?: Locale[];
+
+    /** The locale of the translation, which is then not chosen. */
+    locale?: Locale;
+
+    /** Renders an icon trigger instead of the default text button. */
+    asIcon?: boolean;
+}
+
+withDefaults(defineProps<Props>(), {
+    asIcon: false,
+});
+
+/** Whether the dialog is open. */
+const open = ref(false);
+</script>
+
+<template>
+    <Dialog v-model:open="open">
+        <DialogTrigger as-child>
+            <slot>
+                <Button
+                    v-if="!asIcon"
+                    appearance="solid"
+                    :color="locales ? 'warning' : 'danger'"
+                    data-test="create-[[ model ]]-translation-button"
+                >
+                    {{ $t('actions.translation.create') }}
+                </Button>
+
+                <Button
+                    v-else
+                    appearance="outline"
+                    color="neutral"
+                    size="sm"
+                    data-test="create-[[ model ]]-translation-button"
+                >
+                    <Languages class="h-4 w-4 text-primary" />
+                </Button>
+            </slot>
+        </DialogTrigger>
+
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>
+                    {{
+                        $t('presentation.translation.create.title', {
+                            model_singular: $t('[[ lang ]].singular'),
+                            entity: String([[ entityLabel ]]),
+                        })
+                    }}
+                </DialogTitle>
+                <DialogDescription>
+                    {{
+                        $t('presentation.translation.create.description', {
+                            model_singular: $t('[[ lang ]].singular'),
+                            entity: String([[ entityLabel ]]),
+                        })
+                    }}
+                </DialogDescription>
+            </DialogHeader>
+
+            <Store
+                :[[ modelCamel ]]="[[ modelCamel ]]"
+                :locales="locales"
+                :locale="locale"
+                @success="open = false"
+            />
+        </DialogContent>
+    </Dialog>
+</template>

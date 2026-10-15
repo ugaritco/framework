@@ -1,0 +1,59 @@
+import { index } from '@/routes/[[ relatedRoute ]]';
+import { ref } from 'vue';
+
+/**
+ * A [[ relatedLabel ]] a [[ label ]] may belong to, as listed by its resource.
+ */
+export type [[ Related ]]Option = {
+    id: number;
+    [[ relatedLabelField ]]?: string | number | null;
+};
+
+const options = ref<[[ Related ]]Option[]>([]);
+const loading = ref(false);
+let requested = false;
+
+/**
+ * The [[ relatedLabels ]] a [[ label ]] may belong to, loaded once from their listing (JSON) and
+ * shared by every component using them.
+ *
+ * @returns The options, whether they are loading, and the label of an id.
+ */
+export const use[[ Related ]]Options = () => {
+    if (!requested) {
+        requested = true;
+        loading.value = true;
+
+        fetch(index.url(), {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        })
+            .then((response) => (response.ok ? response.json() : { data: [] }))
+            .then((json: { data?: [[ Related ]]Option[] }) => {
+                options.value = (json.data ?? []).sort((a, b) =>
+                    String(a.[[ relatedLabelField ]] ?? a.id).localeCompare(String(b.[[ relatedLabelField ]] ?? b.id)),
+                );
+            })
+            .catch(() => {
+                requested = false;
+            })
+            .finally(() => {
+                loading.value = false;
+            });
+    }
+
+    /** The label of a [[ relatedLabel ]], or its id until the options are loaded. */
+    const labelOf = (id: number | null | undefined) => {
+        const option = options.value.find((item) => item.id === id);
+
+        if (option) {
+            return String(option.[[ relatedLabelField ]] ?? option.id);
+        }
+
+        return id == null ? '' : `#${id}`;
+    };
+
+    return { options, loading, labelOf };
+};
