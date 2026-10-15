@@ -284,8 +284,8 @@ final readonly class Field
      * The Blueprint statement adding the column to an existing table, without indentation.
      *
      * The rows already there need a value: a field that is not nullable gets false (boolean) or
-     * 0 (number) as its default, and is nullable otherwise. A translatable field is added to the
-     * translation table, without the per-locale unique index.
+     * 0 (number) as its default, and is nullable otherwise. A translatable field is meant for
+     * Schema::tableTranslatable(), which adds it to the translation table, unique per locale.
      *
      * @return string
      */
@@ -300,11 +300,9 @@ final readonly class Field
             default => '->nullable()',
         };
 
-        if (! $this->has('translatable')) {
-            foreach (['unique', 'index'] as $modifier) {
-                if ($this->has($modifier)) {
-                    $column .= "->{$modifier}()";
-                }
+        foreach (['unique', 'index', 'translatable'] as $modifier) {
+            if ($this->has($modifier)) {
+                $column .= "->{$modifier}()";
             }
         }
 
@@ -317,6 +315,8 @@ final readonly class Field
 
     /**
      * The Blueprint statements dropping the column added by addedColumn(), without indentation.
+     *
+     * A translatable column is only dropped: Schema::tableTranslatable() drops its indexes.
      *
      * @return array<int, string>
      */

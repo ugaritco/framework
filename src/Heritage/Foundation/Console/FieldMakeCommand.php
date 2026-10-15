@@ -199,8 +199,8 @@ class FieldMakeCommand extends GeneratorCommand
     }
 
     /**
-     * Create the migration adding the columns: to the model's table, and the translatable ones
-     * to its translation table.
+     * Create the migration adding the columns to the model's table; with a translatable field,
+     * Schema::tableTranslatable() sends the translatable ones to its translation table.
      *
      * @param  \Heritage\Database\Eloquent\Model  $instance
      * @param  array<int, Field>  $fields
@@ -208,25 +208,13 @@ class FieldMakeCommand extends GeneratorCommand
      */
     protected function createMigration(object $instance, array $fields): void
     {
-        $tables = [];
+        $method = array_filter($fields, fn (Field $field) => $field->has('translatable')) ? 'tableTranslatable' : 'table';
 
-        foreach ($fields as $field) {
-            $table = $field->has('translatable') ? $instance->getTranslationTable() : $instance->getTable();
-            $tables[$table][] = $field;
-        }
-
-        $block = function (string $table, array $statements): string {
+        $block = function (array $statements) use ($instance, $method): string {
             $lines = implode("\n", array_map(fn ($statement) => "            {$statement}", $statements));
 
-            return "        Schema::table('{$table}', function (Blueprint \$table) {\n{$lines}\n        });";
+            return "        Schema::{$method}('{$instance->getTable()}', function (Blueprint \$table) {\n{$lines}\n        });";
         };
-
-        $up = $down = [];
-
-        foreach ($tables as $table => $tableFields) {
-            $up[] = $block($table, array_map(fn (Field $field) => $field->addedColumn(), $tableFields));
-            $down[] = $block($table, array_merge(...array_map(fn (Field $field) => $field->droppedColumn(), array_reverse($tableFields))));
-        }
 
         $names = count($fields) > 2 ? 'fields' : implode('_and_', array_map(fn (Field $field) => $field->name, $fields));
         $artifact = $this->getArtifactOption();
@@ -235,8 +223,8 @@ class FieldMakeCommand extends GeneratorCommand
         $path = $this->ugarit->make('migration.creator')->createWithBody(
             "add_{$names}_to_{$instance->getTable()}_table",
             $directory,
-            implode("\n\n", $up),
-            implode("\n\n", array_reverse($down))
+            $block(array_map(fn (Field $field) => $field->addedColumn(), $fields)),
+            $block(array_merge(...array_map(fn (Field $field) => $field->droppedColumn(), array_reverse($fields))))
         );
 
         $this->report[$path] = '<fg=green>created</>';
