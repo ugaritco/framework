@@ -6,8 +6,11 @@ namespace Heritage\Foundation\Console;
 
 use Heritage\Console\Concerns\CreatesMatchingTest;
 use Heritage\Console\GeneratorCommand;
+use Heritage\Database\Console\Field;
+use Heritage\Foundation\Console\Concerns\EditsSource;
 use Heritage\Support\Collection;
 use Heritage\Support\Str;
+use ReflectionClass;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -20,7 +23,7 @@ use function Ugarit\Prompts\text;
 #[AsCommand(name: 'make:model')]
 class ModelMakeCommand extends GeneratorCommand
 {
-    use CreatesMatchingTest;
+    use CreatesMatchingTest, EditsSource;
 
     /**
      * The name and signature of the console command.
@@ -29,7 +32,7 @@ class ModelMakeCommand extends GeneratorCommand
      */
     protected $signature = 'make:model
                     {name : The name of the model}
-                    {--a|all : Generate a migration, seeder, factory, policy, resource controller, and form request classes for the model}
+                    {--a|all : Generate a migration, seeder, factory and the capabilities slice (make:capabilities) with its routes for the model}
                     {--c|controller : Create a new controller for the model}
                     {--f|factory : Create a new factory for the model}
                     {--force : Create the class even if the model already exists}
@@ -44,7 +47,15 @@ class ModelMakeCommand extends GeneratorCommand
                     {--t|translatable : Make the model translatable ($translatable attributes stored in a translation table)}
                     {--with-translation-file : Generate a physical Translation model file in addition to the main model}
                     {--translation-model : Indicates if the generated model should be an explicit translation model extending ModelTranslation}
-                    {--artifact= : The target modular artifact for this model}';
+                    {--artifact= : The target modular artifact for this model}
+                    {--fields= : The fields, as name:type[:modifier...] separated by commas (e.g. branch_id:foreignId,slug:string:unique,name:string:translatable,active:boolean)}';
+
+    /**
+     * The fields of the model being generated.
+     *
+     * @var array<int, Field>
+     */
+    protected array $fields = [];
 
     /**
      * The console command description.
@@ -110,10 +121,21 @@ class ModelMakeCommand extends GeneratorCommand
             $this->input->setOption('artifact', $artifact);
         }
 
-        // 2. Resolve translation support
+        // 2. Resolve the fields; a translatable field makes the model translatable
+        $fields = [];
+
+        if ($this->generatesFields()) {
+            $fields = $this->option('fields') ? Field::parseMany($this->option('fields')) : ($this->input->isInteractive() ? $this->promptForFields() : []);
+        }
+
+        if (array_filter($fields, fn (Field $field) => $field->has('translatable'))) {
+            $this->input->setOption('translatable', true);
+        }
+
+        // 3. Resolve translation support when the fields did not decide it
         $hasTranslatableOption = $this->option('translatable');
 
-        if (! $hasTranslatableOption && ! $this->option('translation-model') && $this->input->isInteractive()) {
+        if (! $hasTranslatableOption && $fields === [] && ! $this->option('translation-model') && $this->input->isInteractive()) {
             $isTranslatable = confirm(
                 label: 'Would you like this model to be translatable?',
                 default: false,
@@ -128,6 +150,8 @@ class ModelMakeCommand extends GeneratorCommand
             $this->type = 'Translation model';
         }
 
+        $this->fields = $this->generatesFields() ? ($fields ?: $this->defaultFields()) : [];
+
         if (parent::handle() === false && ! $this->option('force')) {
             if (! $this->alreadyExists($this->getNameInput())) {
                 return false;
@@ -140,13 +164,12 @@ class ModelMakeCommand extends GeneratorCommand
             }
         }
 
+        $this->addInverseRelations();
+
         if ($this->option('all')) {
             $this->input->setOption('factory', true);
             $this->input->setOption('seed', true);
             $this->input->setOption('migration', true);
-            $this->input->setOption('controller', true);
-            $this->input->setOption('policy', true);
-            $this->input->setOption('resource', true);
         }
 
         if ($this->option('factory')) {
@@ -161,21 +184,82 @@ class ModelMakeCommand extends GeneratorCommand
             $this->createSeeder();
         }
 
-        if ($this->option('controller') || $this->option('resource') || $this->option('api')) {
-            $this->createController();
-        } elseif ($this->option('requests')) {
-            $this->createFormRequests();
-        }
+        if ($this->option('all')) {
+            $this->createCapabilities();
+        } else {
+            if ($this->option('controller') || $this->option('resource') || $this->option('api')) {
+                $this->createController();
+            } elseif ($this->option('requests')) {
+                $this->createFormRequests();
+            }
 
-        if ($this->option('policy')) {
-            $this->createPolicy();
+            if ($this->option('policy')) {
+                $this->createPolicy();
+            }
         }
 
         if ($this->isTranslatable() && $this->option('with-translation-file') && ! $this->option('translation-model')) {
             $this->createTranslationModel();
         }
 
-        return true;
+        return null;
+    }
+
+    /**
+     * Whether the model's attributes come from fields (every model but pivots and translation models).
+     *
+     * @return bool
+     */
+    protected function generatesFields(): bool
+    {
+        return ! $this->option('pivot') && ! $this->option('morph-pivot') && ! $this->option('translation-model');
+    }
+
+    /**
+     * Ask for the fields one by one, until an empty name.
+     *
+     * @return array<int, Field>
+     */
+    protected function promptForFields(): array
+    {
+        $this->components->info('Define the fields of the model; leave the name empty to finish (no field uses name, slug and active).');
+
+        $fields = [];
+
+        while (($name = trim(text(
+            label: 'Field name',
+            placeholder: 'e.g. title, price, branch_id',
+            validate: fn (string $value) => $value === '' || preg_match('/^[a-z][a-z0-9_]*$/', $value) ? null : 'Use snake_case.',
+            hint: 'Leave empty to finish.',
+        ))) !== '') {
+            $type = select(
+                label: "Type of [{$name}]",
+                options: array_keys(Field::TYPES),
+                default: str_ends_with($name, '_id') ? 'foreignId' : 'string',
+            );
+
+            $modifiers = multiselect(
+                label: "Modifiers of [{$name}]",
+                options: $type === 'foreignId' ? array_values(array_diff(Field::MODIFIERS, ['translatable'])) : Field::MODIFIERS,
+            );
+
+            $fields[] = Field::parse(implode(':', [$name, $type, ...$modifiers]));
+        }
+
+        return $fields;
+    }
+
+    /**
+     * The fields of a model given none: a name (translatable on a translatable model), a unique
+     * slug and an active flag.
+     *
+     * @return array<int, Field>
+     */
+    protected function defaultFields(): array
+    {
+        return Field::parseMany($this->isTranslatable()
+            ? 'slug:string:unique,name:string:translatable,active:boolean'
+            : 'name:string,slug:string:unique,active:boolean');
     }
 
     /**
@@ -263,6 +347,7 @@ class ModelMakeCommand extends GeneratorCommand
             '--create' => $table,
             '--translatable' => $this->isTranslatable() ? true : null,
             '--artifact' => $artifact,
+            '--fields' => $this->fields !== [] ? implode(',', array_map(fn (Field $field) => $field->definition(), $this->fields)) : null,
         ]));
     }
 
@@ -301,6 +386,26 @@ class ModelMakeCommand extends GeneratorCommand
             '--test' => $this->option('test'),
             '--pest' => $this->option('pest'),
             '--artifact' => $artifact,
+        ]));
+    }
+
+    /**
+     * Create the capabilities slice of the model (repository through controller) and register
+     * its routes.
+     *
+     * @return void
+     */
+    protected function createCapabilities()
+    {
+        $this->call('make:capabilities', array_filter([
+            'name' => Str::studly(class_basename($this->argument('name'))),
+            '--artifact' => $this->option('artifact'),
+            '--force' => $this->option('force'),
+            '--routes' => true,
+            '--nullable' => implode(',', array_map(
+                fn (Field $field) => $field->name,
+                array_filter($this->fields, fn (Field $field) => $field->has('nullable'))
+            )),
         ]));
     }
 
@@ -464,13 +569,92 @@ class ModelMakeCommand extends GeneratorCommand
             ];
         }
 
-        $classContent = parent::buildClass($name);
-
-        return str_replace(
+        $classContent = str_replace(
             array_keys($replacements),
             array_values($replacements),
-            $classContent
+            parent::buildClass($name)
         );
+
+        return $this->generatesFields() ? $this->fillFields($classContent, $modelBase) : $classContent;
+    }
+
+    /**
+     * Fill the model's fillable, translatable, casts, translation fallbacks and the relations of
+     * its foreign keys from the fields.
+     *
+     * @param  string  $class
+     * @param  string  $model
+     * @return string
+     */
+    protected function fillFields(string $class, string $model): string
+    {
+        $columns = array_filter($this->fields, fn (Field $field) => ! $field->has('translatable'));
+        $translatable = array_filter($this->fields, fn (Field $field) => $field->has('translatable'));
+        $hasSlug = (bool) array_filter($columns, fn (Field $field) => $field->name === 'slug');
+        $relations = array_filter($columns, fn (Field $field) => $field->relation() !== null);
+
+        $quote = fn (Field $field) => "        '{$field->name}',";
+
+        $lines = [
+            'fillable' => array_map($quote, $columns),
+            'translatable' => array_map($quote, $translatable),
+            'casts' => array_map(fn (Field $field) => "        '{$field->name}' => '{$field->cast()}',", array_filter($columns, fn (Field $field) => $field->cast() !== null)),
+            'fallback' => $hasSlug ? array_map(fn (Field $field) => "        '{$field->name}' => 'slug',", array_filter($translatable, fn (Field $field) => $field->type === 'string')) : [],
+        ];
+
+        foreach ($lines as $placeholder => $values) {
+            $class = preg_replace_callback(
+                '/^\{\{ '.$placeholder.' \}\}\r?\n/m',
+                fn () => implode('', array_map(fn ($line) => $line."\n", $values)),
+                $class
+            );
+        }
+
+        $imports = [
+            'Heritage\\Database\\Eloquent\\Factories\\HasFactory',
+            'Heritage\\Database\\Eloquent\\Model',
+            'Heritage\\Database\\Eloquent\\SoftDeletes',
+            ...($relations !== [] ? ['Heritage\\Database\\Eloquent\\Relations\\BelongsTo'] : []),
+        ];
+        sort($imports);
+
+        return str_replace(
+            ['{{ imports }}', '{{ relations }}'],
+            [implode("\n", array_map(fn ($import) => "use {$import};", $imports)), implode('', array_map(fn (Field $field) => $field->belongsTo($model), $relations))],
+            $class
+        );
+    }
+
+    /**
+     * Add the hasMany() inverse of each foreign key to its related model, when it exists in the
+     * model's folder.
+     *
+     * @return void
+     */
+    protected function addInverseRelations(): void
+    {
+        $model = $this->qualifyClass($this->getNameInput());
+
+        foreach ($this->fields as $field) {
+            if ($field->relation() === null) {
+                continue;
+            }
+
+            $related = Str::beforeLast($model, '\\').'\\'.Str::studly($field->relation());
+
+            if ($related === $model || ! class_exists($related)) {
+                continue;
+            }
+
+            $path = (new ReflectionClass($related))->getFileName();
+            $source = $this->files->get($path);
+            $edited = $this->addHasMany($source, $field, class_basename($model));
+
+            if ($edited !== $source) {
+                $this->files->put($path, $edited);
+                $this->components->info(sprintf('Model [%s] related with [%s()].', $path, $field->inverse(class_basename($model))));
+            }
+        }
     }
 
     /**
@@ -507,7 +691,7 @@ class ModelMakeCommand extends GeneratorCommand
         $choices = multiselect(
             label: 'Would you like any of the following?',
             options: [
-                'all' => 'With All (Factory, Migration, Seeder, Requests, Policy, Resource Controller, Translation Model)',
+                'all' => 'With All (Factory, Migration, Seeder, Capabilities Slice and its Routes)',
                 'seed' => 'Database Seeder',
                 'factory' => 'Factory',
                 'requests' => 'Form Requests',
@@ -523,11 +707,6 @@ class ModelMakeCommand extends GeneratorCommand
             $input->setOption('factory', true);
             $input->setOption('seed', true);
             $input->setOption('migration', true);
-            $input->setOption('controller', true);
-            $input->setOption('policy', true);
-            $input->setOption('resource', true);
-            $input->setOption('requests', true);
-            $input->setOption('translatable', true);
         } else {
             (new Collection($choices))->each(fn ($option) => $input->setOption($option, true));
         }

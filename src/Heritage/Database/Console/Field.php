@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Heritage\Database\Console;
 
+use Heritage\Support\Str;
 use InvalidArgumentException;
 
 /**
@@ -128,6 +129,117 @@ final readonly class Field
     public function has(string $modifier): bool
     {
         return in_array($modifier, $this->modifiers, true);
+    }
+
+    /**
+     * The model cast of the field, if it needs one.
+     *
+     * @return string|null
+     */
+    public function cast(): ?string
+    {
+        return static::TYPES[$this->type][1];
+    }
+
+    /**
+     * The relation a foreign key belongs to ("branch_id" belongs to "branch"), if any.
+     *
+     * @return string|null
+     */
+    public function relation(): ?string
+    {
+        return $this->type === 'foreignId' ? Str::camel(preg_replace('/_id$/', '', $this->name)) : null;
+    }
+
+    /**
+     * The belongsTo() method of a foreign key, to the model of the same folder it names.
+     *
+     * @param  string  $owner  The model the method is added to.
+     * @return string The method, indented as a class member, between empty lines.
+     */
+    public function belongsTo(string $owner): string
+    {
+        $relation = $this->relation();
+        $related = Str::studly($relation);
+        $owner = str_replace('_', ' ', Str::snake($owner));
+        $label = str_replace('_', ' ', Str::snake($relation));
+
+        return <<<PHP
+
+            /**
+             * The {$label} the {$owner} belongs to.
+             *
+             * @return BelongsTo<{$related}, \$this>
+             */
+            public function {$relation}(): BelongsTo
+            {
+                return \$this->belongsTo({$related}::class);
+            }
+
+        PHP;
+    }
+
+    /**
+     * The name of the hasMany() inverse of a foreign key on its related model ("books" for a Book).
+     *
+     * @param  string  $owner  The model holding the foreign key.
+     * @return string
+     */
+    public function inverse(string $owner): string
+    {
+        return Str::camel(Str::plural($owner));
+    }
+
+    /**
+     * The hasMany() method of the related model of a foreign key, back to the model holding it.
+     *
+     * @param  string  $owner  The model holding the foreign key, in the related model's folder.
+     * @return string The method, indented as a class member, between empty lines.
+     */
+    public function hasMany(string $owner): string
+    {
+        $method = $this->inverse($owner);
+        $owners = str_replace('_', ' ', Str::snake($method));
+        $related = str_replace('_', ' ', Str::snake($this->relation()));
+
+        return <<<PHP
+
+            /**
+             * The {$owners} of the {$related}.
+             *
+             * @return HasMany<{$owner}, \$this>
+             */
+            public function {$method}(): HasMany
+            {
+                return \$this->hasMany({$owner}::class);
+            }
+
+        PHP;
+    }
+
+    /**
+     * A fake value for an attribute, guessed from its name, then its cast.
+     *
+     * @param  string  $column
+     * @param  string|null  $cast
+     * @return string The PHP expression, for a factory's definition().
+     */
+    public static function fake(string $column, ?string $cast): string
+    {
+        $cast = $cast !== null ? Str::before(strtolower($cast), ':') : null;
+
+        return match (true) {
+            $column === 'slug' => '$this->faker->unique()->slug()',
+            str_contains($column, 'email') => '$this->faker->unique()->safeEmail()',
+            in_array($column, ['description', 'body', 'content', 'notes'], true) => '$this->faker->paragraph()',
+            in_array($cast, ['bool', 'boolean'], true) => 'true',
+            in_array($cast, ['int', 'integer'], true) => '$this->faker->numberBetween(1, 100)',
+            in_array($cast, ['decimal', 'float', 'double', 'real'], true) => '$this->faker->randomFloat(2, 1, 1000)',
+            in_array($cast, ['array', 'json', 'object', 'collection'], true) => '[]',
+            in_array($cast, ['date', 'immutable_date'], true) => '$this->faker->date()',
+            in_array($cast, ['datetime', 'immutable_datetime', 'timestamp'], true) => '$this->faker->dateTime()',
+            default => '$this->faker->words(2, true)',
+        };
     }
 
     /**

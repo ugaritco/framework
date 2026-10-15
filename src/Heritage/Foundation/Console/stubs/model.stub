@@ -4,17 +4,11 @@ declare(strict_types=1);
 
 namespace {{ namespace }};
 
-use Heritage\Database\Eloquent\Factories\HasFactory;
-use Heritage\Database\Eloquent\Model;
-use Heritage\Database\Eloquent\SoftDeletes;
+{{ imports }}
 
 /**
- * Eloquent model representing a {{ class }} entity.
- *
- * Includes:
- * - translatable attributes (built into Model: declare $translatable)
- * - soft deletion support
- * - a slug-based fallback for missing translations
+ * Eloquent model representing a {{ class }} entity, with translatable attributes (stored in its
+ * translation table) and soft deletion.
  */
 class {{ class }} extends Model
 {
@@ -26,8 +20,7 @@ class {{ class }} extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'slug',
-        'active',
+{{ fillable }}
     ];
 
     /**
@@ -36,7 +29,7 @@ class {{ class }} extends Model
      * @var list<string>
      */
     protected array $translatable = [
-        'name',
+{{ translatable }}
     ];
 
     /**
@@ -45,7 +38,7 @@ class {{ class }} extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'active' => 'boolean',
+{{ casts }}
     ];
 
     /**
@@ -54,6 +47,6 @@ class {{ class }} extends Model
      * @var array<string, string>
      */
     protected array $translatableFallback = [
-        'name' => 'slug',
+{{ fallback }}
     ];
-}
+{{ relations }}}

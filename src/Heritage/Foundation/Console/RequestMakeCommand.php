@@ -34,7 +34,9 @@ class RequestMakeCommand extends GeneratorCommand
                     {--t|translatable : Declare translatable fields ($translatable) in the request}
                     {--fields= : Comma-separated translatable field names (e.g. name,description)}
                     {--action= : The Capability or Feature the request feeds, relative to the root namespace (e.g. Capabilities/Branch/SaveBranchCapability)}
-                    {--operation= : Generate the rules of an operation from the --model columns: store, update or destroy}                    {--f|force : Create the class even if the request already exists}';
+                    {--operation= : Generate the rules of an operation from the --model columns: store, update or destroy}
+                    {--nullable= : Comma-separated fields the rules accept empty (e.g. email,published_at)}
+                    {--f|force : Create the class even if the request already exists}';
 
     /**
      * The console command description.
@@ -308,7 +310,7 @@ class RequestMakeCommand extends GeneratorCommand
                     'description', 'body', 'content', 'notes' => "'{$field}' => 'nullable|string',",
                     default         => "'{$field}' => 'required|string',",
                 };
-                $rulesLines[] = "            {$rule}";
+                $rulesLines[] = '            '.$this->allowEmpty($field, $rule);
             }
 
             $rulesString = implode("\n", [...$columnRules, ...$rulesLines]);
@@ -364,10 +366,24 @@ class RequestMakeCommand extends GeneratorCommand
                 default => 'required|string|max:255',
             };
 
-            $rules[] = "            '{$column}' => '{$rule}',";
+            $rules[] = '            '.$this->allowEmpty($column, "'{$column}' => '{$rule}',");
         }
 
         return $rules;
+    }
+
+    /**
+     * Make a rule line accept an empty value when its field is listed in --nullable.
+     *
+     * @param  string  $field
+     * @param  string  $line  The rule line, as "'field' => 'required|...',".
+     * @return string
+     */
+    protected function allowEmpty(string $field, string $line): string
+    {
+        $nullable = array_map('trim', explode(',', (string) $this->option('nullable')));
+
+        return in_array($field, $nullable, true) ? str_replace("=> 'required|", "=> 'nullable|", $line) : $line;
     }
 
     /**

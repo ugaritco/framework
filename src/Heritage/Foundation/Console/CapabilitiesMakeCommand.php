@@ -28,6 +28,7 @@ class CapabilitiesMakeCommand extends GeneratorCommand
                     {name : The model the slice serves (e.g. Department)}
                     {--artifact= : The target modular artifact name}
                     {--routes : Register the Route::resource() in routes/web.php (the artifact\'s, or the application\'s)}
+                    {--nullable= : Comma-separated fields the requests accept empty (e.g. email,published_at)}
                     {--f|force : Overwrite the classes that already exist}';
 
     /**
@@ -262,13 +263,14 @@ class CapabilitiesMakeCommand extends GeneratorCommand
     protected function makeHttp(string $model): void
     {
         foreach (['Store' => 'Save', 'Update' => 'Save', 'Destroy' => 'Destroy'] as $request => $capability) {
-            $this->generate('make:request', [
+            $this->generate('make:request', array_filter([
                 'name' => "{$request}{$model}Request",
                 '--capability' => true,
                 '--model' => $model,
                 '--operation' => strtolower($request),
                 '--action' => "Capabilities/{$model}/{$capability}{$model}Capability",
-            ]);
+                '--nullable' => $this->option('nullable'),
+            ]));
         }
 
         $this->generate('make:resource', ['name' => "{$model}Resource", '--model' => $model]);
