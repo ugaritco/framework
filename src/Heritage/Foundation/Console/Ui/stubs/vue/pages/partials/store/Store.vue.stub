@@ -24,8 +24,18 @@ import { LoaderCircle, SquareArrowOutUpLeft } from 'lucide-vue-next';
 [[ formImports ]]
 
 /**
- * [[ Model ]] create form: validation, submission, reset, and a shortcut to the create page.
+ * [[ Model ]] create form: validation, submission, reset, and, in a dialog, a shortcut to
+ * the create page.
  */
+
+interface Props {
+    /** Shown in a dialog, which adds the shortcut to the create page. */
+    inDialog?: boolean;
+}
+
+withDefaults(defineProps<Props>(), {
+    inDialog: false,
+});
 
 /** Emitted after the [[ label ]] is created. */
 const emit = defineEmits(['success']);
@@ -81,8 +91,8 @@ const onSuccess = () => {
                 </Button>
             </div>
 
-            <!-- Open the create page -->
-            <TooltipProvider :delay-duration="0">
+            <!-- Open the create page, from a dialog -->
+            <TooltipProvider v-if="inDialog" :delay-duration="0">
                 <Tooltip>
                     <TooltipTrigger as-child>
                         <Button

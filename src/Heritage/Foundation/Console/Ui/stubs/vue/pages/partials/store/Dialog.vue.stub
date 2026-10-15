@@ -76,7 +76,7 @@ const state = useRemember({ open: false }, '[[ model ]]-create-dialog');
                 </DialogDescription>
             </DialogHeader>
 
-            <Store @success="state.open = false" />
+            <Store in-dialog @success="state.open = false" />
         </DialogContent>
     </Dialog>
 </template>

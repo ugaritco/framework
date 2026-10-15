@@ -76,7 +76,11 @@ const open = ref(false);
                 </DialogDescription>
             </DialogHeader>
 
-            <Update :[[ modelCamel ]]="[[ modelCamel ]]" @success="open = false" />
+            <Update
+                :[[ modelCamel ]]="[[ modelCamel ]]"
+                in-dialog
+                @success="open = false"
+            />
         </DialogContent>
     </Dialog>
 </template>

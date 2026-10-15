@@ -14,14 +14,7 @@ import {
     FormMessage,
 } from '@/components/ui/form';
 import { Separator } from '@/components/ui/separator';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { useFormHandlers } from '@/composables/useFormHandlers';
-import { edit } from '@/routes/[[ model ]]';
 import { update } from '@/routes/[[ model ]]-feature';
 import { Form, usePage } from '@inertiajs/vue3';
 import {
@@ -31,19 +24,14 @@ import {
 } from '[[ updateForm ]]';
 import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
 import type { Locale } from '@module/i18n/types/locale';
-import {
-    LoaderCircle,
-    Plus,
-    SquareArrowOutUpLeft,
-    Trash2,
-} from 'lucide-vue-next';
+import { LoaderCircle, Plus, Trash2 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 [[ formImports ]]
 
 /**
- * [[ Model ]] update form: its fields, a section of translated fields per locale, submission,
- * reset, and a shortcut to the edit page. A stored locale whose section is removed is sent
- * empty, which deletes its translation.
+ * [[ Model ]] update form: its fields, a section of translated fields per locale, submission
+ * and reset; the edit page shows it. A stored locale whose section is removed is sent empty,
+ * which deletes its translation.
  */
 
 interface Props {
@@ -224,27 +212,6 @@ const onSuccess = () => {
                     {{ $t('actions.reset') }}
                 </Button>
             </div>
-
-            <!-- Open the edit page -->
-            <TooltipProvider :delay-duration="0">
-                <Tooltip>
-                    <TooltipTrigger as-child>
-                        <Button
-                            type="button"
-                            appearance="outline"
-                            color="neutral"
-                            as="a"
-                            :href="edit.url([[ modelCamel ]].id)"
-                            :disabled="processing"
-                        >
-                            <SquareArrowOutUpLeft class="h-4 w-4" />
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>{{ $t('actions.open_in_full_page') }}</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
         </div>
     </Form>
 </template>

@@ -25,15 +25,21 @@ import { LoaderCircle, SquareArrowOutUpLeft } from 'lucide-vue-next';
 [[ formImports ]]
 
 /**
- * [[ Model ]] update form: validation, submission, reset, and a shortcut to the edit page.
+ * [[ Model ]] update form: validation, submission, reset, and, in a dialog, a shortcut to
+ * the edit page.
  */
 
 interface Props {
     /** The [[ label ]] being edited. */
     [[ modelCamel ]]: [[ Model ]];
+
+    /** Shown in a dialog, which adds the shortcut to the edit page. */
+    inDialog?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+    inDialog: false,
+});
 
 /** Emitted after the [[ label ]] is updated. */
 const emit = defineEmits(['success']);
@@ -89,8 +95,8 @@ const onSuccess = () => {
                 </Button>
             </div>
 
-            <!-- Open the edit page -->
-            <TooltipProvider :delay-duration="0">
+            <!-- Open the edit page, from a dialog -->
+            <TooltipProvider v-if="inDialog" :delay-duration="0">
                 <Tooltip>
                     <TooltipTrigger as-child>
                         <Button

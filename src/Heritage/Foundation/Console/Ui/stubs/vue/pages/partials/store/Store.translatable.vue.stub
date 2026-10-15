@@ -14,14 +14,7 @@ import {
     FormMessage,
 } from '@/components/ui/form';
 import { Separator } from '@/components/ui/separator';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { useFormHandlers } from '@/composables/useFormHandlers';
-import { create } from '@/routes/[[ model ]]';
 import { store } from '@/routes/[[ model ]]-feature';[[ slugImports ]]
 import { Form, usePage } from '@inertiajs/vue3';
 import {
@@ -30,18 +23,13 @@ import {
     empty[[ Model ]]Translation,
 } from '[[ storeForm ]]';
 import type { Locale } from '@module/i18n/types/locale';
-import {
-    LoaderCircle,
-    Plus,
-    SquareArrowOutUpLeft,
-    Trash2,
-} from 'lucide-vue-next';
+import { LoaderCircle, Plus, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, ref[[ slugVue ]] } from 'vue';
 [[ formImports ]]
 
 /**
  * [[ Model ]] create form: its fields, a section of translated fields per locale (the current
- * locale's always shown), submission, reset, and a shortcut to the create page.
+ * locale's always shown), submission and reset; the create page shows it.
  */
 
 /** Emitted after the [[ label ]] is created. */
@@ -200,27 +188,6 @@ const onSuccess = () => {
                     {{ $t('actions.reset') }}
                 </Button>
             </div>
-
-            <!-- Open the create page -->
-            <TooltipProvider :delay-duration="0">
-                <Tooltip>
-                    <TooltipTrigger as-child>
-                        <Button
-                            type="button"
-                            appearance="outline"
-                            color="neutral"
-                            as="a"
-                            :href="create.url()"
-                            :disabled="processing"
-                        >
-                            <SquareArrowOutUpLeft class="h-4 w-4" />
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>{{ $t('actions.open_in_full_page') }}</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
         </div>
     </Form>
 </template>
