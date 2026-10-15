@@ -1,0 +1,34 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+{{ imports }}
+
+/**
+ * The outcome of the {{ model }} capabilities.
+ *
+ * Supplies the {{ model }} placeholders of the feedback messages, naming the record from the data.
+ */
+readonly class {{ class }} extends Outcome
+{
+    /**
+     * The {{ model }} placeholders: model names, route base and the record carried by the outcome.
+     *
+     * @return array<string, mixed>
+     */
+    protected function defaultContext(): array
+    {
+        $subject = $this->subject();
+
+        return [
+            'model' => trans('{{ lang }}.name'),
+            'model_singular' => trans('{{ lang }}.singular'),
+            'model_plural' => trans('{{ lang }}.plural'),
+            'model_plural_definite' => trans('{{ lang }}.plural_definite'),
+            'routeBase' => '{{ route }}',
+            'entity' => $subject instanceof {{ model }} ? $subject->getRouteKey() : null,
+        ];
+    }
+{{ actions }}}

@@ -1,0 +1,28 @@
+<?php
+
+namespace {{ namespace }};
+
+use Heritage\Repositories\ModelRepository;
+use {{ namespacedContract }};
+use {{ namespacedModel }};
+
+/**
+ * Persistence of {{ model }} records.
+ *
+ * Override query() to eager-load relations on every read, and add filter{Name}() methods to
+ * change how browse() applies a filter.
+ *
+ * @extends ModelRepository<{{ model }}>
+ */
+class {{ class }} extends ModelRepository implements {{ contract }}
+{
+    /**
+     * Create a new repository instance.
+     *
+     * @param  {{ model }}  $model
+     */
+    public function __construct({{ model }} $model)
+    {
+        parent::__construct($model);
+    }
+}

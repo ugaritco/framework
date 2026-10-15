@@ -1,0 +1,17 @@
+<?php
+
+namespace {{ namespace }};
+
+use Heritage\Contracts\Repositories\ModelRepositoryInterface;
+use {{ namespacedModel }};
+
+/**
+ * Repository contract of {{ model }}, injected into its capabilities and bound to
+ * {{ implementation }} by convention.
+ *
+ * @extends ModelRepositoryInterface<{{ model }}>
+ */
+interface {{ class }} extends ModelRepositoryInterface
+{
+    //
+}

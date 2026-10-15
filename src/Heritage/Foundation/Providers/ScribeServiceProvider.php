@@ -76,11 +76,13 @@ use Heritage\Foundation\Console\NotificationMakeCommand;
 use Heritage\Foundation\Console\ObserverMakeCommand;
 use Heritage\Foundation\Console\OptimizeClearCommand;
 use Heritage\Foundation\Console\OptimizeCommand;
+use Heritage\Foundation\Console\OutcomeMakeCommand;
 use Heritage\Foundation\Console\PackageDiscoverCommand;
 use Heritage\Foundation\Console\ParcelMakeCommand;
 use Heritage\Foundation\Console\PolicyMakeCommand;
 use Heritage\Foundation\Console\ProviderMakeCommand;
 use Heritage\Foundation\Console\ReloadCommand;
+use Heritage\Foundation\Console\RepositoryMakeCommand;
 use Heritage\Foundation\Console\RequestMakeCommand;
 use Heritage\Foundation\Console\ResultMakeCommand;
 use Heritage\Foundation\Console\ResourceMakeCommand;
@@ -239,12 +241,14 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
         'NotificationMake' => NotificationMakeCommand::class,
         'NotificationTable' => NotificationTableCommand::class,
         'ObserverMake' => ObserverMakeCommand::class,
+        'OutcomeMake' => OutcomeMakeCommand::class,
         'ParcelMake' => ParcelMakeCommand::class,
         'PolicyMake' => PolicyMakeCommand::class,
         'ProviderMake' => ProviderMakeCommand::class,
         'QueueFailedTable' => FailedTableCommand::class,
         'QueueTable' => TableCommand::class,
         'QueueBatchesTable' => BatchesTableCommand::class,
+        'RepositoryMake' => RepositoryMakeCommand::class,
         'RequestMake' => RequestMakeCommand::class,
         'ResultMake' => ResultMakeCommand::class,
         'ResourceMake' => ResourceMakeCommand::class,
