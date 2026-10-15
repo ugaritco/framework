@@ -439,9 +439,11 @@ class ArtifactMakeCommand extends Command
      * Load a stub file and replace all placeholder tokens with real values.
      *
      * Tokens replaced:
-     *   {{ name }}        — lowercase slug (e.g. "catalog")
-     *   {{ StudlyName }}  — StudlyCase name (e.g. "Catalog")
-     *   {{ description }} — human-readable description string
+     *   {{ name }}         — lowercase slug (e.g. "catalog")
+     *   {{ StudlyName }}   — StudlyCase name (e.g. "Catalog")
+     *   {{ description }}  — human-readable description string
+     *   {{ title }}        — display name (the official catalog's title, else "{Studly} Domain")
+     *   {{ capabilities }} — the official catalog's capabilities as PHP array entries
      *
      * @param  string       $stubName    Stub filename without ".stub" extension.
      * @param  string       $name        Slug name.
@@ -458,12 +460,35 @@ class ArtifactMakeCommand extends Command
 
         $content = file_get_contents($stubPath);
 
+        $official = $this->officialArtifacts[$name] ?? null;
+
         // Replace all stub placeholders with concrete values
         return str_replace(
-            ['{{ name }}', '{{ StudlyName }}', '{{ description }}'],
-            [$name,        $studly,             $description ?? ''],
+            ['{{ name }}', '{{ StudlyName }}', '{{ description }}', '{{ title }}', '{{ capabilities }}'],
+            [$name, $studly, $description ?? '', $official['title'] ?? "{$studly} Domain", $this->capabilityEntries($official['capabilities'] ?? [])],
             $content
         );
+    }
+
+    /**
+     * Render capabilities as the entries of the art.php $capabilities array (a "//" placeholder when empty).
+     *
+     * @param  array<string, string>  $capabilities  Capability slug => description.
+     * @return string
+     */
+    protected function capabilityEntries(array $capabilities): string
+    {
+        if ($capabilities === []) {
+            return '        //';
+        }
+
+        $width = max(array_map('strlen', array_keys($capabilities))) + 2;
+
+        return implode("\n", array_map(
+            fn (string $slug, string $description) => '        '.str_pad("'{$slug}'", $width).' => '.var_export($description, true).',',
+            array_keys($capabilities),
+            $capabilities
+        ));
     }
 
     /**
