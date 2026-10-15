@@ -15,6 +15,7 @@ use Heritage\Events\EventServiceProvider;
 use Heritage\Filesystem\Filesystem;
 use Heritage\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Heritage\Foundation\Events\LocaleUpdated;
+use Heritage\Foundation\Support\Providers\ArtifactResourcesServiceProvider;
 use Heritage\Http\Request;
 use Heritage\Log\Context\ContextServiceProvider;
 use Heritage\Log\LogServiceProvider;
@@ -913,7 +914,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
     }
 
     /**
-     * Discover and register modular artifacts located in the artifacts directory.
+     * Discover and register modular artifacts located in the artifacts directory: their
+     * resources (configuration, migrations, translations, views, routes) are loaded by
+     * convention through ArtifactResourcesServiceProvider, then their own providers registered.
      *
      * @param  array<string>  $registered
      * @return void
@@ -959,6 +962,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
             return;
         }
 
+        $resources = new ArtifactResourcesServiceProvider($this);
+        $providersToRegister = [];
+
         foreach ($items as $item) {
             if ($item === '.' || $item === '..') {
                 continue;
@@ -974,7 +980,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 continue;
             }
 
-            $providersToRegister = [];
+            $artifactId = $item;
 
             // Case A: art.php exists (Ugarit ADA Standard)
             $artFile = $artifactDir . DIRECTORY_SEPARATOR . 'art.php';
@@ -1001,12 +1007,16 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 }
             }
 
-            // Register discovered providers
-            foreach ($providersToRegister as $provider) {
-                if (! in_array($provider, $registered, true) && class_exists($provider)) {
-                    $this->register($provider);
-                    $registered[] = $provider;
-                }
+            $resources->addArtifact((string) $artifactId, $artifactDir);
+        }
+
+        // The resources come first, so the artifacts' providers read their merged configuration
+        $this->register($resources);
+
+        foreach ($providersToRegister as $provider) {
+            if (! in_array($provider, $registered, true) && class_exists($provider)) {
+                $this->register($provider);
+                $registered[] = $provider;
             }
         }
     }

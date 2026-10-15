@@ -9,8 +9,9 @@ use Heritage\Support\ServiceProvider;
 /**
  * Class {{ StudlyName }}ServiceProvider
  *
- * Service provider that bootstraps the {{ StudlyName }} artifact domain,
- * including migrations, routes, and any other domain-level resources.
+ * Service provider of the {{ StudlyName }} artifact domain. The kernel loads the artifact's
+ * resources by convention: its config files, migrations, translations ({{ name }}::file.key),
+ * views ({{ name }}::view) and routes/web.php and routes/api.php.
  */
 class {{ StudlyName }}ServiceProvider extends ServiceProvider
 {
@@ -27,7 +28,7 @@ class {{ StudlyName }}ServiceProvider extends ServiceProvider
     }
 
     /**
-     * Bootstrap {{ name }} domain migrations and other resources.
+     * Bootstrap {{ name }} domain services.
      *
      * This method is called after all providers have been registered.
      *
@@ -35,15 +36,6 @@ class {{ StudlyName }}ServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Load database migrations from the artifact's database directory
-        $this->loadMigrationsFrom(__DIR__ . '/../../database/migrations');
-
-        // Load the translations under the '{{ name }}' namespace ({{ name }}::model.key)
-        $this->loadTranslationsFrom(__DIR__ . '/../../lang', '{{ name }}');
-
-        // Load the artifact's web routes (Route::resource for each capabilities controller)
-        if (file_exists(__DIR__ . '/../../routes/web.php')) {
-            $this->loadRoutesFrom(__DIR__ . '/../../routes/web.php');
-        }
+        // {{ StudlyName }} bootstrapping beyond the resources the kernel loads
     }
 }
