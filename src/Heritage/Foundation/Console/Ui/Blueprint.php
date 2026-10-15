@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Heritage\Foundation\Console\Ui;
 
+use Heritage\Database\Eloquent\Model;
 use Heritage\Filesystem\Filesystem;
 use Heritage\Support\Str;
 use ReflectionProperty;
@@ -80,8 +81,9 @@ class Blueprint
             $column = $columns[$name] ?? null;
             $kind = $column['kind'] ?? static::castKind($casts[$name] ?? null) ?? static::ruleKind($rule);
             $related = null;
+            $relatedArtifact = str_ends_with($name, '_id') ? static::relatedArtifact($base, $artifact, Str::studly(Str::beforeLast($name, '_id'))) : null;
 
-            if (str_ends_with($name, '_id') && class_exists(static::modelClass($artifact, Str::studly(Str::beforeLast($name, '_id'))))) {
+            if ($relatedArtifact !== null) {
                 $kind = 'foreign';
                 $related = Str::studly(Str::beforeLast($name, '_id'));
             }
@@ -94,13 +96,14 @@ class Blueprint
                 'nullable' => str_contains($rule, 'nullable') || ($column['nullable'] ?? false),
                 'translatable' => in_array($name, $translatable, true) || ($column['translatable'] ?? false),
                 'related' => $related,
+                'relatedArtifact' => $relatedArtifact,
             ];
         }
 
         $relatedLabels = [];
 
-        foreach ($withRelated ? array_unique(array_filter(array_column($fields, 'related'))) : [] as $related) {
-            $relatedLabels[$related] = static::read($files, $base, $artifact, $related, false)->labelField();
+        foreach ($withRelated ? array_filter($fields, fn (array $field) => $field['related'] !== null) : [] as $field) {
+            $relatedLabels[$field['related']] ??= static::read($files, $base, $field['relatedArtifact'], $field['related'], false)->labelField();
         }
 
         return new static($artifact, $model, $fields, $relatedLabels);
@@ -116,6 +119,28 @@ class Blueprint
     public static function modelClass(string $artifact, string $model): string
     {
         return 'Ugarit\\Artifacts\\'.Str::studly($artifact).'\\Models\\'.$model;
+    }
+
+    /**
+     * The artifact holding the model a foreign key refers to: the same artifact first, then any
+     * other one under artifacts/ (e.g. Geography for country_id of i18n's Locale).
+     *
+     * @param  string  $base  The application base path.
+     * @param  string  $artifact
+     * @param  string  $model
+     * @return string|null Null when no artifact has the model.
+     */
+    public static function relatedArtifact(string $base, string $artifact, string $model): ?string
+    {
+        $artifacts = array_map('basename', array_filter(glob($base.'/artifacts/*') ?: [], 'is_dir'));
+
+        foreach ([$artifact, ...array_diff($artifacts, [$artifact])] as $candidate) {
+            if (is_subclass_of(static::modelClass($candidate, $model), Model::class)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /**

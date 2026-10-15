@@ -7,6 +7,7 @@ namespace Heritage\Foundation\Console;
 use Heritage\Console\Concerns\CreatesMatchingTest;
 use Heritage\Console\GeneratorCommand;
 use Heritage\Database\Console\Field;
+use Heritage\Database\Eloquent\Model;
 use Heritage\Foundation\Console\Concerns\EditsSource;
 use Heritage\Support\Collection;
 use Heritage\Support\Str;
@@ -581,7 +582,7 @@ class ModelMakeCommand extends GeneratorCommand
 
     /**
      * Fill the model's fillable, translatable, casts, translation fallbacks and the relations of
-     * its foreign keys from the fields.
+     * its foreign keys from the fields; a related model found in another artifact is imported.
      *
      * @param  string  $class
      * @param  string  $model
@@ -616,6 +617,7 @@ class ModelMakeCommand extends GeneratorCommand
             'Heritage\\Database\\Eloquent\\Model',
             'Heritage\\Database\\Eloquent\\SoftDeletes',
             ...($relations !== [] ? ['Heritage\\Database\\Eloquent\\Relations\\BelongsTo'] : []),
+            ...$this->externalRelatedModels($relations),
         ];
         sort($imports);
 
@@ -624,6 +626,39 @@ class ModelMakeCommand extends GeneratorCommand
             [implode("\n", array_map(fn ($import) => "use {$import};", $imports)), implode('', array_map(fn (Field $field) => $field->belongsTo($model), $relations))],
             $class
         );
+    }
+
+    /**
+     * The related models of foreign keys that are not in the model's folder but in another
+     * artifact's Models folder (e.g. country_id of i18n's Locale: Geography's Country).
+     *
+     * @param  array<int, Field>  $relations  The foreign key fields.
+     * @return array<int, string> The classes to import.
+     */
+    protected function externalRelatedModels(array $relations): array
+    {
+        $folder = Str::beforeLast($this->qualifyClass($this->getNameInput()), '\\');
+        $imports = [];
+
+        foreach ($relations as $field) {
+            $related = Str::studly($field->relation());
+
+            if (is_subclass_of("{$folder}\\{$related}", Model::class)) {
+                continue;
+            }
+
+            foreach ($this->getAvailableArtifacts() as $artifact) {
+                $class = 'Ugarit\\Artifacts\\'.Str::studly($artifact).'\\Models\\'.$related;
+
+                if (is_subclass_of($class, Model::class)) {
+                    $imports[] = $class;
+
+                    break;
+                }
+            }
+        }
+
+        return array_values(array_unique($imports));
     }
 
     /**
