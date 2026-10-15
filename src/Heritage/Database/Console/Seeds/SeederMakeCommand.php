@@ -99,8 +99,8 @@ class SeederMakeCommand extends GeneratorCommand
     }
 
     /**
-     * Two fixed records of an existing model: a sample value for each fillable and translatable
-     * attribute, given for every available locale when translatable; a foreign key is left to the factory.
+     * Two fixed records of an existing model: a sample value for each column of its table, and
+     * of its translation table given for every available locale; a foreign key is left to the factory.
      *
      * @param  string  $model
      * @return array<int, string> The lines of the records, indented in records().
@@ -114,18 +114,12 @@ class SeederMakeCommand extends GeneratorCommand
         try {
             $instance = new $model;
             $locales = Locales::resolver()->available();
+            [$columns, $translated] = $this->recordColumns($instance);
         } catch (Throwable) {
             return [];
         }
 
-        $casts = $instance->getCasts();
-        $translatable = method_exists($instance, 'getTranslatable') ? $instance->getTranslatable() : [];
-        $columns = array_filter(
-            array_unique([...$instance->getFillable(), ...$translatable]),
-            fn (string $column) => ! str_ends_with($column, '_id')
-        );
-
-        if ($columns === []) {
+        if ($columns === [] && $translated === []) {
             return [];
         }
 
@@ -134,20 +128,94 @@ class SeederMakeCommand extends GeneratorCommand
         foreach ([1, 2] as $number) {
             $lines[] = '            [';
 
-            foreach ($columns as $column) {
-                $value = Field::sample($column, $casts[$column] ?? null, $number, class_basename($model));
+            foreach ($columns as $column => $cast) {
+                $lines[] = "                '{$column}' => ".Field::sample($column, $cast, $number, class_basename($model)).',';
+            }
 
-                if (in_array($column, $translatable, true)) {
-                    $value = '['.implode(', ', array_map(fn ($locale) => var_export((string) $locale, true)." => {$value}", $locales)).']';
-                }
-
-                $lines[] = "                '{$column}' => {$value},";
+            foreach ($translated as $column => $cast) {
+                $value = Field::sample($column, $cast, $number, class_basename($model));
+                $lines[] = "                '{$column}' => [".implode(', ', array_map(fn ($locale) => var_export((string) $locale, true)." => {$value}", $locales)).'],';
             }
 
             $lines[] = '            ],';
         }
 
         return $lines;
+    }
+
+    /**
+     * The columns a record gives, each with the cast its sample value follows: those of the model's
+     * table, and of its translation table, but the keys, foreign keys, locale and timestamps.
+     * Before the tables are migrated, the fillable and translatable attributes are used instead.
+     *
+     * @param  \Heritage\Database\Eloquent\Model  $instance
+     * @return array{0: array<string, string|null>, 1: array<string, string|null>} The columns of the table, then of the translation table.
+     */
+    protected function recordColumns(object $instance): array
+    {
+        $casts = $instance->getCasts();
+        $translatable = method_exists($instance, 'getTranslatable') ? $instance->getTranslatable() : [];
+        $schema = $instance->getConnection()->getSchemaBuilder();
+
+        if (! $schema->hasTable($instance->getTable())) {
+            $plain = array_diff($instance->getFillable(), $translatable);
+
+            return array_map(
+                fn (array $columns) => array_combine($columns, array_map(fn ($column) => $casts[$column] ?? null, $columns)),
+                [array_values(array_filter($plain, fn ($column) => ! str_ends_with($column, '_id'))), array_values($translatable)]
+            );
+        }
+
+        $skip = [
+            $instance->getKeyName(),
+            $instance->getCreatedAtColumn(),
+            $instance->getUpdatedAtColumn(),
+            method_exists($instance, 'getDeletedAtColumn') ? $instance->getDeletedAtColumn() : 'deleted_at',
+        ];
+
+        $read = function (string $table, array $skip) use ($schema, $casts): array {
+            $columns = [];
+
+            foreach ($schema->getColumns($table) as $column) {
+                if (! $column['auto_increment'] && ! in_array($column['name'], $skip, true) && ! str_ends_with($column['name'], '_id')) {
+                    $columns[$column['name']] = $casts[$column['name']] ?? $this->columnCast($column);
+                }
+            }
+
+            return $columns;
+        };
+
+        $columns = $read($instance->getTable(), $skip);
+        $translated = [];
+
+        if ($translatable !== [] && $schema->hasTable($table = $instance->getTranslationTable())) {
+            $translated = array_diff_key($read($table, [
+                ...$skip, 'id', $instance->getTranslationForeignKey(), $instance->getTranslationLocaleColumn(),
+            ]), $columns);
+        }
+
+        return [$columns, $translated];
+    }
+
+    /**
+     * The cast a column's sample value follows, from its database type.
+     *
+     * @param  array{type_name: string, type: string}  $column
+     * @return string|null "boolean", "integer", "float", "date", "datetime", "array", or null for a string.
+     */
+    protected function columnCast(array $column): ?string
+    {
+        $type = strtolower($column['type_name']);
+
+        return match (true) {
+            in_array($type, ['bool', 'boolean', 'bit'], true) || strtolower($column['type']) === 'tinyint(1)' => 'boolean',
+            in_array($type, ['int', 'integer', 'bigint', 'smallint', 'mediumint', 'tinyint', 'int2', 'int4', 'int8'], true) => 'integer',
+            in_array($type, ['decimal', 'numeric', 'float', 'double', 'real', 'float4', 'float8', 'money'], true) => 'float',
+            $type === 'date' => 'date',
+            in_array($type, ['datetime', 'datetime2', 'timestamp', 'timestamptz', 'smalldatetime'], true) => 'datetime',
+            in_array($type, ['json', 'jsonb'], true) => 'array',
+            default => null,
+        };
     }
 
     /**
