@@ -121,6 +121,16 @@ class DatabaseEloquentTranslatableTest extends TestCase
         $this->assertSame(['ar' => 'أزرق'], $this->names($item));
     }
 
+    public function test_refresh_reads_the_translations_again(): void
+    {
+        $item = Item::create(['slug' => 'red', 'translations' => ['en' => ['name' => 'Red']]]);
+        $this->assertSame('Red', $item->translate('en')->name);
+
+        Item::find($item->id)->update(['translations' => ['en' => ['name' => 'Crimson']]]);
+
+        $this->assertSame('Crimson', $item->refresh()->translate('en')->name);
+    }
+
     public function test_forget_translation_and_setting_it_again_cancels_the_deletion(): void
     {
         $item = Item::create(['slug' => 'g', 'translations' => ['ar' => ['name' => 'أخضر'], 'en' => ['name' => 'Green']]]);

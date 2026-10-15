@@ -2154,6 +2154,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
                 ->attributes
         );
 
+        $this->resolvedTranslations = [];
+
         $this->load((new BaseCollection($this->relations))->reject(
             fn ($relation) => $relation instanceof Pivot
                 || (is_object($relation) && isset(class_uses_recursive($relation)[AsPivot::class]))
