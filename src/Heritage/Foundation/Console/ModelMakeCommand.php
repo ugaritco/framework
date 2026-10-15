@@ -363,6 +363,7 @@ class ModelMakeCommand extends GeneratorCommand
 
         $this->call('make:seeder', array_filter([
             'name' => "{$seeder}Seeder",
+            '--model' => $this->argument('name'),
             '--artifact' => $artifact,
         ]));
     }

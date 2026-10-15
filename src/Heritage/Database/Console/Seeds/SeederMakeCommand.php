@@ -3,8 +3,11 @@
 namespace Heritage\Database\Console\Seeds;
 
 use Heritage\Console\GeneratorCommand;
+use Heritage\Database\Console\Field;
 use Heritage\Support\Str;
+use Heritage\Translation\Locales;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Throwable;
 
 #[AsCommand(name: 'make:seeder')]
 class SeederMakeCommand extends GeneratorCommand
@@ -86,10 +89,65 @@ class SeederMakeCommand extends GeneratorCommand
                 '{{model}}' => $model,
             ];
 
-            return str_replace(array_keys($replace), array_values($replace), $stub);
+            $stub = str_replace(array_keys($replace), array_values($replace), $stub);
+            $records = $this->records($namespaceModel);
+
+            return $records === [] ? $stub : preg_replace('/^            \/\/(\r?\n)/m', implode("\n", $records).'$1', $stub, 1);
         }
 
         return $stub;
+    }
+
+    /**
+     * Two fixed records of an existing model: a sample value for each fillable and translatable
+     * attribute, given for every available locale when translatable; a foreign key is left to the factory.
+     *
+     * @param  string  $model
+     * @return array<int, string> The lines of the records, indented in records().
+     */
+    protected function records(string $model): array
+    {
+        if (! class_exists($model)) {
+            return [];
+        }
+
+        try {
+            $instance = new $model;
+            $locales = Locales::resolver()->available();
+        } catch (Throwable) {
+            return [];
+        }
+
+        $casts = $instance->getCasts();
+        $translatable = method_exists($instance, 'getTranslatable') ? $instance->getTranslatable() : [];
+        $columns = array_filter(
+            array_unique([...$instance->getFillable(), ...$translatable]),
+            fn (string $column) => ! str_ends_with($column, '_id')
+        );
+
+        if ($columns === []) {
+            return [];
+        }
+
+        $lines = [];
+
+        foreach ([1, 2] as $number) {
+            $lines[] = '            [';
+
+            foreach ($columns as $column) {
+                $value = Field::sample($column, $casts[$column] ?? null, $number, class_basename($model));
+
+                if (in_array($column, $translatable, true)) {
+                    $value = '['.implode(', ', array_map(fn ($locale) => var_export((string) $locale, true)." => {$value}", $locales)).']';
+                }
+
+                $lines[] = "                '{$column}' => {$value},";
+            }
+
+            $lines[] = '            ],';
+        }
+
+        return $lines;
     }
 
     /**

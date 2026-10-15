@@ -281,6 +281,34 @@ final readonly class Field
     }
 
     /**
+     * A fixed value for an attribute of the numbered sample record of a seeder, guessed from its
+     * name, then its cast; unique columns differ from one record to the other.
+     *
+     * @param  string  $column
+     * @param  string|null  $cast
+     * @param  int  $number  The record's number, from 1.
+     * @param  string  $model  The model's class basename, e.g. "Genre".
+     * @return string The PHP expression, for a seeder's records().
+     */
+    public static function sample(string $column, ?string $cast, int $number, string $model): string
+    {
+        $cast = $cast !== null ? Str::before(strtolower($cast), ':') : null;
+        $label = Str::ucfirst(str_replace('_', ' ', $column));
+
+        return match (true) {
+            $column === 'slug' => var_export(Str::kebab($model)."-{$number}", true),
+            str_contains($column, 'email') => var_export(Str::kebab($model)."{$number}@example.com", true),
+            in_array($cast, ['bool', 'boolean'], true) => 'true',
+            in_array($cast, ['int', 'integer'], true) => (string) $number,
+            in_array($cast, ['decimal', 'float', 'double', 'real'], true) => ($number * 10).'.0',
+            in_array($cast, ['array', 'json', 'object', 'collection'], true) => '[]',
+            in_array($cast, ['date', 'immutable_date'], true) => "'2026-01-0{$number}'",
+            in_array($cast, ['datetime', 'immutable_datetime', 'timestamp'], true) => "'2026-01-0{$number} 09:00:00'",
+            default => var_export("{$label} {$number}", true),
+        };
+    }
+
+    /**
      * The comment line describing the column above its Blueprint statement, without indentation.
      *
      * @return string e.g. "// Published at (date, optional)" or "// Reference to the related author".

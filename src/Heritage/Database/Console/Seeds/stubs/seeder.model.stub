@@ -15,7 +15,24 @@ class {{ class }} extends Seeder
      */
     public function run(): void
     {
+        // Fixed records; the factory fills the attributes they omit
+        foreach ($this->records() as $record) {
+            {{ model }}::factory()->create($record);
+        }
+
         // Generate sample entity records (automatically localized across active locales if translatable)
         {{ model }}::factory()->count(10)->create();
+    }
+
+    /**
+     * The fixed records, a translatable attribute given per locale.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function records(): array
+    {
+        return [
+            //
+        ];
     }
 }
