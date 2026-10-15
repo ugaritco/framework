@@ -281,6 +281,46 @@ final readonly class Field
     }
 
     /**
+     * The comment line describing the column above its Blueprint statement, without indentation.
+     *
+     * @return string e.g. "// Published at (date, optional)" or "// Reference to the related author".
+     */
+    public function comment(): string
+    {
+        $label = str_replace('_', ' ', $this->name);
+
+        if ($this->type === 'foreignId') {
+            return '// Reference to the related '.str_replace('_', ' ', Str::snake($this->relation())).($this->has('nullable') ? ' (optional)' : '');
+        }
+
+        if ($this->name === 'slug' && $this->has('unique')) {
+            return '// Unique URL-friendly slug identifier'.($this->has('translatable') ? ' (per locale)' : '');
+        }
+
+        $details = [match ($this->type) {
+            'string' => 'text',
+            'text' => 'long text',
+            'integer', 'bigInteger' => 'whole number',
+            'boolean' => 'true/false flag',
+            'decimal' => 'decimal amount',
+            'float' => 'number',
+            'json' => 'structured data',
+            'date' => 'date',
+            'dateTime' => 'date and time',
+        }];
+
+        $unique = $this->has('translatable') ? 'unique per locale' : 'unique';
+
+        foreach (['translatable' => 'translated', 'unique' => $unique, 'index' => 'indexed', 'nullable' => 'optional'] as $modifier => $detail) {
+            if ($this->has($modifier)) {
+                $details[] = $detail;
+            }
+        }
+
+        return '// '.Str::ucfirst($label).' ('.implode(', ', $details).')';
+    }
+
+    /**
      * The Blueprint statement adding the column to an existing table, without indentation.
      *
      * The rows already there need a value: a field that is not nullable gets false (boolean) or

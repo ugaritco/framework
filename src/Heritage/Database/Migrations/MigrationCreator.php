@@ -194,6 +194,9 @@ class MigrationCreator
      * Fill the columns place-holder of a create stub: the given columns, or by default a
      * unique slug and a translatable name for a translatable table and none otherwise.
      *
+     * Each column may span several lines (its comment, then its statement); columns are
+     * separated by an empty line.
+     *
      * @param  string  $stub
      * @param  array<int, string>|null  $columns
      * @param  bool  $translatable
@@ -201,11 +204,18 @@ class MigrationCreator
      */
     protected function populateColumns($stub, ?array $columns, $translatable)
     {
-        $columns ??= $translatable ? ["\$table->string('slug')->unique();", "\$table->string('name')->translatable();"] : [];
-        $eol = str_contains($stub, "\r\n") ? "\r\n" : "\n";
-        $lines = implode('', array_map(fn (string $column) => "            {$column}{$eol}", $columns));
+        $columns ??= $translatable ? [
+            "// Unique URL-friendly slug identifier\n\$table->string('slug')->unique();",
+            "// Localized multilingual display denomination\n\$table->string('name')->translatable();",
+        ] : [];
 
-        return preg_replace_callback('/^\{\{ ?columns ?\}\}\r?\n/m', fn () => $lines === '' ? '' : $lines.$eol, $stub);
+        $eol = str_contains($stub, "\r\n") ? "\r\n" : "\n";
+        $lines = implode('', array_map(
+            fn (string $column) => implode('', array_map(fn (string $line) => "            {$line}{$eol}", explode("\n", $column))).$eol,
+            $columns
+        ));
+
+        return preg_replace_callback('/^\{\{ ?columns ?\}\}\r?\n/m', fn () => $lines, $stub);
     }
 
     /**

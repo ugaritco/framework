@@ -169,7 +169,7 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
     {
         $file = $this->creator->create(
             $name, $this->getMigrationPath(), $table, $create, $translatable,
-            ...($fields === null ? [] : [array_map(fn (Field $field) => $field->column(), $fields)])
+            ...($fields === null ? [] : [array_map(fn (Field $field) => $field->comment()."\n".$field->column(), $fields)])
         );
 
         if (windows_os()) {

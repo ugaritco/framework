@@ -210,8 +210,8 @@ class FieldMakeCommand extends GeneratorCommand
     {
         $method = array_filter($fields, fn (Field $field) => $field->has('translatable')) ? 'tableTranslatable' : 'table';
 
-        $block = function (array $statements) use ($instance, $method): string {
-            $lines = implode("\n", array_map(fn ($statement) => "            {$statement}", $statements));
+        $block = function (array $statements, string $separator) use ($instance, $method): string {
+            $lines = implode($separator, array_map(fn ($statement) => preg_replace('/^/m', '            ', $statement), $statements));
 
             return "        Schema::{$method}('{$instance->getTable()}', function (Blueprint \$table) {\n{$lines}\n        });";
         };
@@ -223,8 +223,8 @@ class FieldMakeCommand extends GeneratorCommand
         $path = $this->ugarit->make('migration.creator')->createWithBody(
             "add_{$names}_to_{$instance->getTable()}_table",
             $directory,
-            $block(array_map(fn (Field $field) => $field->addedColumn(), $fields)),
-            $block(array_merge(...array_map(fn (Field $field) => $field->droppedColumn(), array_reverse($fields))))
+            $block(array_map(fn (Field $field) => $field->comment()."\n".$field->addedColumn(), $fields), "\n\n"),
+            $block(array_merge(...array_map(fn (Field $field) => $field->droppedColumn(), array_reverse($fields))), "\n")
         );
 
         $this->report[$path] = '<fg=green>created</>';
