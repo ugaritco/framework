@@ -28,6 +28,7 @@ class Save{{ model }}TranslationCapability extends Capability
      */
     public function __construct(protected {{ model }}TranslationRepositoryInterface $translations)
     {
+        // Resolved by the container and promoted to $this->translations.
     }
 
     /**

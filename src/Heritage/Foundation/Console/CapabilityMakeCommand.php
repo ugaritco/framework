@@ -118,6 +118,7 @@ class CapabilityMakeCommand extends GeneratorCommand
                  */
                 public function __construct(protected {$repositoryName} \${$property})
                 {
+                    // Resolved by the container and promoted to \$this->{$property}.
                 }
             PHP;
         } else {
@@ -128,6 +129,7 @@ class CapabilityMakeCommand extends GeneratorCommand
                  */
                 public function __construct()
                 {
+                    // Promoted constructor parameters are resolved by the container.
                 }
             PHP;
         }
