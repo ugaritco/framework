@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Heritage\Foundation\Console;
 
 use Heritage\Console\GeneratorCommand;
+use Heritage\Foundation\Console\Concerns\InspectsModel;
 use Heritage\Support\Str;
+use InvalidArgumentException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Ugarit\Prompts\confirm;
@@ -15,6 +17,8 @@ use function Ugarit\Prompts\text;
 #[AsCommand(name: 'make:request')]
 class RequestMakeCommand extends GeneratorCommand
 {
+    use InspectsModel;
+
     /**
      * The name and signature of the console command.
      *
@@ -30,7 +34,7 @@ class RequestMakeCommand extends GeneratorCommand
                     {--t|translatable : Declare translatable fields ($translatable) in the request}
                     {--fields= : Comma-separated translatable field names (e.g. name,description)}
                     {--action= : The Capability or Feature the request feeds, relative to the root namespace (e.g. Capabilities/Branch/SaveBranchCapability)}
-                    {--f|force : Create the class even if the request already exists}';
+                    {--operation= : Generate the rules of an operation from the --model columns: store, update or destroy}                    {--f|force : Create the class even if the request already exists}';
 
     /**
      * The console command description.
@@ -114,6 +118,17 @@ class RequestMakeCommand extends GeneratorCommand
 
         if ($hasTranslatableFlag) {
             $this->input->setOption('translatable', true);
+            return;
+        }
+
+        if ($this->option('operation') && $this->modelClass()) {
+            $translatable = $this->modelTranslatable($this->modelClass());
+
+            if ($translatable !== [] && $this->option('operation') !== 'destroy') {
+                $this->input->setOption('translatable', true);
+                $this->input->setOption('fields', implode(',', $translatable));
+            }
+
             return;
         }
 
@@ -269,6 +284,11 @@ class RequestMakeCommand extends GeneratorCommand
     protected function buildClass($name)
     {
         $classContent = $this->replaceForAction(parent::buildClass($name));
+        $columnRules = $this->operationRules();
+
+        if ($columnRules !== [] && ! $this->isTranslatable()) {
+            $classContent = preg_replace('/^            \/\/(\r?\n)/m', implode("\n", $columnRules).'$1', $classContent, 1);
+        }
 
         if ($this->isTranslatable()) {
             $fieldsInput = (string) ($this->option('fields') ?: 'name');
@@ -291,7 +311,7 @@ class RequestMakeCommand extends GeneratorCommand
                 $rulesLines[] = "            {$rule}";
             }
 
-            $rulesString = implode("\n", $rulesLines);
+            $rulesString = implode("\n", [...$columnRules, ...$rulesLines]);
 
             $classContent = str_replace(
                 ['{{ translatable_fields }}', '{{translatable_fields}}', '{{ rules }}', '{{rules}}'],
@@ -301,6 +321,71 @@ class RequestMakeCommand extends GeneratorCommand
         }
 
         return $classContent;
+    }
+
+    /**
+     * The rules of --operation: the --model columns, typed by their casts, for store and
+     * update; the `force` flag for destroy.
+     *
+     * @return array<int, string> Rule lines of the rules() array.
+     *
+     * @throws InvalidArgumentException When the operation is unknown.
+     */
+    protected function operationRules(): array
+    {
+        $operation = $this->option('operation');
+
+        if ($operation === null) {
+            return [];
+        }
+
+        if (! in_array($operation, ['store', 'update', 'destroy'], true)) {
+            throw new InvalidArgumentException("Unknown request operation [{$operation}]; use store, update or destroy.");
+        }
+
+        if ($operation === 'destroy') {
+            return ["            'force' => 'sometimes|boolean',"];
+        }
+
+        $rules = [];
+        $model = $this->modelClass();
+        $casts = $this->modelInstance($model)?->getCasts() ?? [];
+
+        foreach ($this->modelColumns($model) as $column => $type) {
+            $cast = strtolower((string) ($casts[$column] ?? ''));
+
+            $rule = match (true) {
+                str_ends_with($column, '_id') && ($table = $this->relatedTable($model, $column)) !== null => "required|integer|exists:{$table},id",
+                str_contains($cast, 'date') => 'required|date',
+                $type === 'int' => 'required|integer',
+                $type === 'bool' => 'required|boolean',
+                $type === 'float' => 'required|numeric',
+                $type === 'array' => 'nullable|array',
+                default => 'required|string|max:255',
+            };
+
+            $rules[] = "            '{$column}' => '{$rule}',";
+        }
+
+        return $rules;
+    }
+
+    /**
+     * The table of the model a foreign key names ("branch_id" names Branch in the model's folder).
+     *
+     * @param  string|null  $model
+     * @param  string  $column
+     * @return string|null Null when that model does not exist.
+     */
+    protected function relatedTable(?string $model, string $column): ?string
+    {
+        if ($model === null) {
+            return null;
+        }
+
+        $related = $this->modelInstance(Str::beforeLast($model, '\\').'\\'.Str::studly(Str::beforeLast($column, '_id')));
+
+        return $related?->getTable();
     }
 
     /**

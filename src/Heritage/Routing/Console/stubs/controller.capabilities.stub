@@ -1,0 +1,95 @@
+<?php
+
+namespace {{ namespace }};
+
+{{ imports }}
+
+/**
+ * Handles the HTTP endpoints of the {{ model }} capabilities.
+ *
+ * Every endpoint answers JSON to clients expecting JSON (ResponderType::AUTO).
+ */
+class {{ class }} extends Controller
+{
+    /**
+     * List {{ pluralLabel }}, filtered, searched, sorted and paged by the query string.
+     *
+     * @param  Request  $request
+     * @return mixed
+     */
+    public function index(Request $request)
+    {
+        return $this->page(Index{{ models }}Capability::class, Index{{ model }}Parcel::fromQuery($request->query()), '{{ view }}/Index', {{ model }}Resource::class);
+    }
+
+    /**
+     * Render the create {{ label }} form.
+     *
+     * @return mixed
+     */
+    public function create()
+    {
+        return $this->page(Create{{ model }}Capability::class, null, '{{ view }}/Create');
+    }
+
+    /**
+     * Create a {{ label }}.
+     *
+     * @param  Store{{ model }}Request  $request  Validated creation payload.
+     * @return mixed
+     */
+    public function store(Store{{ model }}Request $request)
+    {
+        return $this->back(Save{{ model }}Capability::class, Save{{ model }}Parcel::fromArray($request->validated()), {{ model }}Resource::class);
+    }
+
+    /**
+     * Show a {{ label }}.
+     *
+     * @param  {{ model }}  ${{ modelVariable }}  Resolved via route-model binding.
+     * @return mixed
+     */
+    public function show({{ model }} ${{ modelVariable }})
+    {
+        return $this->page(Show{{ model }}Capability::class, Show{{ model }}Parcel::fromModel(${{ modelVariable }}, true), '{{ view }}/Show', {{ model }}Resource::class);
+    }
+
+    /**
+     * Render the edit form of a {{ label }}.
+     *
+     * @param  {{ model }}  ${{ modelVariable }}  Resolved via route-model binding.
+     * @return mixed
+     */
+    public function edit({{ model }} ${{ modelVariable }})
+    {
+        return $this->page(Edit{{ model }}Capability::class, Edit{{ model }}Parcel::fromModel(${{ modelVariable }}, true), '{{ view }}/Edit', {{ model }}Resource::class);
+    }
+
+    /**
+     * Update a {{ label }}.
+     *
+     * @param  Update{{ model }}Request  $request  Validated update payload.
+     * @param  {{ model }}  ${{ modelVariable }}  Resolved via route-model binding.
+     * @return mixed
+     */
+    public function update(Update{{ model }}Request $request, {{ model }} ${{ modelVariable }})
+    {
+        return $this->back(Save{{ model }}Capability::class, Save{{ model }}Parcel::fromArray($request->validated())->setModel(${{ modelVariable }}), {{ model }}Resource::class);
+    }
+
+    /**
+     * Delete a {{ label }}, then go to the index (back when it fails).
+     *
+     * @param  Destroy{{ model }}Request  $request  Validated deletion payload.
+     * @param  {{ model }}  ${{ modelVariable }}  Resolved via route-model binding.
+     * @return mixed
+     */
+    public function destroy(Destroy{{ model }}Request $request, {{ model }} ${{ modelVariable }})
+    {
+        return $this->toRoute(
+            Destroy{{ model }}Capability::class,
+            Destroy{{ model }}Parcel::fromArray([...$request->validated(), 'id' => ${{ modelVariable }}->id])->setModel(${{ modelVariable }}),
+            '{{ route }}.index'
+        );
+    }
+}

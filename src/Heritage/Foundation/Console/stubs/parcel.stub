@@ -7,20 +7,17 @@ namespace {{ namespace }};
 use Heritage\Parcels\Parcel;
 
 /**
- * Class {{ class }}
+ * {{ description }}
  *
- * Structured data envelope for transporting typed payloads.
- *
- * Declare the fields as promoted public properties. Built with fromArray()/fromRequest(),
- * the parcel remembers which keys were provided: toAttributes() returns only those, so a
- * key sent as null clears its column while an omitted key leaves it untouched.
+ * Built with fromArray()/fromRequest(), the parcel remembers which keys were provided:
+ * toAttributes() returns only those, so a key sent as null clears its column while an
+ * omitted key leaves it untouched.
  */
 class {{ class }} extends Parcel
 {
     /**
      * Create a new Parcel instance.
-     */
+{{ docs }}     */
     public function __construct(
-        // public readonly ?int $id = null,
-    ) {}
+{{ fields }}    ) {}
 }

@@ -4,6 +4,7 @@ namespace Heritage\Routing\Console;
 
 use Heritage\Console\Concerns\CreatesMatchingTest;
 use Heritage\Console\GeneratorCommand;
+use Heritage\Support\Str;
 use InvalidArgumentException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -49,7 +50,9 @@ class ControllerMakeCommand extends GeneratorCommand
     {
         $stub = null;
 
-        if ($type = $this->option('type')) {
+        if ($this->option('capabilities')) {
+            $stub = '/stubs/controller.capabilities.stub';
+        } elseif ($type = $this->option('type')) {
             $stub = "/stubs/controller.{$type}.stub";
         } elseif ($this->option('parent')) {
             $stub = $this->option('singleton')
@@ -110,6 +113,10 @@ class ControllerMakeCommand extends GeneratorCommand
      */
     protected function buildClass($name)
     {
+        if ($this->option('capabilities')) {
+            return $this->buildCapabilitiesClass($name);
+        }
+
         $rootNamespace = $this->rootNamespace();
         $controllerNamespace = $this->getNamespace($name);
 
@@ -139,6 +146,78 @@ class ControllerMakeCommand extends GeneratorCommand
         return str_replace(
             array_keys($replace), array_values($replace), parent::buildClass($name)
         );
+    }
+
+    /**
+     * Build a controller running a model's capabilities, wired to the slice's conventional
+     * classes: Capabilities\{Model}, Parcels\{Model}\Capabilities, Http\Requests\{Model}\Capabilities
+     * and Http\Resources\{Model}.
+     *
+     * @param  string  $name
+     * @return string
+     *
+     * @throws \InvalidArgumentException When --model is missing.
+     */
+    protected function buildCapabilitiesClass($name)
+    {
+        if (! $this->option('model')) {
+            throw new InvalidArgumentException('A capabilities controller needs --model.');
+        }
+
+        $modelClass = $this->parseModel($this->option('model'));
+        $model = class_basename($modelClass);
+        $models = Str::plural($model);
+        $root = trim($this->rootNamespace(), '\\');
+        $artifact = $this->getArtifactOption();
+        $route = Str::kebab($model);
+
+        $classes = ['Heritage\\Http\\Request', 'Heritage\\Routing\\Controller', $modelClass, "{$root}\\Http\\Resources\\{$model}\\{$model}Resource"];
+
+        foreach (['Index' => $models, 'Create' => $model, 'Show' => $model, 'Edit' => $model, 'Save' => $model, 'Destroy' => $model] as $operation => $subject) {
+            $classes[] = "{$root}\\Capabilities\\{$model}\\{$operation}{$subject}Capability";
+        }
+
+        foreach (['Index', 'Show', 'Edit', 'Save', 'Destroy'] as $operation) {
+            $classes[] = "{$root}\\Parcels\\{$model}\\Capabilities\\{$operation}{$model}Parcel";
+        }
+
+        foreach (['Store', 'Update', 'Destroy'] as $operation) {
+            $classes[] = "{$root}\\Http\\Requests\\{$model}\\Capabilities\\{$operation}{$model}Request";
+        }
+
+        $classes = array_unique($classes);
+        sort($classes);
+
+        $replace = [
+            '{{ imports }}' => implode("\n", array_map(fn ($class) => "use {$class};", $classes)),
+            '{{ models }}' => $models,
+            '{{ model }}' => $model,
+            '{{ modelVariable }}' => Str::camel($model),
+            '{{ label }}' => str_replace('_', ' ', Str::snake($model)),
+            '{{ pluralLabel }}' => str_replace('_', ' ', Str::snake($models)),
+            '{{ view }}' => ($artifact ? Str::kebab($artifact).'::' : '').$route,
+            '{{ route }}' => $route,
+        ];
+
+        return str_replace(array_keys($replace), array_values($replace), parent::buildClass($name));
+    }
+
+    /**
+     * Place a capabilities controller given only by its name under
+     * Http\Controllers\{Model}\Capabilities.
+     *
+     * @param  string  $name
+     * @return string
+     */
+    protected function qualifyClass($name)
+    {
+        $name = str_replace('/', '\\', ltrim($name, '\\/'));
+
+        if ($this->option('capabilities') && $this->option('model') && ! str_contains($name, '\\')) {
+            $name = class_basename(str_replace('/', '\\', $this->option('model'))).'\\Capabilities\\'.$name;
+        }
+
+        return parent::qualifyClass($name);
     }
 
     /**
@@ -289,6 +368,7 @@ class ControllerMakeCommand extends GeneratorCommand
     {
         return [
             ['api', null, InputOption::VALUE_NONE, 'Exclude the create and edit methods from the controller'],
+            ['capabilities', 'C', InputOption::VALUE_NONE, 'Generate a controller running the capabilities of the given --model'],
             ['type', null, InputOption::VALUE_REQUIRED, 'Manually specify the controller stub file to use'],
             ['force', null, InputOption::VALUE_NONE, 'Create the class even if the controller already exists'],
             ['invokable', 'i', InputOption::VALUE_NONE, 'Generate a single method, invokable controller class'],

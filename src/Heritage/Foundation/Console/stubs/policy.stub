@@ -2,65 +2,107 @@
 
 namespace {{ namespace }};
 
-use Heritage\Auth\Access\Response;
 use {{ namespacedModel }};
 use {{ namespacedUserModel }};
 
+/**
+ * Who may do what with {{ model }} records: the abilities its capabilities declare with #[Authorize].
+ *
+ * Every ability is granted until it is restricted here.
+ */
 class {{ class }}
 {
     /**
-     * Determine whether the user can view any models.
+     * List {{ model }} records.
+     *
+     * @param  {{ user }}  $user
+     * @return bool
      */
     public function viewAny({{ user }} $user): bool
     {
-        return false;
+        return true;
     }
 
     /**
-     * Determine whether the user can view the model.
+     * View a {{ model }}.
+     *
+     * @param  {{ user }}  $user
+     * @param  {{ model }}  ${{ modelVariable }}
+     * @return bool
      */
     public function view({{ user }} $user, {{ model }} ${{ modelVariable }}): bool
     {
-        return false;
+        return true;
     }
 
     /**
-     * Determine whether the user can create models.
+     * Create a {{ model }}.
+     *
+     * @param  {{ user }}  $user
+     * @return bool
      */
     public function create({{ user }} $user): bool
     {
-        return false;
+        return true;
     }
 
     /**
-     * Determine whether the user can update the model.
+     * Update a {{ model }}.
+     *
+     * @param  {{ user }}  $user
+     * @param  {{ model }}  ${{ modelVariable }}
+     * @return bool
      */
     public function update({{ user }} $user, {{ model }} ${{ modelVariable }}): bool
     {
-        return false;
+        return true;
     }
 
     /**
-     * Determine whether the user can delete the model.
+     * Save a {{ model }}: create it, or update the given one.
+     *
+     * @param  {{ user }}  $user
+     * @param  {{ model }}|null  ${{ modelVariable }}
+     * @return bool
+     */
+    public function save({{ user }} $user, ?{{ model }} ${{ modelVariable }} = null): bool
+    {
+        return ${{ modelVariable }} === null ? $this->create($user) : $this->update($user, ${{ modelVariable }});
+    }
+
+    /**
+     * Delete a {{ model }}.
+     *
+     * @param  {{ user }}  $user
+     * @param  {{ model }}  ${{ modelVariable }}
+     * @return bool
      */
     public function delete({{ user }} $user, {{ model }} ${{ modelVariable }}): bool
     {
-        return false;
+        return true;
     }
 
     /**
-     * Determine whether the user can restore the model.
+     * Restore a soft-deleted {{ model }}.
+     *
+     * @param  {{ user }}  $user
+     * @param  {{ model }}  ${{ modelVariable }}
+     * @return bool
      */
     public function restore({{ user }} $user, {{ model }} ${{ modelVariable }}): bool
     {
-        return false;
+        return true;
     }
 
     /**
-     * Determine whether the user can permanently delete the model.
+     * Permanently delete a {{ model }}.
+     *
+     * @param  {{ user }}  $user
+     * @param  {{ model }}  ${{ modelVariable }}
+     * @return bool
      */
     public function forceDelete({{ user }} $user, {{ model }} ${{ modelVariable }}): bool
     {
-        return false;
+        return true;
     }
 }

@@ -61,17 +61,18 @@ trait GeneratesDomainActions
      * @param  string|null  $result  The result enum class, if any.
      * @param  string|null  $outcome  The outcome class, if any.
      * @param  bool  $success  Whether the expression represents success (SUCCESS) or failure (FAILED).
+     * @param  string|null  $data  The PHP expression of the data a success carries, if any.
      * @return string The PHP expression, without a trailing semicolon.
      */
-    protected function outcomeExpression(?string $result, ?string $outcome, bool $success): string
+    protected function outcomeExpression(?string $result, ?string $outcome, bool $success, ?string $data = null): string
     {
         $case = $success ? 'SUCCESS' : 'FAILED';
+        $data = $success && $data !== null ? $data : null;
 
         return match (true) {
-            $result && $outcome => class_basename($outcome).'::fromResult('.class_basename($result)."::{$case})",
-            (bool) $result => 'Outcome::fromResult('.class_basename($result)."::{$case})",
-            (bool) $outcome => class_basename($outcome).($success ? '::success()' : '::failure()'),
-            default => $success ? 'Outcome::success()' : 'Outcome::failure()',
+            $result !== null => ($outcome ? class_basename($outcome) : 'Outcome').'::fromResult('.class_basename($result)."::{$case}".($data ? ", {$data}" : '').')',
+            $success => ($outcome ? class_basename($outcome) : 'Outcome')."::success({$data})",
+            default => ($outcome ? class_basename($outcome) : 'Outcome').'::failure()',
         };
     }
 

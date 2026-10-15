@@ -3,11 +3,14 @@
 namespace Heritage\Foundation\Console;
 
 use Heritage\Console\GeneratorCommand;
+use Heritage\Foundation\Console\Concerns\InspectsModel;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'make:resource')]
 class ResourceMakeCommand extends GeneratorCommand
 {
+    use InspectsModel;
+
     /**
      * The name and signature of the console command.
      *
@@ -17,7 +20,8 @@ class ResourceMakeCommand extends GeneratorCommand
                     {name : The name of the resource}
                     {--f|force : Create the class even if the resource already exists}
                     {--j|json-api : Create a JSON:API resource}
-                    {--c|collection : Create a resource collection}';
+                    {--c|collection : Create a resource collection}
+                    {--m|model= : The model the resource represents; its columns become the fields}';
 
     /**
      * The console command description.
@@ -57,8 +61,55 @@ class ResourceMakeCommand extends GeneratorCommand
         return match (true) {
             $this->collection() => $this->resolveStubPath('/stubs/resource-collection.stub'),
             $this->option('json-api') => $this->resolveStubPath('/stubs/resource-json-api.stub'),
+            $this->option('model') !== null => $this->resolveStubPath('/stubs/resource.model.stub'),
             default => $this->resolveStubPath('/stubs/resource.stub'),
         };
+    }
+
+    /**
+     * Build the class, listing the model's id, columns, translatable attributes and timestamps
+     * as the resource fields when --model is given.
+     *
+     * @param  string  $name
+     * @return string
+     *
+     * @throws \Heritage\Contracts\Filesystem\FileNotFoundException
+     */
+    protected function buildClass($name)
+    {
+        $class = parent::buildClass($name);
+
+        if (($model = $this->modelClass()) === null) {
+            return $class;
+        }
+
+        $fields = ['id', ...array_keys($this->modelColumns($model)), ...$this->modelTranslatable($model), 'created_at', 'updated_at'];
+        $lines = array_map(fn ($field) => "            '{$field}' => \$this->{$field},", array_unique($fields));
+
+        return str_replace(
+            ['{{ model }}', '{{ fields }}'],
+            [class_basename($model), implode("\n", $lines)],
+            $class
+        );
+    }
+
+    /**
+     * Place a resource given only by its name in a folder named after its model
+     * (Http\Resources\{Model}\{Name}).
+     *
+     * @param  string  $name
+     * @return string
+     */
+    protected function qualifyClass($name)
+    {
+        $name = str_replace('/', '\\', ltrim($name, '\\/'));
+        $model = $this->option('model');
+
+        if ($model && ! str_contains($name, '\\')) {
+            $name = class_basename(str_replace('/', '\\', $model)).'\\'.$name;
+        }
+
+        return parent::qualifyClass($name);
     }
 
     /**

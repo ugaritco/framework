@@ -7,9 +7,7 @@ namespace {{ namespace }};
 {{ imports }}
 
 /**
- * Class {{ class }}
- *
- * Encapsulates an atomic domain execution capability.
+ * {{ summary }}
  */
 {{ authorize }}class {{ class }} extends Capability
 {
@@ -26,9 +24,7 @@ namespace {{ namespace }};
      */
     protected function perform({{ parcelParameter }}): Outcome
     {
-        //
-
-        return {{ success }};
+{{ body }}
     }
 
     /**

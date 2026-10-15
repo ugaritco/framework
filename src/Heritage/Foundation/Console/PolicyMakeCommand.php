@@ -193,6 +193,25 @@ class PolicyMakeCommand extends GeneratorCommand
     }
 
     /**
+     * Place a policy given only by its name in a folder named after its model
+     * (Policies\{Model}\{Model}Policy), where the gate discovers it.
+     *
+     * @param  string  $name
+     * @return string
+     */
+    protected function qualifyClass($name)
+    {
+        $name = str_replace('/', '\\', ltrim($name, '\\/'));
+        $model = $this->option('model');
+
+        if ($model && ! str_contains($name, '\\')) {
+            $name = class_basename(str_replace('/', '\\', $model)).'\\'.$name;
+        }
+
+        return parent::qualifyClass($name);
+    }
+
+    /**
      * Interact further with the user if they were prompted for missing arguments.
      *
      * @param  \Symfony\Component\Console\Input\InputInterface  $input
