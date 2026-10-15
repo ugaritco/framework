@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Heritage\Foundation\Console;
 
 use Heritage\Console\GeneratorCommand;
+use Heritage\Database\Eloquent\Model;
 use Heritage\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -139,7 +140,7 @@ class RepositoryMakeCommand extends GeneratorCommand
         $model = $this->option('model') ?: $this->modelName();
         $model = str_replace('/', '\\', trim((string) $model, '\\/'));
 
-        return class_exists($model) ? $model : $this->qualifyModel($model);
+        return is_subclass_of($model, Model::class) ? $model : $this->qualifyModel($model);
     }
 
     /**

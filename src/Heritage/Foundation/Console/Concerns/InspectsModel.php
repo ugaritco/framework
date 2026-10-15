@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Heritage\Foundation\Console\Concerns;
 
+use Heritage\Database\Eloquent\Model;
 use Heritage\Support\Str;
 use Throwable;
 
@@ -15,8 +16,8 @@ use Throwable;
 trait InspectsModel
 {
     /**
-     * Resolve the --model option to a model class: as given when it exists, otherwise under the
-     * root namespace's Models folder.
+     * Resolve the --model option to a model class: as given when it is an existing model, otherwise
+     * under the root namespace's Models folder (so "Locale" is not PHP's global \Locale class).
      *
      * @return class-string|null
      */
@@ -30,7 +31,7 @@ trait InspectsModel
 
         $model = str_replace('/', '\\', trim($model, '\\/'));
 
-        return class_exists($model) ? $model : $this->qualifyModel($model);
+        return is_subclass_of($model, Model::class) ? $model : $this->qualifyModel($model);
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Heritage\Foundation\Console;
 
 use Heritage\Console\GeneratorCommand;
+use Heritage\Database\Eloquent\Model;
 use Heritage\Foundation\Console\Concerns\GeneratesDomainActions;
 use Heritage\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -137,7 +138,7 @@ class OutcomeMakeCommand extends GeneratorCommand
         $model = $this->option('model') ?: preg_replace('/Outcome$/', '', class_basename($name));
         $model = str_replace('/', '\\', trim((string) $model, '\\/'));
 
-        return class_exists($model) ? $model : $this->qualifyModel($model);
+        return is_subclass_of($model, Model::class) ? $model : $this->qualifyModel($model);
     }
 
     /**

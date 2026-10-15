@@ -18,9 +18,10 @@ trait GeneratesDomainActions
     /**
      * Resolve a companion class option to a fully-qualified class name.
      *
-     * An existing fully-qualified class is used as-is; anything else is placed under the given
-     * conventional folder of the root namespace (e.g. "Branch/ShowBranchParcel" with folder
-     * "Parcels" becomes "{Root}\Parcels\Branch\ShowBranchParcel").
+     * An existing fully-qualified class is used as-is; anything else, including a bare name that
+     * matches a global class (e.g. "Locale"), is placed under the given conventional folder of
+     * the root namespace (e.g. "Branch/ShowBranchParcel" with folder "Parcels" becomes
+     * "{Root}\Parcels\Branch\ShowBranchParcel").
      *
      * @param  string  $option  The command option holding the class.
      * @param  string  $folder  The conventional folder below the root namespace.
@@ -36,7 +37,7 @@ trait GeneratesDomainActions
 
         $value = str_replace('/', '\\', trim($value, '\\/'));
 
-        if (class_exists($value) || interface_exists($value) || enum_exists($value)) {
+        if (str_contains($value, '\\') && (class_exists($value) || interface_exists($value) || enum_exists($value))) {
             return $value;
         }
 
