@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import HeadingSmall from '@/components/HeadingSmall.vue';
-import { show as module } from '@/routes/[[ module ]]/module';
+import { show as artifact } from '@/routes/[[ module ]]/artifact';
 import { index } from '@/routes/[[ model ]]';
 import type { BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
@@ -23,7 +23,7 @@ defineProps<Props>();
 
 /** Breadcrumb trail of the index page. */
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
-    { title: trans('[[ module ]]::module.name'), href: module().url },
+    { title: trans('[[ module ]]::artifact.name'), href: artifact().url },
     { title: trans('[[ lang ]].plural_definite'), href: index().url },
 ]);
 </script>

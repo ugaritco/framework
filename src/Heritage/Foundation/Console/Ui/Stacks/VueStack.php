@@ -95,8 +95,8 @@ class VueStack implements Stack
         $replace = $this->moduleReplacements($module);
 
         return array_map(fn (array $file) => [...$file, 'replace' => $replace], [
-            ['path' => 'pages/module/Show.vue', 'stub' => 'vue/panel/Show.vue'],
-            ['path' => 'types/module/summary.d.ts', 'stub' => 'vue/panel/summary.d.ts'],
+            ['path' => 'pages/artifact/Show.vue', 'stub' => 'vue/panel/Show.vue'],
+            ['path' => 'types/artifact/summary.d.ts', 'stub' => 'vue/panel/summary.d.ts'],
         ]);
     }
 
@@ -155,7 +155,7 @@ class VueStack implements Stack
                 'path' => 'resources/js/apps/panel/composables/usePanelModuleNav.ts',
                 'opening' => "/key: '".preg_quote($group, '/')."',[\\s\\S]*?items: \\[/",
                 'key' => "'/panel/artifact/{$module}'",
-                'item' => "{\n    title: '".Str::headline($module)."',\n    titleKey: '{$module}::module.name',\n    href: '/panel/artifact/{$module}',\n    icon: {$icon},\n}",
+                'item' => "{\n    title: '".Str::headline($module)."',\n    titleKey: '{$module}::artifact.name',\n    href: '/panel/artifact/{$module}',\n    icon: {$icon},\n}",
                 'place' => "the [{$group}] group",
                 'icons' => [$icon],
             ],

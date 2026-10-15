@@ -1,24 +1,24 @@
 <?php
 
-namespace {{ namespace }}\Http\Controllers\Module;
+namespace {{ namespace }}\Http\Controllers\Artifact;
 
 use Heritage\Routing\Controller;
-use {{ namespace }}\Capabilities\Module\ShowModuleCapability;
+use {{ namespace }}\Capabilities\Artifact\ShowArtifactCapability;
 
 /**
- * Handles the HTTP endpoint of the {{ title }} module summary.
+ * Handles the HTTP endpoint of the {{ title }} artifact summary.
  *
  * It answers JSON to clients expecting JSON (ResponderType::AUTO).
  */
-class ModuleController extends Controller
+class ArtifactController extends Controller
 {
     /**
-     * Show the summary of the module.
+     * Show the summary of the artifact.
      *
      * @return mixed
      */
     public function show()
     {
-        return $this->page(ShowModuleCapability::class, null, '{{ artifact }}::module/Show');
+        return $this->page(ShowArtifactCapability::class, null, '{{ artifact }}::artifact/Show');
     }
 }

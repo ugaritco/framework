@@ -55,7 +55,7 @@ interface Stack
     public function panelFiles(string $module, string $icon): array;
 
     /**
-     * The files of a panel module's summary page, which shows the data of its ShowModuleCapability.
+     * The files of an artifact's summary page, which shows the data of its ShowArtifactCapability.
      *
      * @param  string  $module
      * @return array<int, array<string, mixed>>

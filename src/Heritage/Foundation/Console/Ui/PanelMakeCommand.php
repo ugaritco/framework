@@ -69,7 +69,7 @@ class PanelMakeCommand extends Command
         $icon = $this->iconName($this->option('icon'), 'Blocks');
 
         $this->writeFiles($this->modulePath($module), $stack->panelFiles($module, $icon));
-        $this->writeModuleLang($module);
+        $this->writeArtifactLang($module);
         $this->writeSummaryPage($stack, $module);
         $this->applyEdits($stack, $stack->panelRegistrations($module, $icon, (string) $this->option('group')));
         $this->printReport();
@@ -115,20 +115,20 @@ class PanelMakeCommand extends Command
     }
 
     /**
-     * Write the artifact's lang/en/module.php, the module's name and the artifact's description, as
-     * the sidebars and the summary page show them.
+     * Write the artifact's lang/en/artifact.php, its name and description, as the sidebars and the
+     * summary page show them.
      *
      * @param  string  $module
      * @return void
      */
-    protected function writeModuleLang(string $module): void
+    protected function writeArtifactLang(string $module): void
     {
         $manifest = $this->ugarit->basePath("artifacts/{$module}/art.php");
         $description = $this->files->exists($manifest) && preg_match("/\\\$description\\s*=\\s*'((?:[^'\\\\]|\\\\.)*)'/", $this->files->get($manifest), $match)
             ? $match[1]
             : '';
 
-        $this->writeFile($this->ugarit->basePath("artifacts/{$module}/lang/en/module.php"), $this->renderStub('module.php', [
+        $this->writeFile($this->ugarit->basePath("artifacts/{$module}/lang/en/artifact.php"), $this->renderStub('artifact.php', [
             '[[ title ]]' => Str::headline($module),
             '[[ description ]]' => $description,
         ]));

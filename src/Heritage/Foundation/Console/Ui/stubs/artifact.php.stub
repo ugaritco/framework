@@ -4,9 +4,9 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Module
+    | Artifact
     |--------------------------------------------------------------------------
-    | How the module is presented in the panel: its sidebar entry and its summary page.
+    | How the artifact is presented in the panel: its sidebar entry and its summary page.
     */
 
     'name' => '[[ title ]]',

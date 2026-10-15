@@ -71,9 +71,9 @@ export interface SummaryRecord {
 }
 
 /**
- * The summary of the [[ title ]] module, as ShowModuleCapability returns it.
+ * The summary of the [[ title ]] artifact, as ShowArtifactCapability returns it.
  */
-export interface ModuleSummary {
+export interface ArtifactSummary {
     artifact: ArtifactManifest;
     stats: SummaryStats;
     entities: SummaryEntity[];

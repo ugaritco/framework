@@ -3,15 +3,15 @@ import HeadingSmall from '@/components/HeadingSmall.vue';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { toUrl } from '@/lib/utils';
-import { show } from '@/routes/[[ module ]]/module';
+import { show } from '@/routes/[[ module ]]/artifact';
 import type { BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/vue3';
 import { [[ Module ]]Layout } from '@module/[[ module ]]/layouts';
 import { [[ moduleCamel ]]Entities } from '@module/[[ module ]]/navigation';
 import type {
-    ModuleSummary,
+    ArtifactSummary,
     SummaryEntity,
-} from '@module/[[ module ]]/types/module/summary';
+} from '@module/[[ module ]]/types/artifact/summary';
 import { getActiveLanguage, trans } from 'laravel-vue-i18n';
 import {
     Boxes,
@@ -29,24 +29,24 @@ import {
 import { computed } from 'vue';
 
 /**
- * [[ title ]] module summary page: the artifact's identity, its totals, a card per entity with
+ * [[ title ]] artifact summary page: the artifact's identity, its totals, a card per entity with
  * its records, capabilities and features, and the latest activity across its entities.
  */
 
 interface Props {
-    /** The summary of the module, read from its artifact by ShowModuleCapability. */
-    data: ModuleSummary;
+    /** The summary of the artifact, read by ShowArtifactCapability. */
+    data: ArtifactSummary;
 }
 
 const props = defineProps<Props>();
 
 /** Breadcrumb trail of the summary page. */
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
-    { title: trans('[[ module ]]::module.name'), href: show().url },
+    { title: trans('[[ module ]]::artifact.name'), href: show().url },
     { title: trans('pages.summary'), href: show().url },
 ]);
 
-/** The icons of the module's sidebar entities, by the URL of their listing. */
+/** The icons of the artifact's sidebar entities, by the URL of their listing. */
 const icons = computed(
     () =>
         new Map(
@@ -131,16 +131,16 @@ const elapsed = (iso: string) => {
 </script>
 
 <template>
-    <Head :title="$t('[[ module ]]::module.name')" />
+    <Head :title="$t('[[ module ]]::artifact.name')" />
 
     <[[ Module ]]Layout :breadcrumbs="breadcrumbItems">
-        <!-- Header: the module and its artifact -->
+        <!-- Header: the artifact and its identity -->
         <div
             class="flex flex-col gap-3 rounded-xl bg-primary/3 p-4 ring-1 ring-primary/5 sm:flex-row sm:items-center sm:justify-between"
         >
             <HeadingSmall
-                :title="$t('[[ module ]]::module.name')"
-                :description="$t('[[ module ]]::module.description')"
+                :title="$t('[[ module ]]::artifact.name')"
+                :description="$t('[[ module ]]::artifact.description')"
             />
 
             <div class="flex flex-wrap items-center gap-2">

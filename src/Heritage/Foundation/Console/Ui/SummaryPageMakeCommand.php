@@ -10,9 +10,9 @@ use Heritage\Foundation\Console\Ui\Concerns\GeneratesUi;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
- * Generates the frontend of an artifact's module summary: the summary page of its panel module
- * (the artifact, its totals, a card per entity and the latest activity) and the types of the
- * data ShowModuleCapability gives it, generating that capability first when it is missing.
+ * Generates the frontend of an artifact's summary: the summary page in its panel folder (the
+ * artifact, its totals, a card per entity and the latest activity) and the types of the data
+ * ShowArtifactCapability gives it, generating that capability first when it is missing.
  */
 #[AsCommand(name: 'make:summary-page')]
 class SummaryPageMakeCommand extends Command

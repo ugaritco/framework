@@ -1,4 +1,4 @@
-import { show as summary } from '@/routes/[[ module ]]/module';
+import { show as summary } from '@/routes/[[ module ]]/artifact';
 import type { NavItem } from '@/types';
 import { trans } from 'laravel-vue-i18n';
 import { LayoutDashboard } from 'lucide-vue-next';

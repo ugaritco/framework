@@ -4,9 +4,9 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Module Summary
+    | Artifact Summary
     |--------------------------------------------------------------------------
-    | The summary page of a panel module: its artifact, totals, entities and
+    | The summary page of an artifact: its identity, totals, entities and
     | latest activity.
     */
 
