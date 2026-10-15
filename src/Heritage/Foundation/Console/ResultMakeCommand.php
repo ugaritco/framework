@@ -94,14 +94,32 @@ class ResultMakeCommand extends GeneratorCommand
     }
 
     /**
-     * Build the enum, filling its FEEDBACK constant.
+     * Build the enum, filling its FEEDBACK constant and the comments of its cases.
      *
      * @param  string  $name  The fully-qualified enum name.
      * @return string The generated source.
      */
     protected function buildClass($name)
     {
-        return str_replace('{{ feedback }}', $this->feedback($name), parent::buildClass($name));
+        $feedback = $this->feedback($name);
+        $group = str_contains($feedback, '.') ? Str::beforeLast($feedback, '.').'.' : '';
+
+        return str_replace(
+            ['{{ feedback }}', '{{ action }}', '{{ successKey }}', '{{ failedKey }}'],
+            [$feedback, $this->action($name), $feedback, $group.'failed_'.Str::afterLast($feedback, '.')],
+            parent::buildClass($name)
+        );
+    }
+
+    /**
+     * The action the enum reports on, in words ("DestroyGenreResult" is "Destroy genre").
+     *
+     * @param  string  $name  The fully-qualified enum name.
+     * @return string
+     */
+    protected function action(string $name): string
+    {
+        return Str::ucfirst(Str::snake(Str::beforeLast(class_basename($name), 'Result'), ' '));
     }
 
     /**

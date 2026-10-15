@@ -25,6 +25,13 @@ enum {{ class }}: int implements ResultContract
      */
     const FEEDBACK = '{{ feedback }}';
 
+    /**
+     * {{ action }} succeeded; its feedback reads `responses.{{ successKey }}`.
+     */
     case SUCCESS = 1;
+
+    /**
+     * {{ action }} failed; its feedback reads `responses.{{ failedKey }}`.
+     */
     case FAILED = 2;
 }
