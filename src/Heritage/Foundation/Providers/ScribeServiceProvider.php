@@ -38,6 +38,7 @@ use Heritage\Foundation\Console\BroadcastingInstallCommand;
 use Heritage\Foundation\Console\CastMakeCommand;
 use Heritage\Foundation\Console\ChannelListCommand;
 use Heritage\Foundation\Console\ChannelMakeCommand;
+use Heritage\Foundation\Console\CapabilitiesMakeCommand;
 use Heritage\Foundation\Console\CapabilityMakeCommand;
 use Heritage\Foundation\Console\ClassMakeCommand;
 use Heritage\Foundation\Console\ClearCompiledCommand;
@@ -210,6 +211,7 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
         'ArtifactMake' => ArtifactMakeCommand::class,
         'BroadcastingInstall' => BroadcastingInstallCommand::class,
         'CacheTable' => CacheTableCommand::class,
+        'CapabilitiesMake' => CapabilitiesMakeCommand::class,
         'CapabilityMake' => CapabilityMakeCommand::class,
         'CastMake' => CastMakeCommand::class,
         'ChannelList' => ChannelListCommand::class,

@@ -491,7 +491,7 @@ class ArtifactMakeCommand extends Command
         $this->line("  1. Register the artifact in your application's <fg=cyan>composer.json</> path repositories.");
         $this->line("  2. Run <fg=cyan>composer require ugarit-artifacts/{$name}:@dev</> to load it.");
         $this->line("  3. Start adding models: <fg=cyan>php scribe make:model Product --artifact={$name}</>");
-
+        $this->line("  4. Once its \$fillable is set, generate its slice: <fg=cyan>php scribe make:capabilities Product --artifact={$name}</>");
         $this->newLine();
     }
 }

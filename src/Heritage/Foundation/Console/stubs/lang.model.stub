@@ -1,0 +1,27 @@
+<?php
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Naming
+    |--------------------------------------------------------------------------
+    | How the {{ label }} is referred to across the UI and the feedback messages.
+    */
+
+    'name' => '{{ name }}',
+    'singular' => '{{ name }}',
+    'plural' => '{{ plural }}',
+    'plural_definite' => 'The {{ plural }}',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Attributes
+    |--------------------------------------------------------------------------
+    | The label and placeholder of each field in forms, tables and validation messages.
+    */
+
+    'attributes' => [
+{{ attributes }}
+    ],
+];
