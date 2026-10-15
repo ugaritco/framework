@@ -175,6 +175,36 @@ abstract class Seeder
     }
 
     /**
+     * Seed the fixed records of records() through the model's factory, then the given number
+     * of random ones; the factory fills the attributes a record omits.
+     *
+     * @param  class-string<\Heritage\Database\Eloquent\Model>  $model
+     * @param  int  $count  The number of random records.
+     * @return void
+     */
+    protected function seedModel(string $model, int $count = 10)
+    {
+        foreach ($this->records() as $record) {
+            $model::factory()->create($record);
+        }
+
+        if ($count > 0) {
+            $model::factory()->count($count)->create();
+        }
+    }
+
+    /**
+     * The fixed records seedModel() creates, a translatable attribute given per locale
+     * (e.g. ['name' => ['en' => 'Fiction', 'ar' => 'خيال']]).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function records(): array
+    {
+        return [];
+    }
+
+    /**
      * Run the database seeds.
      *
      * @param  array  $parameters
