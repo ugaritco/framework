@@ -19,7 +19,7 @@ import { Form } from '@inertiajs/vue3';
 import {
     update[[ Model ]]InitialValues,
     update[[ Model ]]Schema,
-} from '@module/[[ module ]]/pages/[[ model ]]/partials/update/form';
+} from '[[ updateForm ]]';
 import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
 import { LoaderCircle, SquareArrowOutUpLeft } from 'lucide-vue-next';
 [[ formImports ]]

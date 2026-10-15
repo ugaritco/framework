@@ -7,7 +7,7 @@ import { index } from '@/routes/[[ model ]]';
 import type { BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import { [[ Module ]]Layout } from '@module/[[ module ]]/layouts';
-import { Store } from '@module/[[ module ]]/pages/[[ model ]]/partials';
+import { [[ storeComponent ]] } from '@module/[[ module ]]/pages/[[ model ]]/partials';
 import { trans } from 'laravel-vue-i18n';
 import { computed } from 'vue';
 
@@ -49,6 +49,6 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
             />
         </div>
 
-        <Store />
+        <[[ storeComponent ]] />
     </[[ Module ]]Layout>
 </template>

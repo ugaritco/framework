@@ -1,0 +1,89 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { useRemember } from '@inertiajs/vue3';
+import { Store, StoreFeature } from '@module/[[ module ]]/pages/[[ model ]]/partials';
+import { Plus } from 'lucide-vue-next';
+
+/**
+ * [[ Model ]] create dialog: the create form in a modal, its open state remembered across
+ * Inertia navigation. It shows the feature form, saving the [[ label ]] with its translations,
+ * unless `asFeature` is false, which shows the form of its own fields.
+ */
+
+interface Props {
+    /** Renders an icon trigger instead of the default button. */
+    asIcon?: boolean;
+
+    /** Shows the feature form, with a section of translated fields per locale. */
+    asFeature?: boolean;
+}
+
+withDefaults(defineProps<Props>(), {
+    asIcon: false,
+    asFeature: true,
+});
+
+/** Dialog state kept across Inertia navigation and reloads. */
+const state = useRemember({ open: false }, '[[ model ]]-create-dialog');
+</script>
+
+<template>
+    <Dialog v-model:open="state.open">
+        <DialogTrigger as-child>
+            <div class="flex items-center">
+                <!-- Text trigger (desktop) -->
+                <Button
+                    v-if="!asIcon"
+                    appearance="solid"
+                    color="primary"
+                    class="hidden lg:flex"
+                    data-test="create-[[ model ]]-button"
+                >
+                    {{ $t('actions.create') }}
+                </Button>
+
+                <!-- Icon trigger (mobile, or asIcon) -->
+                <Button
+                    :appearance="asIcon ? 'outline' : 'solid'"
+                    color="primary"
+                    :size="asIcon ? 'sm' : 'icon'"
+                    :class="[!asIcon ? 'lg:hidden' : '']"
+                    data-test="create-[[ model ]]-button"
+                >
+                    <Plus class="h-4 w-4" :class="asIcon ? 'text-primary' : ''" />
+                </Button>
+            </div>
+        </DialogTrigger>
+
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>
+                    {{
+                        $t('presentation.create.title', {
+                            model_singular: $t('[[ lang ]].singular'),
+                        })
+                    }}
+                </DialogTitle>
+                <DialogDescription>
+                    {{
+                        $t('presentation.create.description', {
+                            model_singular: $t('[[ lang ]].singular'),
+                        })
+                    }}
+                </DialogDescription>
+            </DialogHeader>
+
+            <!-- The feature form with its translations, or the form of its own fields -->
+            <StoreFeature v-if="asFeature" @success="state.open = false" />
+            <Store v-else @success="state.open = false" />
+        </DialogContent>
+    </Dialog>
+</template>

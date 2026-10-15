@@ -17,7 +17,7 @@ class PagesMakeCommand extends Command
 
     /**
      * The operations a model's pages offer, each with the routes it needs; a translatable model
-     * is stored and updated through its {model}-feature routes.
+     * also needs its {model}-feature store and update routes, which its feature forms post to.
      *
      * @var array<string, array<int, string>>
      */
@@ -142,11 +142,11 @@ class PagesMakeCommand extends Command
             $reasons['translations'] = 'its tab is on the show page, which is not generated';
         }
 
-        $saves = $blueprint->isTranslatable() ? ['{model}.store' => '{model}-feature.store', '{model}.update' => '{model}-feature.update'] : [];
+        $features = $blueprint->isTranslatable() ? ['create' => ['{model}-feature.store'], 'edit' => ['{model}-feature.update']] : [];
 
         foreach ($operations as $operation) {
             $missing = array_filter(
-                array_map(fn (string $route) => str_replace('{model}', Str::kebab($blueprint->model), $saves[$route] ?? $route), self::OPERATIONS[$operation]),
+                array_map(fn (string $route) => str_replace('{model}', Str::kebab($blueprint->model), $route), [...self::OPERATIONS[$operation], ...($features[$operation] ?? [])]),
                 fn (string $route) => ! $this->ugarit['router']->has($route)
             );
 

@@ -7,7 +7,7 @@ import { index } from '@/routes/[[ model ]]';
 import type { BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import { [[ Module ]]Layout } from '@module/[[ module ]]/layouts';
-import { Update } from '@module/[[ module ]]/pages/[[ model ]]/partials';
+import { [[ updateComponent ]] } from '@module/[[ module ]]/pages/[[ model ]]/partials';
 import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
 import { trans } from 'laravel-vue-i18n';
 import { computed } from 'vue';
@@ -60,6 +60,6 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
             />
         </div>
 
-        <Update :[[ modelCamel ]]="data" />
+        <[[ updateComponent ]] :[[ modelCamel ]]="data" />
     </[[ Module ]]Layout>
 </template>

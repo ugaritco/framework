@@ -167,9 +167,15 @@ class VueStack implements Stack
                 continue;
             }
 
+            if ($blueprint->isTranslatable() && in_array($operation, ['create', 'edit'], true)) {
+                array_push($files, ...$this->translatableFormFiles($blueprint, "{$pages}/partials", $partial));
+
+                continue;
+            }
+
             $files[] = [
                 'path' => "{$pages}/partials/".str_replace(['index/data.ts', 'index/columns.ts'], ['index/data/data.ts', 'index/data/columns.ts'], $partial),
-                'stub' => 'vue/pages/partials/'.$this->formStub($blueprint, $partial),
+                'stub' => 'vue/pages/partials/'.$partial,
             ];
         }
 
@@ -243,6 +249,9 @@ class VueStack implements Stack
             '[[ actionImports ]]' => $actions === [] ? '' : "\n".$this->importList(array_keys($actions), $partials),
             '[[ rowActions ]]' => implode(', ', array_keys(array_filter(['quick view' => $has('show'), 'update' => $has('edit'), 'delete' => $has('destroy')]))),
             '[[ storeForm ]]' => "{$partials}/store/form",
+            '[[ updateForm ]]' => "{$partials}/update/form",
+            '[[ storeComponent ]]' => $blueprint->isTranslatable() ? 'StoreFeature' : 'Store',
+            '[[ updateComponent ]]' => $blueprint->isTranslatable() ? 'UpdateFeature' : 'Update',
             '[[ columnsPath ]]' => "{$partials}/index/data/columns",
             '[[ columnImports ]]' => $this->columnImports($blueprint, $label, $has('show')),
             '[[ columnSetup ]]' => $this->columnSetup($blueprint),
@@ -358,6 +367,48 @@ class VueStack implements Stack
     }
 
     /**
+     * The files of a create or update partial of a translatable model, as the Branch pages are
+     * written: the form of its own fields (posting to the capability route) in `store/` or
+     * `update/`, the feature form with a section per locale (posting to the `{model}-feature`
+     * route) in `store/feature/` or `update/feature/`, and a dialog showing the feature form
+     * unless `asFeature` is false.
+     *
+     * @param  Blueprint  $blueprint
+     * @param  string  $partials  The partials directory of the model's pages.
+     * @param  string  $partial  The partial, as listed in PARTIALS.
+     * @return array<int, array<string, mixed>>
+     */
+    protected function translatableFormFiles(Blueprint $blueprint, string $partials, string $partial): array
+    {
+        [$folder, $file] = explode('/', $partial);
+        $alias = "@module/{$blueprint->artifact}/pages/".Str::kebab($blueprint->model)."/partials/{$folder}";
+        $plain = $blueprint->plain();
+        $formKey = $folder === 'store' ? '[[ storeForm ]]' : '[[ updateForm ]]';
+
+        if ($file === 'Dialog.vue') {
+            return [['path' => "{$partials}/{$partial}", 'stub' => "vue/pages/partials/{$folder}/Dialog.translatable.vue"]];
+        }
+
+        $own = [
+            '[[ formFields ]]' => $this->formFields($blueprint, $plain, $blueprint->lang()),
+            '[[ formImports ]]' => $this->formImports($blueprint, $plain),
+            '[[ schemaFields ]]' => $this->schemaFields($blueprint, $plain),
+            '[[ storeValues ]]' => $this->storeValues($blueprint, $plain),
+            '[[ updateValues ]]' => $this->updateValues($blueprint, $plain, Str::camel($blueprint->model)),
+            $formKey => "{$alias}/form",
+        ];
+
+        return [
+            ['path' => "{$partials}/{$partial}", 'stub' => "vue/pages/partials/{$partial}", 'replace' => $own],
+            [
+                'path' => "{$partials}/{$folder}/feature/{$file}",
+                'stub' => 'vue/pages/partials/'.$this->formStub($blueprint, $partial),
+                'replace' => [$formKey => "{$alias}/feature/form"],
+            ],
+        ];
+    }
+
+    /**
      * The given files, written only when missing.
      *
      * @param  array<int, array<string, mixed>>  $files
@@ -454,13 +505,18 @@ class VueStack implements Stack
     {
         $partials = "@module/{$blueprint->artifact}/pages/".Str::kebab($blueprint->model).'/partials';
         $label = Str::lower(Str::headline($blueprint->model));
+        $feature = $blueprint->isTranslatable();
         $groups = [
             'destroy' => ['Delete confirmation form, and the dialog opening it', ['Destroy' => 'destroy/Destroy', 'DestroyDialog' => 'destroy/Dialog']],
             'index' => ['The '.Str::lower(Str::headline(Str::pluralStudly($blueprint->model))).' table', ['Read' => 'index/Index']],
             'show' => ['Quick view dialog', ['ShowDialog' => 'show/Dialog']],
-            'create' => ['Create form, and the dialog opening it', ['Store' => 'store/Store', 'StoreDialog' => 'store/Dialog']],
+            'create' => $feature
+                ? ['Create forms (its own fields, and the feature form with its translations), and the dialog opening them', ['Store' => 'store/Store', 'StoreFeature' => 'store/feature/Store', 'StoreDialog' => 'store/Dialog']]
+                : ['Create form, and the dialog opening it', ['Store' => 'store/Store', 'StoreDialog' => 'store/Dialog']],
             'summary' => ["Summary of a {$label}", ['Summary' => 'summary/Summary']],
-            'edit' => ['Update form, and the dialog opening it', ['Update' => 'update/Update', 'UpdateDialog' => 'update/Dialog']],
+            'edit' => $feature
+                ? ['Update forms (its own fields, and the feature form with its translations), and the dialog opening them', ['Update' => 'update/Update', 'UpdateFeature' => 'update/feature/Update', 'UpdateDialog' => 'update/Dialog']]
+                : ['Update form, and the dialog opening it', ['Update' => 'update/Update', 'UpdateDialog' => 'update/Dialog']],
         ];
         $blocks = [];
 
