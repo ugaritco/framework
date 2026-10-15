@@ -64,6 +64,7 @@ use Heritage\Foundation\Console\EventListCommand;
 use Heritage\Foundation\Console\EventMakeCommand;
 use Heritage\Foundation\Console\ExceptionMakeCommand;
 use Heritage\Foundation\Console\FeatureMakeCommand;
+use Heritage\Foundation\Console\FieldMakeCommand;
 use Heritage\Foundation\Console\InterfaceMakeCommand;
 use Heritage\Foundation\Console\JobMakeCommand;
 use Heritage\Foundation\Console\JobMiddlewareMakeCommand;
@@ -232,6 +233,7 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
         'ExceptionMake' => ExceptionMakeCommand::class,
         'FactoryMake' => FactoryMakeCommand::class,
         'FeatureMake' => FeatureMakeCommand::class,
+        'FieldMake' => FieldMakeCommand::class,
         'InterfaceMake' => InterfaceMakeCommand::class,
         'JobMake' => JobMakeCommand::class,
         'JobMiddlewareMake' => JobMiddlewareMakeCommand::class,

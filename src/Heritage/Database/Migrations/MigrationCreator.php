@@ -106,6 +106,35 @@ class MigrationCreator
     }
 
     /**
+     * Create a new migration whose up() and down() bodies are given.
+     *
+     * @param  string  $name
+     * @param  string  $path
+     * @param  string  $up  The statements of up(), indented as method body.
+     * @param  string  $down  The statements of down(), indented as method body.
+     * @return string The path of the migration.
+     *
+     * @throws \Exception
+     */
+    public function createWithBody($name, $path, string $up, string $down)
+    {
+        $this->ensureMigrationDoesntAlreadyExist($name, $path);
+
+        $stub = $this->files->exists($customPath = $this->customStubPath.'/migration.body.stub')
+            ? $this->files->get($customPath)
+            : $this->files->get($this->stubPath().'/migration.body.stub');
+
+        $path = $this->getCollisionFreePath($name, $path);
+
+        $this->files->ensureDirectoryExists(dirname($path));
+        $this->files->put($path, str_replace(['{{ up }}', '{{ down }}'], [$up, $down], $stub));
+
+        $this->firePostCreateHooks(null, $path);
+
+        return $path;
+    }
+
+    /**
      * Ensure that a migration with the given name doesn't already exist.
      *
      * @param  string  $name

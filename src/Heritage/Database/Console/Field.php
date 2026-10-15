@@ -218,6 +218,44 @@ final readonly class Field
     }
 
     /**
+     * The PHP type of the field in a Parcel.
+     *
+     * @return string "int", "bool", "float", "array" or "string".
+     */
+    public function phpType(): string
+    {
+        return match ($this->type) {
+            'integer', 'bigInteger', 'foreignId' => 'int',
+            'boolean' => 'bool',
+            'decimal', 'float' => 'float',
+            'json' => 'array',
+            default => 'string',
+        };
+    }
+
+    /**
+     * The validation rule of the field.
+     *
+     * @param  string|null  $foreignTable  The table a foreign key references, checked with exists.
+     * @return string e.g. "required|integer|exists:branches,id".
+     */
+    public function rule(?string $foreignTable = null): string
+    {
+        $presence = $this->has('nullable') || $this->type === 'json' ? 'nullable' : 'required';
+
+        return $presence.'|'.match ($this->type) {
+            'foreignId' => 'integer'.($foreignTable ? "|exists:{$foreignTable},id" : ''),
+            'integer', 'bigInteger' => 'integer',
+            'boolean' => 'boolean',
+            'decimal', 'float' => 'numeric',
+            'json' => 'array',
+            'date', 'dateTime' => 'date',
+            'text' => 'string',
+            default => 'string|max:255',
+        };
+    }
+
+    /**
      * A fake value for an attribute, guessed from its name, then its cast.
      *
      * @param  string  $column
@@ -240,6 +278,65 @@ final readonly class Field
             in_array($cast, ['datetime', 'immutable_datetime', 'timestamp'], true) => '$this->faker->dateTime()',
             default => '$this->faker->words(2, true)',
         };
+    }
+
+    /**
+     * The Blueprint statement adding the column to an existing table, without indentation.
+     *
+     * The rows already there need a value: a field that is not nullable gets false (boolean) or
+     * 0 (number) as its default, and is nullable otherwise. A translatable field is added to the
+     * translation table, without the per-locale unique index.
+     *
+     * @return string
+     */
+    public function addedColumn(): string
+    {
+        $column = '$table->'.static::TYPES[$this->type][0]."('{$this->name}'".($this->type === 'decimal' ? ', 10, 2' : '').')';
+
+        $column .= match (true) {
+            $this->has('nullable') => '->nullable()',
+            $this->type === 'boolean' => '->default(false)',
+            in_array($this->type, ['integer', 'bigInteger', 'decimal', 'float'], true) => '->default(0)',
+            default => '->nullable()',
+        };
+
+        if (! $this->has('translatable')) {
+            foreach (['unique', 'index'] as $modifier) {
+                if ($this->has($modifier)) {
+                    $column .= "->{$modifier}()";
+                }
+            }
+        }
+
+        if ($this->type === 'foreignId') {
+            $column .= '->constrained()->nullOnDelete()';
+        }
+
+        return $column.';';
+    }
+
+    /**
+     * The Blueprint statements dropping the column added by addedColumn(), without indentation.
+     *
+     * @return array<int, string>
+     */
+    public function droppedColumn(): array
+    {
+        if ($this->type === 'foreignId') {
+            return ["\$table->dropConstrainedForeignId('{$this->name}');"];
+        }
+
+        $drops = [];
+
+        if (! $this->has('translatable')) {
+            foreach (['unique' => 'dropUnique', 'index' => 'dropIndex'] as $modifier => $drop) {
+                if ($this->has($modifier)) {
+                    $drops[] = "\$table->{$drop}(['{$this->name}']);";
+                }
+            }
+        }
+
+        return [...$drops, "\$table->dropColumn('{$this->name}');"];
     }
 
     /**
