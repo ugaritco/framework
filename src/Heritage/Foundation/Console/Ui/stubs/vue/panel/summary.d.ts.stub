@@ -1,0 +1,81 @@
+/**
+ * The identity of the [[ title ]] artifact, read from its art.php manifest.
+ */
+export interface ArtifactManifest {
+    id: string;
+    name: string;
+    description: string;
+    version: string | null;
+    /** The capability slugs it requires from other artifacts. */
+    requires: string[];
+    /** The capabilities it exposes to other artifacts. */
+    provides: { slug: string; description: string }[];
+}
+
+/**
+ * The totals of the artifact.
+ */
+export interface SummaryStats {
+    entities: number;
+    records: number;
+    created_this_month: number;
+    /** The entities with translatable attributes. */
+    translatable: number;
+    translations: number;
+    capabilities: number;
+    features: number;
+}
+
+/**
+ * A model of the artifact and its records.
+ */
+export interface SummaryEntity {
+    model: string;
+    /** The base of its route names (e.g. "genre" for genre.index). */
+    key: string;
+    /** Its lang file (e.g. "genre" for [[ module ]]::genre.plural). */
+    lang: string;
+    table: string;
+    /** False while its table does not match it (its migration not run). */
+    available: boolean;
+    records: number;
+    created_this_month: number;
+    /** The records whose active is true, when it has an active column. */
+    active: number | null;
+    /** The soft deleted records, when it is soft deletable. */
+    trashed: number | null;
+    translatable: boolean;
+    translations: number;
+    capabilities: string[];
+    features: string[];
+    /** Its listing page, when its index route exists. */
+    url: string | null;
+    last_updated_at: string | null;
+}
+
+/**
+ * A record among the latest updated of the artifact.
+ */
+export interface SummaryRecord {
+    /** The base of its entity's route names. */
+    entity: string;
+    /** Its entity's lang file. */
+    lang: string;
+    id: number | string;
+    label: string;
+    /** Its page, when its show route exists. */
+    url: string | null;
+    /** Whether it was created rather than updated. */
+    created: boolean;
+    updated_at: string;
+}
+
+/**
+ * The summary of the [[ title ]] module, as ShowModuleCapability returns it.
+ */
+export interface ModuleSummary {
+    artifact: ArtifactManifest;
+    stats: SummaryStats;
+    entities: SummaryEntity[];
+    recent: SummaryRecord[];
+}

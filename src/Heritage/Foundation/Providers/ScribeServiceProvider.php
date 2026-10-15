@@ -98,10 +98,12 @@ use Heritage\Foundation\Console\ServeCommand;
 use Heritage\Foundation\Console\StorageLinkCommand;
 use Heritage\Foundation\Console\StorageUnlinkCommand;
 use Heritage\Foundation\Console\StubPublishCommand;
+use Heritage\Foundation\Console\SummaryMakeCommand;
 use Heritage\Foundation\Console\TestMakeCommand;
 use Heritage\Foundation\Console\TraitMakeCommand;
 use Heritage\Foundation\Console\Ui\PagesMakeCommand;
 use Heritage\Foundation\Console\Ui\PanelMakeCommand;
+use Heritage\Foundation\Console\Ui\SummaryPageMakeCommand;
 use Heritage\Foundation\Console\UpCommand;
 use Heritage\Foundation\Console\VendorPublishCommand;
 use Heritage\Foundation\Console\ViewCacheCommand;
@@ -264,6 +266,7 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
         'ScopeMake' => ScopeMakeCommand::class,
         'SeederMake' => SeederMakeCommand::class,
         'SessionTable' => SessionTableCommand::class,
+        'SummaryMake' => SummaryMakeCommand::class,
         'Serve' => ServeCommand::class,
         'StubPublish' => StubPublishCommand::class,
         'TestMake' => TestMakeCommand::class,
@@ -274,6 +277,7 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
         // Frontend (panel) generators, apart from the backend ones above
         'PanelMake' => PanelMakeCommand::class,
         'PagesMake' => PagesMakeCommand::class,
+        'SummaryPageMake' => SummaryPageMakeCommand::class,
     ];
 
     /**

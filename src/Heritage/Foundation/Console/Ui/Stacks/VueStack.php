@@ -78,20 +78,42 @@ class VueStack implements Stack
      */
     public function panelFiles(string $module, string $icon): array
     {
-        $replace = [
-            '[[ module ]]' => $module,
-            '[[ Module ]]' => Str::studly($module),
-            '[[ moduleCamel ]]' => Str::camel($module),
-            '[[ title ]]' => Str::headline($module),
-            '[[ icon ]]' => $icon,
-        ];
+        $replace = [...$this->moduleReplacements($module), '[[ icon ]]' => $icon];
 
         return array_map(fn (array $file) => [...$file, 'replace' => $replace], [
             ['path' => 'navigation.ts', 'stub' => 'vue/panel/navigation.ts'],
             ['path' => 'layouts/'.Str::studly($module).'Layout.vue', 'stub' => 'vue/panel/Layout.vue'],
             ['path' => 'layouts/index.ts', 'stub' => 'vue/panel/layouts.index.ts'],
-            ['path' => 'pages/module/Show.vue', 'stub' => 'vue/panel/Show.vue'],
         ]);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function summaryFiles(string $module): array
+    {
+        $replace = $this->moduleReplacements($module);
+
+        return array_map(fn (array $file) => [...$file, 'replace' => $replace], [
+            ['path' => 'pages/module/Show.vue', 'stub' => 'vue/panel/Show.vue'],
+            ['path' => 'types/module/summary.d.ts', 'stub' => 'vue/panel/summary.d.ts'],
+        ]);
+    }
+
+    /**
+     * The placeholders naming a panel module in its stubs.
+     *
+     * @param  string  $module
+     * @return array<string, string>
+     */
+    protected function moduleReplacements(string $module): array
+    {
+        return [
+            '[[ module ]]' => $module,
+            '[[ Module ]]' => Str::studly($module),
+            '[[ moduleCamel ]]' => Str::camel($module),
+            '[[ title ]]' => Str::headline($module),
+        ];
     }
 
     /**

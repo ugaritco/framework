@@ -55,6 +55,14 @@ interface Stack
     public function panelFiles(string $module, string $icon): array;
 
     /**
+     * The files of a panel module's summary page, which shows the data of its ShowModuleCapability.
+     *
+     * @param  string  $module
+     * @return array<int, array<string, mixed>>
+     */
+    public function summaryFiles(string $module): array;
+
+    /**
      * The edits registering a panel module in the application.
      *
      * @param  string  $module

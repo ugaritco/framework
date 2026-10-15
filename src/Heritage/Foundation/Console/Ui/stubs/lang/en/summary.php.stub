@@ -1,0 +1,53 @@
+<?php
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Module Summary
+    |--------------------------------------------------------------------------
+    | The summary page of a panel module: its artifact, totals, entities and
+    | latest activity.
+    */
+
+    'version' => 'Version :version',
+
+    'stats' => [
+        'entities' => 'Entities',
+        'records' => 'Records',
+        'created_this_month' => 'Added this month',
+        'translations' => 'Translations',
+        'translatable' => ':count translatable entities',
+        'capabilities' => 'Capabilities',
+        'features' => ':count features',
+    ],
+
+    'entities' => [
+        'title' => 'Entities',
+        'records' => 'records',
+        'this_month' => '+:count this month',
+        'active' => ':count active',
+        'trashed' => ':count deleted',
+        'translations' => ':count translations',
+        'capabilities' => ':count capabilities',
+        'features' => ':count features',
+        'unavailable' => 'Not migrated yet',
+        'empty' => 'No entities yet.',
+    ],
+
+    'recent' => [
+        'title' => 'Latest activity',
+        'created' => 'Added',
+        'updated' => 'Updated',
+        'empty' => 'No records yet.',
+    ],
+
+    'artifact' => [
+        'title' => 'Artifact',
+        'name' => 'Name',
+        'version' => 'Version',
+        'requires' => 'Requires',
+        'provides' => 'Provides',
+        'none' => 'None',
+    ],
+];

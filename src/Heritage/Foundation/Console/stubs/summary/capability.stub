@@ -1,0 +1,52 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }}\Capabilities\Module;
+
+use Heritage\Capabilities\Capability;
+use Heritage\Foundation\Support\ArtifactSummary;
+use Heritage\Outcomes\Outcome;
+use Throwable;
+use {{ namespace }}\Enums\Module\Capabilities\ShowModuleResult;
+
+/**
+ * Summarizes the {{ title }} artifact for its panel summary page: its manifest, totals, entities
+ * (records, capabilities and features of each model) and latest activity, read by convention
+ * by ArtifactSummary.
+ */
+class ShowModuleCapability extends Capability
+{
+    /**
+     * Execute the capability business logic.
+     *
+     * @return Outcome
+     */
+    protected function perform(): Outcome
+    {
+        return Outcome::fromResult(ShowModuleResult::SUCCESS, ArtifactSummary::of('{{ artifact }}'), $this->context());
+    }
+
+    /**
+     * Build the outcome returned when perform() throws; unexpected exceptions are already reported.
+     *
+     * @param  Throwable  $e  The exception raised by perform().
+     * @return Outcome
+     */
+    protected function failed(Throwable $e): Outcome
+    {
+        return Outcome::fromResult(ShowModuleResult::FAILED, null, $this->context());
+    }
+
+    /**
+     * The placeholders of the feedback messages: the module's name.
+     *
+     * @return array<string, string>
+     */
+    protected function context(): array
+    {
+        $name = trans('{{ artifact }}::module.name');
+
+        return ['model' => $name, 'model_singular' => $name, 'entity' => $name];
+    }
+}

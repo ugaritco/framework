@@ -1,0 +1,24 @@
+<?php
+
+namespace {{ namespace }}\Http\Controllers\Module;
+
+use Heritage\Routing\Controller;
+use {{ namespace }}\Capabilities\Module\ShowModuleCapability;
+
+/**
+ * Handles the HTTP endpoint of the {{ title }} module summary.
+ *
+ * It answers JSON to clients expecting JSON (ResponderType::AUTO).
+ */
+class ModuleController extends Controller
+{
+    /**
+     * Show the summary of the module.
+     *
+     * @return mixed
+     */
+    public function show()
+    {
+        return $this->page(ShowModuleCapability::class, null, '{{ artifact }}::module/Show');
+    }
+}

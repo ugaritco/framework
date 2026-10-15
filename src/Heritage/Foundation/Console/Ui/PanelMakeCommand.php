@@ -34,7 +34,7 @@ class PanelMakeCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Create the panel module of an artifact (layout, navigation, summary page and route, sidebar item), and with --all the pages of its models';
+    protected $description = 'Create the panel module of an artifact (layout, navigation, summary page, sidebar item, and the summary capability when missing), and with --all the pages of its models';
 
     /**
      * Create a new command instance.
@@ -70,7 +70,7 @@ class PanelMakeCommand extends Command
 
         $this->writeFiles($this->modulePath($module), $stack->panelFiles($module, $icon));
         $this->writeModuleLang($module);
-        $this->addSummaryRoute($module);
+        $this->writeSummaryPage($stack, $module);
         $this->applyEdits($stack, $stack->panelRegistrations($module, $icon, (string) $this->option('group')));
         $this->printReport();
         $this->refreshFrontend();
@@ -132,41 +132,6 @@ class PanelMakeCommand extends Command
             '[[ title ]]' => Str::headline($module),
             '[[ description ]]' => $description,
         ]));
-    }
-
-    /**
-     * Add the summary page's route to the artifact's routes/web.php: first in its group, or in a new
-     * file grouping the artifact's routes under panel/artifact/{artifact}.
-     *
-     * @param  string  $module
-     * @return void
-     */
-    protected function addSummaryRoute(string $module): void
-    {
-        $path = $this->ugarit->basePath("artifacts/{$module}/routes/web.php");
-        $route = "Route::inertia('/', '{$module}::module/Show')->name('{$module}.module.show');";
-
-        if (! $this->files->exists($path)) {
-            $this->writeFile($path, "<?php\n\nuse Heritage\\Support\\Facades\\Route;\n\nRoute::middleware(['web', 'auth'])->prefix('panel/artifact/{$module}')->group(function () {\n    {$route}\n});\n");
-
-            return;
-        }
-
-        $this->editFile($path, function (string $source) use ($path, $route, $module) {
-            if (str_contains($source, "'{$module}.module.show'")) {
-                return $source;
-            }
-
-            if (! preg_match('/->group\(function \(\) \{\r?\n/', $source, $match, PREG_OFFSET_CAPTURE)) {
-                $this->misses[] = "{$path}: the routes group ({$route})";
-
-                return $source;
-            }
-
-            $eol = str_contains($source, "\r\n") ? "\r\n" : "\n";
-
-            return substr_replace($source, "    {$route}{$eol}{$eol}", $match[0][1] + strlen($match[0][0]), 0);
-        });
     }
 
     /**

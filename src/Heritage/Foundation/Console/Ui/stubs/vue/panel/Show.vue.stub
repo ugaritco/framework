@@ -1,18 +1,44 @@
 <script setup lang="ts">
 import HeadingSmall from '@/components/HeadingSmall.vue';
+import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { toUrl } from '@/lib/utils';
 import { show } from '@/routes/[[ module ]]/module';
 import type { BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/vue3';
 import { [[ Module ]]Layout } from '@module/[[ module ]]/layouts';
 import { [[ moduleCamel ]]Entities } from '@module/[[ module ]]/navigation';
-import { trans } from 'laravel-vue-i18n';
-import { ChevronLeft } from 'lucide-vue-next';
+import type {
+    ModuleSummary,
+    SummaryEntity,
+} from '@module/[[ module ]]/types/module/summary';
+import { getActiveLanguage, trans } from 'laravel-vue-i18n';
+import {
+    Boxes,
+    CalendarPlus,
+    ChevronLeft,
+    Clock,
+    Database,
+    Languages,
+    Package,
+    PencilLine,
+    Plus,
+    Workflow,
+    type LucideIcon,
+} from 'lucide-vue-next';
 import { computed } from 'vue';
 
 /**
- * [[ title ]] module summary page: the module's description and a card per entity.
+ * [[ title ]] module summary page: the artifact's identity, its totals, a card per entity with
+ * its records, capabilities and features, and the latest activity across its entities.
  */
+
+interface Props {
+    /** The summary of the module, read from its artifact by ShowModuleCapability. */
+    data: ModuleSummary;
+}
+
+const props = defineProps<Props>();
 
 /** Breadcrumb trail of the summary page. */
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
@@ -20,48 +46,426 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
     { title: trans('pages.summary'), href: show().url },
 ]);
 
-/** The entities of the module, each linking to its listing. */
-const entities = computed(() => [[ moduleCamel ]]Entities());
+/** The icons of the module's sidebar entities, by the URL of their listing. */
+const icons = computed(
+    () =>
+        new Map(
+            [[ moduleCamel ]]Entities().map(
+                (item) => [toUrl(item.href), item.icon] as const,
+            ),
+        ),
+);
+
+/** The icon of an entity: its sidebar icon, else a generic one. */
+const entityIcon = (entity: SummaryEntity): LucideIcon =>
+    (entity.url ? icons.value.get(entity.url) : undefined) ?? Database;
+
+/** The name of an entity, from its lang file. */
+const entityTitle = (lang: string) => trans(`[[ module ]]::${lang}.plural_definite`);
+
+/** The totals shown above the entities. */
+const stats = computed(() => [
+    {
+        key: 'entities',
+        icon: Boxes,
+        value: props.data.stats.entities,
+        hint: null,
+    },
+    {
+        key: 'records',
+        icon: Database,
+        value: props.data.stats.records,
+        hint: null,
+    },
+    {
+        key: 'created_this_month',
+        icon: CalendarPlus,
+        value: props.data.stats.created_this_month,
+        hint: null,
+    },
+    {
+        key: 'translations',
+        icon: Languages,
+        value: props.data.stats.translations,
+        hint: trans('summary.stats.translatable', {
+            count: String(props.data.stats.translatable),
+        }),
+    },
+    {
+        key: 'capabilities',
+        icon: Workflow,
+        value: props.data.stats.capabilities,
+        hint: trans('summary.stats.features', {
+            count: String(props.data.stats.features),
+        }),
+    },
+]);
+
+/** A number in the current language. */
+const formatNumber = (value: number) =>
+    new Intl.NumberFormat(getActiveLanguage()).format(value);
+
+/** The time elapsed since a date, in the current language (e.g. "3 hours ago"). */
+const elapsed = (iso: string) => {
+    const seconds = Math.round((new Date(iso).getTime() - Date.now()) / 1000);
+    const format = new Intl.RelativeTimeFormat(getActiveLanguage(), {
+        numeric: 'auto',
+    });
+    const units: [Intl.RelativeTimeFormatUnit, number][] = [
+        ['year', 31536000],
+        ['month', 2592000],
+        ['week', 604800],
+        ['day', 86400],
+        ['hour', 3600],
+        ['minute', 60],
+    ];
+
+    for (const [unit, size] of units) {
+        if (Math.abs(seconds) >= size) {
+            return format.format(Math.round(seconds / size), unit);
+        }
+    }
+
+    return format.format(seconds, 'second');
+};
 </script>
 
 <template>
     <Head :title="$t('[[ module ]]::module.name')" />
 
     <[[ Module ]]Layout :breadcrumbs="breadcrumbItems">
-        <!-- Header -->
+        <!-- Header: the module and its artifact -->
         <div
-            class="flex items-center justify-between rounded-xl bg-primary/3 p-4 ring-1 ring-primary/5"
+            class="flex flex-col gap-3 rounded-xl bg-primary/3 p-4 ring-1 ring-primary/5 sm:flex-row sm:items-center sm:justify-between"
         >
             <HeadingSmall
                 :title="$t('[[ module ]]::module.name')"
                 :description="$t('[[ module ]]::module.description')"
             />
+
+            <div class="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" class="gap-1 font-mono">
+                    <Package />
+                    {{ data.artifact.id }}
+                </Badge>
+                <Badge v-if="data.artifact.version" variant="secondary">
+                    {{
+                        $t('summary.version', {
+                            version: data.artifact.version,
+                        })
+                    }}
+                </Badge>
+            </div>
         </div>
 
-        <!-- Entities -->
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <Link
-                v-for="entity in entities"
-                :key="entity.title"
-                :href="entity.href"
-                class="group"
+        <!-- Totals -->
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <Card
+                v-for="stat in stats"
+                :key="stat.key"
+                class="group relative gap-3 overflow-hidden border-none bg-primary/3 p-5"
             >
-                <Card
-                    class="flex flex-row items-center gap-4 border-none bg-primary/3 p-4 transition-colors group-hover:bg-primary/6"
+                <div
+                    class="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform group-hover:scale-110"
                 >
-                    <div
-                        class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+                    <component :is="stat.icon" class="size-5" />
+                </div>
+                <div>
+                    <p
+                        class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
                     >
-                        <component :is="entity.icon" class="size-5" />
-                    </div>
-                    <p class="flex-1 truncate text-sm font-bold">
-                        {{ entity.title }}
+                        {{ $t(`summary.stats.${stat.key}`) }}
                     </p>
-                    <ChevronLeft
-                        class="size-4 text-muted-foreground transition-transform group-hover:-translate-x-1 ltr:rotate-180"
-                    />
-                </Card>
-            </Link>
+                    <p class="mt-1 text-2xl font-medium tabular-nums">
+                        {{ formatNumber(stat.value) }}
+                    </p>
+                    <p
+                        v-if="stat.hint"
+                        class="mt-1 text-xs text-muted-foreground"
+                    >
+                        {{ stat.hint }}
+                    </p>
+                </div>
+
+                <!-- Background icon -->
+                <component
+                    :is="stat.icon"
+                    class="absolute -bottom-4 size-24 rotate-12 opacity-[0.03] ltr:-right-4 rtl:-left-4"
+                />
+            </Card>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            <!-- Entities -->
+            <section
+                class="flex flex-col gap-4 rounded-xl bg-primary/3 p-4 lg:col-span-8"
+            >
+                <div class="flex items-center gap-2">
+                    <Boxes class="size-4 text-primary" />
+                    <h3 class="text-sm font-bold tracking-wide uppercase">
+                        {{ $t('summary.entities.title') }}
+                    </h3>
+                </div>
+
+                <p
+                    v-if="data.entities.length === 0"
+                    class="py-6 text-center text-sm text-muted-foreground"
+                >
+                    {{ $t('summary.entities.empty') }}
+                </p>
+
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <component
+                        :is="entity.url ? Link : 'div'"
+                        v-for="entity in data.entities"
+                        :key="entity.model"
+                        :href="entity.url ?? undefined"
+                        class="group"
+                    >
+                        <Card
+                            class="h-full gap-3 border-none bg-background/60 p-4 transition-colors group-hover:bg-background"
+                        >
+                            <div class="flex items-center gap-3">
+                                <div
+                                    class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+                                >
+                                    <component
+                                        :is="entityIcon(entity)"
+                                        class="size-5"
+                                    />
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="truncate text-sm font-bold">
+                                        {{ entityTitle(entity.lang) }}
+                                    </p>
+                                    <p
+                                        class="truncate font-mono text-[11px] text-muted-foreground"
+                                    >
+                                        {{ entity.table }}
+                                    </p>
+                                </div>
+                                <div class="text-end">
+                                    <p
+                                        class="text-xl font-medium tabular-nums"
+                                    >
+                                        {{ formatNumber(entity.records) }}
+                                    </p>
+                                    <p
+                                        class="text-[11px] text-muted-foreground"
+                                    >
+                                        {{ $t('summary.entities.records') }}
+                                    </p>
+                                </div>
+                                <ChevronLeft
+                                    v-if="entity.url"
+                                    class="size-4 text-muted-foreground transition-transform group-hover:-translate-x-1 ltr:rotate-180 ltr:group-hover:translate-x-1"
+                                />
+                            </div>
+
+                            <div class="flex flex-wrap gap-1.5">
+                                <Badge
+                                    v-if="!entity.available"
+                                    variant="destructive"
+                                >
+                                    {{ $t('summary.entities.unavailable') }}
+                                </Badge>
+                                <Badge
+                                    v-if="entity.created_this_month > 0"
+                                    variant="secondary"
+                                >
+                                    <CalendarPlus />
+                                    {{
+                                        $t('summary.entities.this_month', {
+                                            count: String(
+                                                entity.created_this_month,
+                                            ),
+                                        })
+                                    }}
+                                </Badge>
+                                <Badge
+                                    v-if="entity.active !== null"
+                                    variant="outline"
+                                >
+                                    {{
+                                        $t('summary.entities.active', {
+                                            count: String(entity.active),
+                                        })
+                                    }}
+                                </Badge>
+                                <Badge v-if="entity.trashed" variant="outline">
+                                    {{
+                                        $t('summary.entities.trashed', {
+                                            count: String(entity.trashed),
+                                        })
+                                    }}
+                                </Badge>
+                                <Badge
+                                    v-if="entity.translatable"
+                                    variant="outline"
+                                >
+                                    <Languages />
+                                    {{
+                                        $t('summary.entities.translations', {
+                                            count: String(entity.translations),
+                                        })
+                                    }}
+                                </Badge>
+                                <Badge variant="outline">
+                                    <Workflow />
+                                    {{
+                                        $t('summary.entities.capabilities', {
+                                            count: String(
+                                                entity.capabilities.length,
+                                            ),
+                                        })
+                                    }}
+                                </Badge>
+                                <Badge
+                                    v-if="entity.features.length > 0"
+                                    variant="outline"
+                                >
+                                    {{
+                                        $t('summary.entities.features', {
+                                            count: String(
+                                                entity.features.length,
+                                            ),
+                                        })
+                                    }}
+                                </Badge>
+                            </div>
+                        </Card>
+                    </component>
+                </div>
+            </section>
+
+            <div class="flex flex-col gap-4 lg:col-span-4">
+                <!-- Latest activity -->
+                <section
+                    class="flex flex-col gap-3 rounded-xl border border-primary/7 bg-card p-4"
+                >
+                    <div class="flex items-center gap-2">
+                        <Clock class="size-4 text-primary" />
+                        <h3 class="text-sm font-bold tracking-wide uppercase">
+                            {{ $t('summary.recent.title') }}
+                        </h3>
+                    </div>
+
+                    <p
+                        v-if="data.recent.length === 0"
+                        class="py-6 text-center text-sm text-muted-foreground"
+                    >
+                        {{ $t('summary.recent.empty') }}
+                    </p>
+
+                    <component
+                        :is="record.url ? Link : 'div'"
+                        v-for="record in data.recent"
+                        :key="`${record.entity}-${record.id}`"
+                        :href="record.url ?? undefined"
+                        class="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-primary/3"
+                    >
+                        <div
+                            class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+                        >
+                            <Plus v-if="record.created" class="size-4" />
+                            <PencilLine v-else class="size-4" />
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm font-medium">
+                                {{ record.label }}
+                            </p>
+                            <p class="truncate text-xs text-muted-foreground">
+                                {{
+                                    $t(
+                                        record.created
+                                            ? 'summary.recent.created'
+                                            : 'summary.recent.updated',
+                                    )
+                                }}
+                                ·
+                                {{ entityTitle(record.lang) }}
+                            </p>
+                        </div>
+                        <time
+                            :datetime="record.updated_at"
+                            class="shrink-0 text-[11px] text-muted-foreground"
+                        >
+                            {{ elapsed(record.updated_at) }}
+                        </time>
+                    </component>
+                </section>
+
+                <!-- The artifact -->
+                <section
+                    class="flex flex-col gap-3 rounded-xl border border-primary/7 bg-card p-4"
+                >
+                    <div class="flex items-center gap-2">
+                        <Package class="size-4 text-primary" />
+                        <h3 class="text-sm font-bold tracking-wide uppercase">
+                            {{ $t('summary.artifact.title') }}
+                        </h3>
+                    </div>
+
+                    <dl class="grid grid-cols-3 gap-x-3 gap-y-2 text-sm">
+                        <dt class="text-muted-foreground">
+                            {{ $t('summary.artifact.name') }}
+                        </dt>
+                        <dd class="col-span-2 font-medium">
+                            {{ data.artifact.name }}
+                        </dd>
+
+                        <dt class="text-muted-foreground">
+                            {{ $t('summary.artifact.version') }}
+                        </dt>
+                        <dd class="col-span-2 font-mono">
+                            {{ data.artifact.version ?? '—' }}
+                        </dd>
+
+                        <dt class="text-muted-foreground">
+                            {{ $t('summary.artifact.requires') }}
+                        </dt>
+                        <dd class="col-span-2 flex flex-wrap gap-1">
+                            <Badge
+                                v-for="slug in data.artifact.requires"
+                                :key="slug"
+                                variant="outline"
+                                class="font-mono"
+                            >
+                                {{ slug }}
+                            </Badge>
+                            <span
+                                v-if="data.artifact.requires.length === 0"
+                                class="text-muted-foreground"
+                            >
+                                {{ $t('summary.artifact.none') }}
+                            </span>
+                        </dd>
+
+                        <dt class="text-muted-foreground">
+                            {{ $t('summary.artifact.provides') }}
+                        </dt>
+                        <dd class="col-span-2 flex flex-col gap-1">
+                            <p
+                                v-for="provided in data.artifact.provides"
+                                :key="provided.slug"
+                            >
+                                <span class="font-mono text-xs">{{
+                                    provided.slug
+                                }}</span>
+                                <span class="block text-xs text-muted-foreground">
+                                    {{ provided.description }}
+                                </span>
+                            </p>
+                            <span
+                                v-if="data.artifact.provides.length === 0"
+                                class="text-muted-foreground"
+                            >
+                                {{ $t('summary.artifact.none') }}
+                            </span>
+                        </dd>
+                    </dl>
+                </section>
+            </div>
         </div>
     </[[ Module ]]Layout>
 </template>

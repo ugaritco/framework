@@ -1,0 +1,53 @@
+<?php
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Module Summary
+    |--------------------------------------------------------------------------
+    | The summary page of a panel module: its artifact, totals, entities and
+    | latest activity.
+    */
+
+    'version' => 'الإصدار :version',
+
+    'stats' => [
+        'entities' => 'الكيانات',
+        'records' => 'السجلات',
+        'created_this_month' => 'أضيف هذا الشهر',
+        'translations' => 'الترجمات',
+        'translatable' => 'كيانات مترجمة: :count',
+        'capabilities' => 'القدرات',
+        'features' => 'الميزات: :count',
+    ],
+
+    'entities' => [
+        'title' => 'الكيانات',
+        'records' => 'سجل',
+        'this_month' => '+:count هذا الشهر',
+        'active' => 'نشط: :count',
+        'trashed' => 'محذوف: :count',
+        'translations' => 'ترجمات: :count',
+        'capabilities' => 'قدرات: :count',
+        'features' => 'ميزات: :count',
+        'unavailable' => 'لم تُهجّر بعد',
+        'empty' => 'لا توجد كيانات بعد.',
+    ],
+
+    'recent' => [
+        'title' => 'آخر النشاطات',
+        'created' => 'أضيف',
+        'updated' => 'عُدّل',
+        'empty' => 'لا توجد سجلات بعد.',
+    ],
+
+    'artifact' => [
+        'title' => 'الأرتيفاكت',
+        'name' => 'الاسم',
+        'version' => 'الإصدار',
+        'requires' => 'يتطلب',
+        'provides' => 'يوفّر',
+        'none' => 'لا شيء',
+    ],
+];
