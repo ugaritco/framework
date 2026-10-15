@@ -17,12 +17,7 @@ return new class extends Migration
             // Primary unique identifier
             $table->id();
 
-            // Unique URL-friendly slug identifier
-            $table->string('slug')->unique();
-
-            // Localized multilingual display denomination
-            $table->string('name')->translatable();
-
+{{ columns }}
             // Soft deletion timestamp for auditing and data safety
             $table->softDeletes();
 

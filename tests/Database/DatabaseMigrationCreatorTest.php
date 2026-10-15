@@ -157,7 +157,7 @@ class DatabaseMigrationCreatorTest extends TestCase
 
         $creator = new class($files, 'stubs') extends MigrationCreator
         {
-            public function create($name, $path, $table = null, $create = false)
+            public function create($name, $path, $table = null, $create = false, $translatable = false, ?array $columns = null)
             {
                 return $this->getPath($name, $path);
             }

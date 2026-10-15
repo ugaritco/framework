@@ -59,11 +59,13 @@ class MigrationCreator
      * @param  string|null  $table
      * @param  bool  $create
      * @param  bool  $translatable
+     * @param  array<int, string>|null  $columns  The Blueprint statements of a created table's columns;
+     *                                            null for the stub's default columns.
      * @return string
      *
      * @throws \Exception
      */
-    public function create($name, $path, $table = null, $create = false, $translatable = false)
+    public function create($name, $path, $table = null, $create = false, $translatable = false, ?array $columns = null)
     {
         $this->ensureMigrationDoesntAlreadyExist($name, $path);
 
@@ -85,7 +87,7 @@ class MigrationCreator
         // First we will get the stub file for the migration, which serves as a type
         // of template for the migration. Once we have those we will populate the
         // various place-holders, save the file, and run the post create event.
-        $stub = $this->getStub($table, $create, $translatable);
+        $stub = $this->populateColumns($this->getStub($table, $create, $translatable), $columns, $translatable);
 
         $path = $this->getCollisionFreePath($name, $path);
 
@@ -158,6 +160,24 @@ class MigrationCreator
         return $this->files->get($stub);
     }
 
+
+    /**
+     * Fill the columns place-holder of a create stub: the given columns, or by default a
+     * unique slug and a translatable name for a translatable table and none otherwise.
+     *
+     * @param  string  $stub
+     * @param  array<int, string>|null  $columns
+     * @param  bool  $translatable
+     * @return string
+     */
+    protected function populateColumns($stub, ?array $columns, $translatable)
+    {
+        $columns ??= $translatable ? ["\$table->string('slug')->unique();", "\$table->string('name')->translatable();"] : [];
+        $eol = str_contains($stub, "\r\n") ? "\r\n" : "\n";
+        $lines = implode('', array_map(fn (string $column) => "            {$column}{$eol}", $columns));
+
+        return preg_replace_callback('/^\{\{ ?columns ?\}\}\r?\n/m', fn () => $lines === '' ? '' : $lines.$eol, $stub);
+    }
 
     /**
      * Populate the place-holders in the migration stub.

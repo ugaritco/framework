@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Heritage\Database\Console\Migrations;
 
 use Heritage\Contracts\Console\PromptsForMissingInput;
+use Heritage\Database\Console\Field;
 use Heritage\Database\Migrations\MigrationCreator;
 use Heritage\Support\Composer;
 use Heritage\Support\Str;
@@ -29,7 +30,8 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
         {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}
         {--fullpath : Output the full path of the migration (Deprecated)}
         {--t|translatable : Create a translatable table (Schema::createTranslatable with its translation table)}
-        {--artifact= : The target modular artifact for this migration}';
+        {--artifact= : The target modular artifact for this migration}
+        {--fields= : The columns of the created table, as name:type[:modifier...] separated by commas (e.g. branch_id:foreignId,slug:string:unique,name:string:translatable)}';
 
     /**
      * The console command description.
@@ -105,10 +107,13 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
             $this->input->setOption('artifact', $artifact);
         }
 
-        // Resolve translatable status
-        $hasTranslatableOption = $this->input->getOption('translatable');
+        $fields = $this->input->getOption('fields') ? Field::parseMany($this->input->getOption('fields')) : null;
 
-        if (! $hasTranslatableOption && $this->input->isInteractive()) {
+        // Resolve translatable status: a translatable field makes the table translatable
+        $hasTranslatableOption = $this->input->getOption('translatable')
+            || ($fields && array_filter($fields, fn (Field $field) => $field->has('translatable')));
+
+        if (! $hasTranslatableOption && $fields === null && $this->input->isInteractive()) {
             $translatable = confirm(
                 label: 'Would you like this table to be translatable?',
                 default: false,
@@ -147,7 +152,7 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
         }
 
         // Write the migration out to disk
-        $this->writeMigration($name, $table, $create, $translatable);
+        $this->writeMigration($name, $table, $create, $translatable, $fields);
     }
 
     /**
@@ -157,12 +162,14 @@ class MigrateMakeCommand extends BaseCommand implements PromptsForMissingInput
      * @param  string  $table
      * @param  bool  $create
      * @param  bool  $translatable
+     * @param  array<int, Field>|null  $fields  The columns of a created table; null for the stub's defaults.
      * @return void
      */
-    protected function writeMigration($name, $table, $create, $translatable = false)
+    protected function writeMigration($name, $table, $create, $translatable = false, ?array $fields = null)
     {
         $file = $this->creator->create(
-            $name, $this->getMigrationPath(), $table, $create, $translatable
+            $name, $this->getMigrationPath(), $table, $create, $translatable,
+            ...($fields === null ? [] : [array_map(fn (Field $field) => $field->column(), $fields)])
         );
 
         if (windows_os()) {

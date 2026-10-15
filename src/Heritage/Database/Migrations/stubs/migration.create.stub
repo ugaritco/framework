@@ -17,6 +17,7 @@ return new class extends Migration
             // Primary unique identifier
             $table->id();
 
+{{ columns }}
             // Soft deletion timestamp for auditing and data safety
             $table->softDeletes();
 

@@ -730,6 +730,17 @@ return [
                 'default' => null,
                 'description' => 'The target modular artifact for this migration',
             ],
+            [
+                'name' => 'fields',
+                'shortcut' => null,
+                'negatable' => false,
+                'valueRequired' => false,
+                'valueOptional' => true,
+                'isArray' => false,
+                'acceptValue' => true,
+                'default' => null,
+                'description' => 'The columns of the created table, as name:type[:modifier...] separated by commas (e.g. branch_id:foreignId,slug:string:unique,name:string:translatable)',
+            ],
         ],
     ],
     \Heritage\Database\Console\Migrations\RefreshCommand::class => [
