@@ -128,7 +128,7 @@ class ParcelMakeCommand extends GeneratorCommand
             throw new InvalidArgumentException("Unknown parcel operation [{$operation}]; use ".implode(', ', $this->operations).'.');
         }
 
-        $stub = $this->render(parent::buildClass($name), $this->operationFields($operation, $model), [
+        $stub = $this->render(parent::buildClass($name), $this->operationFields($operation, $model, ! str_contains($name, '\\Capabilities\\')), [
             '{{ description }}' => $this->description($operation, $modelName),
         ]);
 
@@ -142,9 +142,11 @@ class ParcelMakeCommand extends GeneratorCommand
      *
      * @param  string|null  $operation
      * @param  string|null  $model
+     * @param  bool  $translations  Whether a save carries the translations payload; a Capabilities
+     *                              parcel does not, its translations being saved by their own capabilities.
      * @return array<string, array{0: string, 1: string, 2: string}>
      */
-    protected function operationFields(?string $operation, ?string $model): array
+    protected function operationFields(?string $operation, ?string $model, bool $translations = true): array
     {
         $id = ['id' => ['?int', 'null', 'The record identifier.']];
 
@@ -152,7 +154,7 @@ class ParcelMakeCommand extends GeneratorCommand
             null, 'create' => [],
             'show', 'edit' => $id,
             'destroy' => [...$id, 'force' => ['bool', 'false', 'Whether to delete it permanently.']],
-            'save' => [...$id, ...$this->columnFields($model)],
+            'save' => [...$id, ...$this->columnFields($model, $translations)],
         };
     }
 
@@ -160,9 +162,10 @@ class ParcelMakeCommand extends GeneratorCommand
      * The model's columns as nullable fields, then its translations payload.
      *
      * @param  string|null  $model
+     * @param  bool  $translations
      * @return array<string, array{0: string, 1: string, 2: string}>
      */
-    protected function columnFields(?string $model): array
+    protected function columnFields(?string $model, bool $translations = true): array
     {
         $fields = [];
 
@@ -170,7 +173,7 @@ class ParcelMakeCommand extends GeneratorCommand
             $fields[$column] = ["?{$type}", 'null', "The {$column} column."];
         }
 
-        if ($this->modelTranslatable($model) !== []) {
+        if ($translations && $this->modelTranslatable($model) !== []) {
             $fields['translations'] = ['?array', 'null', 'Translated attributes keyed by locale code (["ar" => ["name" => ...]]).'];
         }
 

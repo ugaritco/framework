@@ -9,6 +9,7 @@ use Heritage\Foundation\Console\Concerns\InspectsModel;
 use Heritage\Support\Str;
 use InvalidArgumentException;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Throwable;
 
 use function Ugarit\Prompts\confirm;
 use function Ugarit\Prompts\select;
@@ -126,7 +127,7 @@ class RequestMakeCommand extends GeneratorCommand
         if ($this->option('operation') && $this->modelClass()) {
             $translatable = $this->modelTranslatable($this->modelClass());
 
-            if ($translatable !== [] && $this->option('operation') !== 'destroy') {
+            if ($translatable !== [] && $this->option('operation') !== 'destroy' && $this->option('type') !== 'capability') {
                 $this->input->setOption('translatable', true);
                 $this->input->setOption('fields', implode(',', $translatable));
             }
@@ -302,14 +303,23 @@ class RequestMakeCommand extends GeneratorCommand
 
             $fieldsArrayString = implode(', ', array_map(fn ($f) => "'{$f}'", $fields));
 
+            $columns = $this->translationColumns();
             $rulesLines = [];
+
             foreach ($fields as $field) {
-                $rule = match ($field) {
-                    'name', 'title' => "'{$field}' => 'required|string|min:2|max:64',",
-                    'slug'          => "'{$field}' => 'required|string|min:2|max:64|unique:table,slug',",
-                    'description', 'body', 'content', 'notes' => "'{$field}' => 'nullable|string',",
-                    default         => "'{$field}' => 'required|string',",
+                $column = $columns[$field] ?? null;
+                $rule = match (true) {
+                    in_array($field, ['name', 'title'], true) => "'{$field}' => 'required|string|min:2|max:64',",
+                    $field === 'slug' => "'{$field}' => 'required|string|min:2|max:64|unique:table,slug',",
+                    in_array($field, ['description', 'body', 'content', 'notes'], true) => "'{$field}' => 'nullable|string',",
+                    $column !== null && in_array(strtolower($column['type_name']), ['varchar', 'char', 'character varying', 'nvarchar', 'string'], true) => "'{$field}' => 'required|string|max:255',",
+                    default => "'{$field}' => 'required|string',",
                 };
+
+                if ($column !== null && $column['nullable']) {
+                    $rule = str_replace("=> 'required|", "=> 'nullable|", $rule);
+                }
+
                 $rulesLines[] = '            '.$this->allowEmpty($field, $rule);
             }
 
@@ -351,7 +361,9 @@ class RequestMakeCommand extends GeneratorCommand
 
         $rules = [];
         $model = $this->modelClass();
-        $casts = $this->modelInstance($model)?->getCasts() ?? [];
+        $instance = $this->modelInstance($model);
+        $casts = $instance?->getCasts() ?? [];
+        $nullable = array_keys(array_filter($this->tableColumns($instance?->getTable()), fn (array $column) => $column['nullable']));
 
         foreach ($this->modelColumns($model) as $column => $type) {
             $cast = strtolower((string) ($casts[$column] ?? ''));
@@ -366,10 +378,51 @@ class RequestMakeCommand extends GeneratorCommand
                 default => 'required|string|max:255',
             };
 
+            if (in_array($column, $nullable, true)) {
+                $rule = preg_replace('/^required\|/', 'nullable|', $rule);
+            }
+
             $rules[] = '            '.$this->allowEmpty($column, "'{$column}' => '{$rule}',");
         }
 
         return $rules;
+    }
+
+    /**
+     * The columns of the --model's translation table, by name, once it is migrated.
+     *
+     * @return array<string, array{type_name: string, nullable: bool}>
+     */
+    protected function translationColumns(): array
+    {
+        $instance = $this->modelInstance($this->modelClass());
+
+        return $instance !== null && method_exists($instance, 'getTranslationTable')
+            ? $this->tableColumns($instance->getTranslationTable())
+            : [];
+    }
+
+    /**
+     * The columns of a table of the --model's connection, by name, once it is migrated.
+     *
+     * @param  string|null  $table
+     * @return array<string, array{type_name: string, nullable: bool}>
+     */
+    protected function tableColumns(?string $table): array
+    {
+        $instance = $this->modelInstance($this->modelClass());
+
+        if ($instance === null || $table === null) {
+            return [];
+        }
+
+        try {
+            $schema = $instance->getConnection()->getSchemaBuilder();
+
+            return $schema->hasTable($table) ? array_column($schema->getColumns($table), null, 'name') : [];
+        } catch (Throwable) {
+            return [];
+        }
     }
 
     /**
