@@ -19,5 +19,20 @@ class FactoryMakeCommandTest extends TestCase
             'class FooFactory extends Factory',
             'public function definition()',
         ], 'database/factories/FooFactory.php');
+
+        $this->assertFileNotContains([
+            'protected $model',
+        ], 'database/factories/FooFactory.php');
+    }
+
+    public function testItDeclaresTheModelOnlyWhenItIsNotGuessed()
+    {
+        $this->scribe('make:factory', ['name' => 'FooFactory', '--model' => 'Bar'])
+            ->assertExitCode(0);
+
+        $this->assertFileContains([
+            'use App\Models\Bar;',
+            'protected $model = Bar::class;',
+        ], 'database/factories/FooFactory.php');
     }
 }

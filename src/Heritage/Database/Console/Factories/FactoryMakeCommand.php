@@ -118,6 +118,10 @@ class FactoryMakeCommand extends GeneratorCommand
             array_keys($replace), array_values($replace), parent::buildClass($name)
         );
 
+        if ($this->guessedModel("{$namespace}\\{$factory}Factory") === $namespaceModel) {
+            $class = preg_replace('/^    \/\*\*(?:(?!\*\/)[\s\S])*\*\/\s*protected \$model = [^;]+;\R\R?/m', '', $class, 1);
+        }
+
         [$lines, $imports] = $this->definition($namespaceModel);
 
         if ($lines === []) {
@@ -194,6 +198,24 @@ class FactoryMakeCommand extends GeneratorCommand
         }
 
         return $this->ugarit->databasePath().'/factories/'.str_replace('\\', '/', $name).'.php';
+    }
+
+    /**
+     * The model Factory::modelName() guesses for a factory without a $model property, so the
+     * property is written only when it names another model.
+     *
+     * @param  string  $factory  The factory class, e.g. "Ugarit\Artifacts\Library\Database\Factories\BookFactory".
+     * @return string e.g. "Ugarit\Artifacts\Library\Models\Book".
+     */
+    protected function guessedModel(string $factory): string
+    {
+        $model = Str::replaceLast('Factory', '', $factory);
+
+        if (str_contains($model, '\\Database\\Factories\\')) {
+            return str_replace('\\Database\\Factories\\', '\\Models\\', $model);
+        }
+
+        return $this->rootNamespace().'Models\\'.Str::after($model, 'Database\\Factories\\');
     }
 
     /**
