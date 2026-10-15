@@ -533,7 +533,8 @@ class Builder
      *
      * Options:
      *  - table:         translation table name (default "{singular}_translations")
-     *  - foreign_key:   column referencing the main table (default "{singular}_id")
+     *  - foreign_key:   column referencing the main table (default "{singular}_id", or
+     *                   "translated_{singular}_id" when that is the locale column: a translatable locales table)
      *  - locale_column: defaults to the LocaleResolver's column ("locale_id" with i18n, else "locale")
      *  - locale_length: length of a "locale" code column (default 10)
      *  - timestamps:    translation rows keep their own timestamps (default true)
@@ -560,9 +561,13 @@ class Builder
 
         $translationCallback = $options['translation'] ?? null;
         $translationTable = $options['table'] ?? (isset($schema) ? "{$schema}.{$defaultTranslationName}" : $defaultTranslationName);
-        $foreignKey = $options['foreign_key'] ?? Str::singular($tableName).'_id';
         // "locale_id" (FK to the resolver's table) with the i18n artifact, a "locale" code column otherwise.
         $localeColumn = $options['locale_column'] ?? $resolver->storageColumn();
+        $foreignKey = $options['foreign_key'] ?? Str::singular($tableName).'_id';
+
+        if (! isset($options['foreign_key']) && $foreignKey === $localeColumn) {
+            $foreignKey = "translated_{$foreignKey}";
+        }
         $localeTable = $localeColumn === $resolver->storageColumn() ? $resolver->storageTable() : null;
         $localeLength = $options['locale_length'] ?? 10;
         // Translation rows keep their own timestamps unless disabled.

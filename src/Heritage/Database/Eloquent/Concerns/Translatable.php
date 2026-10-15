@@ -224,7 +224,8 @@ trait Translatable
     }
 
     /**
-     * Get the foreign key for the translation model relationship.
+     * Get the foreign key for the translation model relationship: "{singular}_id", or
+     * "translated_{singular}_id" when that is the locale column (a translatable Locale model).
      */
     public function getTranslationForeignKey(): string
     {
@@ -232,11 +233,11 @@ trait Translatable
             return $this->translationForeignKey;
         }
 
-        if (property_exists($this, 'table') && ! empty($this->table)) {
-            return Str::singular($this->table).'_id';
-        }
+        $key = property_exists($this, 'table') && ! empty($this->table)
+            ? Str::singular($this->table).'_id'
+            : $this->getForeignKey();
 
-        return $this->getForeignKey();
+        return $key === static::localeResolver()->storageColumn() ? "translated_{$key}" : $key;
     }
 
     /**
