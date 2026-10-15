@@ -147,8 +147,7 @@ abstract class Responder implements ResponderContract
                 // Integrated project artifact assets
                 resource_path("js/artifacts/{$artifact}/pages/{$path}"),
                 resource_path("js/artifacts/{$artifact}/Pages/{$path}"),
-                // Panel module and artifact resources
-                resource_path("js/apps/panel/modules/{$artifact}/pages/{$path}"),
+                // Panel artifact resources
                 resource_path("js/apps/panel/artifacts/{$artifact}/pages/{$path}"),
                 resource_path("js/apps/panel/pages/{$artifact}/{$path}"),
                 // Standalone package artifact resources
@@ -161,7 +160,6 @@ abstract class Responder implements ResponderContract
             $lastPart = array_pop($parts);
             $ucLastPath = empty($parts) ? ucfirst($lastPart) : implode('/', $parts).'/'.ucfirst($lastPart);
             if ($ucLastPath !== $path) {
-                $searchPaths[] = resource_path("js/apps/panel/modules/{$artifact}/pages/{$ucLastPath}");
                 $searchPaths[] = resource_path("js/apps/panel/artifacts/{$artifact}/pages/{$ucLastPath}");
                 $searchPaths[] = resource_path("js/artifacts/{$artifact}/pages/{$ucLastPath}");
                 $searchPaths[] = base_path("artifacts/{$artifact}/resources/js/pages/{$ucLastPath}");

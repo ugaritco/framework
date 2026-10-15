@@ -33,7 +33,7 @@ export interface SummaryEntity {
     model: string;
     /** The base of its route names (e.g. "genre" for genre.index). */
     key: string;
-    /** Its lang file (e.g. "genre" for [[ module ]]::genre.plural). */
+    /** Its lang file (e.g. "genre" for [[ artifact ]]::genre.plural). */
     lang: string;
     table: string;
     /** False while its table does not match it (its migration not run). */

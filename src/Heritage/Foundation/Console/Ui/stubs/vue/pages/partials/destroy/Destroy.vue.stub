@@ -15,8 +15,8 @@ import { Form } from '@inertiajs/vue3';
 import {
     destroy[[ Model ]]InitialValues,
     destroy[[ Model ]]Schema,
-} from '@module/[[ module ]]/pages/[[ model ]]/partials/destroy/form';
-import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+} from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/destroy/form';
+import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
 import { LoaderCircle } from 'lucide-vue-next';
 
 /**

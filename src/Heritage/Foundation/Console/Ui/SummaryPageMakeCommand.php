@@ -25,7 +25,7 @@ class SummaryPageMakeCommand extends Command
      * @var string
      */
     protected $signature = 'make:summary-page
-                    {artifact : The artifact whose panel module gets the summary page (e.g. library)}
+                    {artifact : The artifact whose panel gets the summary page (e.g. library)}
                     {--stack= : The frontend stack (vue); detected from package.json by default}
                     {--f|force : Overwrite the files that already exist}';
 
@@ -34,7 +34,7 @@ class SummaryPageMakeCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Create the summary page of an artifact\'s panel module, showing the data of its summary capability';
+    protected $description = 'Create the summary page of an artifact\'s panel, showing the data of its summary capability';
 
     /**
      * Create a new command instance.
@@ -53,16 +53,16 @@ class SummaryPageMakeCommand extends Command
      */
     public function handle(): int
     {
-        $module = strtolower(trim((string) $this->argument('artifact')));
+        $artifact = strtolower(trim((string) $this->argument('artifact')));
 
-        if (! $this->files->isDirectory($this->ugarit->basePath("artifacts/{$module}"))) {
-            $this->components->error("The artifact [{$module}] does not exist; create it with make:artifact.");
+        if (! $this->files->isDirectory($this->ugarit->basePath("artifacts/{$artifact}"))) {
+            $this->components->error("The artifact [{$artifact}] does not exist; create it with make:artifact.");
 
             return self::FAILURE;
         }
 
-        if (! $this->files->isDirectory($this->modulePath($module))) {
-            $this->components->error("The artifact [{$module}] has no panel module yet; create it with make:panel {$module}, which adds the summary page.");
+        if (! $this->files->isDirectory($this->artifactPath($artifact))) {
+            $this->components->error("The artifact [{$artifact}] has no panel yet; create it with make:panel {$artifact}, which adds the summary page.");
 
             return self::FAILURE;
         }
@@ -71,7 +71,7 @@ class SummaryPageMakeCommand extends Command
             return self::FAILURE;
         }
 
-        $this->writeSummaryPage($stack, $module);
+        $this->writeSummaryPage($stack, $artifact);
         $this->printReport();
         $this->refreshFrontend();
 

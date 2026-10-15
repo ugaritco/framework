@@ -8,8 +8,8 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
-import { Update } from '@module/[[ module ]]/pages/[[ model ]]/partials';
-import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import { Update } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials';
+import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
 import { Edit } from 'lucide-vue-next';
 import { ref } from 'vue';
 

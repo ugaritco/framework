@@ -9,7 +9,7 @@ use Heritage\Support\Str;
 
 /**
  * The Vue panel: single file components with vee-validate forms, zod schemas, the shared DataTable,
- * reka-ui components, laravel-vue-i18n and Wayfinder routes, as the company module's are written.
+ * reka-ui components, laravel-vue-i18n and Wayfinder routes, as the company artifact's are written.
  */
 class VueStack implements Stack
 {
@@ -76,13 +76,13 @@ class VueStack implements Stack
     /**
      * {@inheritdoc}
      */
-    public function panelFiles(string $module, string $icon): array
+    public function panelFiles(string $artifact, string $icon): array
     {
-        $replace = [...$this->moduleReplacements($module), '[[ icon ]]' => $icon];
+        $replace = [...$this->panelReplacements($artifact), '[[ icon ]]' => $icon];
 
         return array_map(fn (array $file) => [...$file, 'replace' => $replace], [
             ['path' => 'navigation.ts', 'stub' => 'vue/panel/navigation.ts'],
-            ['path' => 'layouts/'.Str::studly($module).'Layout.vue', 'stub' => 'vue/panel/Layout.vue'],
+            ['path' => 'layouts/'.Str::studly($artifact).'Layout.vue', 'stub' => 'vue/panel/Layout.vue'],
             ['path' => 'layouts/index.ts', 'stub' => 'vue/panel/layouts.index.ts'],
         ]);
     }
@@ -90,9 +90,9 @@ class VueStack implements Stack
     /**
      * {@inheritdoc}
      */
-    public function summaryFiles(string $module): array
+    public function summaryFiles(string $artifact): array
     {
-        $replace = $this->moduleReplacements($module);
+        $replace = $this->panelReplacements($artifact);
 
         return array_map(fn (array $file) => [...$file, 'replace' => $replace], [
             ['path' => 'pages/artifact/Show.vue', 'stub' => 'vue/panel/Show.vue'],
@@ -101,61 +101,78 @@ class VueStack implements Stack
     }
 
     /**
-     * The placeholders naming a panel module in its stubs.
+     * The placeholders naming an artifact in its panel stubs.
      *
-     * @param  string  $module
+     * @param  string  $artifact
      * @return array<string, string>
      */
-    protected function moduleReplacements(string $module): array
+    protected function panelReplacements(string $artifact): array
     {
         return [
-            '[[ module ]]' => $module,
-            '[[ Module ]]' => Str::studly($module),
-            '[[ moduleCamel ]]' => Str::camel($module),
-            '[[ title ]]' => Str::headline($module),
+            ...$this->artifactNames($artifact),
+            '[[ title ]]' => Str::headline($artifact),
+        ];
+    }
+
+    /**
+     * The placeholders of an artifact's names; the former "module" ones are kept for the stubs an
+     * application overrides.
+     *
+     * @param  string  $artifact
+     * @return array<string, string>
+     */
+    protected function artifactNames(string $artifact): array
+    {
+        return [
+            '[[ artifact ]]' => $artifact,
+            '[[ Artifact ]]' => Str::studly($artifact),
+            '[[ artifactCamel ]]' => Str::camel($artifact),
+            '[[ module ]]' => $artifact,
+            '[[ Module ]]' => Str::studly($artifact),
+            '[[ moduleCamel ]]' => Str::camel($artifact),
         ];
     }
 
     /**
      * {@inheritdoc}
      */
-    public function panelRegistrations(string $module, string $icon, string $group): array
+    public function panelRegistrations(string $artifact, string $icon, string $group): array
     {
         return [
             [
                 'path' => 'resources/js/app.ts',
                 'opening' => '/import\.meta\.glob<DefineComponent>\(\[/',
-                'key' => "modules/{$module}/pages",
-                'item' => "'./apps/panel/modules/{$module}/pages/**/*.vue'",
-                'place' => 'the module pages glob',
+                'key' => "artifacts/{$artifact}/pages",
+                'item' => "'./apps/panel/artifacts/{$artifact}/pages/**/*.vue'",
+                'place' => 'the artifact pages glob',
             ],
             [
                 'path' => 'vite.config.ts',
                 'opening' => '/alias:\s*\{/',
-                'key' => "'@module/{$module}'",
-                'item' => "'@module/{$module}': path.resolve(projectRoot, 'resources/js/apps/panel/modules/{$module}')",
+                'key' => "'@artifact/{$artifact}'",
+                'item' => "'@artifact/{$artifact}': path.resolve(projectRoot, 'resources/js/apps/panel/artifacts/{$artifact}')",
                 'place' => 'resolve.alias',
             ],
             [
                 'path' => 'vite.config.ts',
                 'opening' => '/additionalLangPaths:\s*\[/',
-                'key' => "artifacts/{$module}/lang",
-                'item' => "'artifacts/{$module}/lang'",
+                'key' => "artifacts/{$artifact}/lang",
+                'item' => "'artifacts/{$artifact}/lang'",
                 'place' => 'i18n additionalLangPaths',
             ],
             [
                 'path' => 'tsconfig.json',
                 'opening' => '/"paths":\s*\{/',
-                'key' => "\"@module/{$module}/*\"",
-                'item' => "\"@module/{$module}/*\": [\n    \"./resources/js/apps/panel/modules/{$module}/*\"\n]",
+                'key' => "\"@artifact/{$artifact}/*\"",
+                'item' => "\"@artifact/{$artifact}/*\": [\n    \"./resources/js/apps/panel/artifacts/{$artifact}/*\"\n]",
                 'place' => 'compilerOptions.paths',
                 'trailingComma' => false,
             ],
             [
                 'path' => 'resources/js/apps/panel/composables/usePanelModuleNav.ts',
                 'opening' => "/key: '".preg_quote($group, '/')."',[\\s\\S]*?items: \\[/",
-                'key' => "'/panel/artifact/{$module}'",
-                'item' => "{\n    title: '".Str::headline($module)."',\n    titleKey: '{$module}::artifact.name',\n    href: '/panel/artifact/{$module}',\n    icon: {$icon},\n}",
+                'key' => "'/panel/artifact/{$artifact}'",
+                'item' => "{\n    title: '".Str::headline($artifact)."',\n    titleKey: '{$artifact}::artifact.name',\n    href: '/panel/artifact/{$artifact}',\n    icon: {$icon},\n}",
                 'place' => "the [{$group}] group",
                 'icons' => [$icon],
             ],
@@ -229,15 +246,13 @@ class VueStack implements Stack
         $lang = $blueprint->lang();
         $label = $blueprint->labelField();
         $confirm = $blueprint->confirmField();
-        $partials = "@module/{$artifact}/pages/{$kebab}/partials";
+        $partials = "@artifact/{$artifact}/pages/{$kebab}/partials";
         $has = fn (string $operation) => in_array($operation, $operations, true);
         $needsNumber = (bool) array_filter($blueprint->fields, fn (array $field) => in_array($field['kind'], ['integer', 'decimal'], true));
         $actions = array_filter(['DestroyDialog' => $has('destroy'), 'ShowDialog' => $has('show'), 'UpdateDialog' => $has('edit')]);
 
         return [
-            '[[ module ]]' => $artifact,
-            '[[ Module ]]' => Str::studly($artifact),
-            '[[ moduleCamel ]]' => Str::camel($artifact),
+            ...$this->artifactNames($artifact),
             '[[ Model ]]' => $model,
             '[[ Models ]]' => Str::pluralStudly($model),
             '[[ model ]]' => $kebab,
@@ -302,11 +317,11 @@ class VueStack implements Stack
         $models = Str::camel(Str::pluralStudly($blueprint->model));
 
         return [
-            'path' => "resources/js/apps/panel/modules/{$artifact}/navigation.ts",
+            'path' => "resources/js/apps/panel/artifacts/{$artifact}/navigation.ts",
             'opening' => '/'.Str::camel($artifact).'Entities = \(\): \w+\[\] => \[/',
             'key' => "href: {$models}()",
             'item' => "{\n    title: trans('{$blueprint->lang()}.plural_definite'),\n    href: {$models}(),\n    icon: {$icon},\n}",
-            'place' => 'the module entities',
+            'place' => 'the artifact entities',
             'icons' => [$icon],
             'imports' => ["'@/routes/{$kebab}'" => "import { index as {$models} } from '@/routes/{$kebab}';"],
         ];
@@ -403,7 +418,7 @@ class VueStack implements Stack
     protected function translatableFormFiles(Blueprint $blueprint, string $partials, string $partial): array
     {
         [$folder, $file] = explode('/', $partial);
-        $alias = "@module/{$blueprint->artifact}/pages/".Str::kebab($blueprint->model)."/partials/{$folder}";
+        $alias = "@artifact/{$blueprint->artifact}/pages/".Str::kebab($blueprint->model)."/partials/{$folder}";
         $plain = $blueprint->plain();
         $formKey = $folder === 'store' ? '[[ storeForm ]]' : '[[ updateForm ]]';
 
@@ -470,7 +485,7 @@ class VueStack implements Stack
     protected function relationFiles(Blueprint $blueprint): array
     {
         $directory = 'pages/'.Str::kebab($blueprint->model).'/partials/relations';
-        $alias = "@module/{$blueprint->artifact}/{$directory}";
+        $alias = "@artifact/{$blueprint->artifact}/{$directory}";
         $lang = $blueprint->lang();
         $files = [];
 
@@ -521,7 +536,7 @@ class VueStack implements Stack
      */
     protected function partialExports(Blueprint $blueprint, array $operations): string
     {
-        $partials = "@module/{$blueprint->artifact}/pages/".Str::kebab($blueprint->model).'/partials';
+        $partials = "@artifact/{$blueprint->artifact}/pages/".Str::kebab($blueprint->model).'/partials';
         $label = Str::lower(Str::headline($blueprint->model));
         $feature = $blueprint->isTranslatable();
         $groups = [
@@ -601,13 +616,13 @@ class VueStack implements Stack
         $tab = $withTab ? [
             '[[ tabTriggers ]]' => "\n                <TabsTrigger value=\"locales\">\n                    {{ \$t('pages.translations') }}\n                </TabsTrigger>",
             '[[ tabContents ]]' => "\n\n            <TabsContent value=\"locales\" class=\"mt-4 flex-1 overflow-y-auto pr-2\">\n                <slot name=\"locales\" />\n            </TabsContent>",
-            '[[ showImports ]]' => "\nimport { Index as Translations } from '@module/{$artifact}/pages/{$kebab}/partials/translation';",
+            '[[ showImports ]]' => "\nimport { Index as Translations } from '@artifact/{$artifact}/pages/{$kebab}/partials/translation';",
             '[[ showSlots ]]' => "\n\n        <template #locales>\n            <Translations\n                :translations=\"data.translations ?? {}\"\n                :{$camel}=\"data\"\n            />\n        </template>",
         ] : [];
 
         return [
             ...$empty,
-            '[[ typeImports ]]' => "import { {$model}Translation } from '@module/{$artifact}/types/{$kebab}/{$kebab}-translation';\n",
+            '[[ typeImports ]]' => "import { {$model}Translation } from '@artifact/{$artifact}/types/{$kebab}/{$kebab}-translation';\n",
             '[[ typeTranslations ]]' => "\n    translations: z.record(z.string(), {$model}Translation).optional(),",
             ...$tab,
             '[[ plainStoreValues ]]' => $this->storeValues($blueprint, $plain),
@@ -854,7 +869,7 @@ class VueStack implements Stack
 
         foreach ($blueprint->foreign($fields) as $name => $field) {
             $select = $this->selectName($name);
-            $imports[] = "import {$select} from '@module/{$blueprint->artifact}/pages/".Str::kebab($blueprint->model)."/partials/relations/{$select}.vue';";
+            $imports[] = "import {$select} from '@artifact/{$blueprint->artifact}/pages/".Str::kebab($blueprint->model)."/partials/relations/{$select}.vue';";
         }
 
         return $imports === [] ? '' : "\n".implode("\n", $imports);
@@ -984,7 +999,7 @@ class VueStack implements Stack
 
         foreach ($blueprint->foreign() as $name => $field) {
             $select = $this->selectName($name);
-            $lines[] = "export { default as {$select} } from '@module/{$blueprint->artifact}/pages/".Str::kebab($blueprint->model)."/partials/relations/{$select}.vue';";
+            $lines[] = "export { default as {$select} } from '@artifact/{$blueprint->artifact}/pages/".Str::kebab($blueprint->model)."/partials/relations/{$select}.vue';";
         }
 
         return $lines === [] ? '' : "\n// Selects of the related records\n".implode("\n", $lines)."\n";
@@ -1018,7 +1033,7 @@ class VueStack implements Stack
                 isset($booleans['active']) ? 'getStatuses' : null,
                 array_diff_key($booleans, ['active' => true]) !== [] ? 'getBooleans' : null,
             ]);
-            $imports[] = 'import { '.implode(', ', $data)." } from '@module/{$artifact}/pages/{$kebab}/partials/index/data/data';";
+            $imports[] = 'import { '.implode(', ', $data)." } from '@artifact/{$artifact}/pages/{$kebab}/partials/index/data/data';";
         }
 
         if ($link) {
@@ -1031,7 +1046,7 @@ class VueStack implements Stack
 
         foreach ($blueprint->relatedModels($fields) as $related) {
             $imports[] = "import { show as show{$related} } from '@/routes/".Str::kebab($related)."';";
-            $imports[] = "import { use{$related}Options } from '@module/{$artifact}/pages/{$kebab}/partials/relations/use{$related}Options';";
+            $imports[] = "import { use{$related}Options } from '@artifact/{$artifact}/pages/{$kebab}/partials/relations/use{$related}Options';";
         }
 
         return $imports === [] ? '' : implode("\n", $imports);
@@ -1181,7 +1196,7 @@ class VueStack implements Stack
 
         foreach ($related as $name) {
             $imports[] = "import { show as show{$name} } from '@/routes/".Str::kebab($name)."';";
-            $imports[] = "import { use{$name}Options } from '@module/{$blueprint->artifact}/pages/".Str::kebab($blueprint->model)."/partials/relations/use{$name}Options';";
+            $imports[] = "import { use{$name}Options } from '@artifact/{$blueprint->artifact}/pages/".Str::kebab($blueprint->model)."/partials/relations/use{$name}Options';";
         }
 
         return implode("\n", $imports);

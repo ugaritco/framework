@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { since } from '@/lib/time';
-import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
 import { [[ summaryIcons ]] } from 'lucide-vue-next';
 [[ summaryImports ]]
 

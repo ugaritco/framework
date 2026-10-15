@@ -38,7 +38,7 @@ class PagesMakeCommand extends Command
     protected $signature = 'make:pages
                     {model : The model the pages present (e.g. Book)}
                     {--artifact= : The artifact holding the model}
-                    {--icon= : The Lucide icon of the model in the module navigation (e.g. BookOpen)}
+                    {--icon= : The Lucide icon of the model in the artifact navigation (e.g. BookOpen)}
                     {--only= : The operations to generate, separated by commas: index, show, create, edit, destroy, translations}
                     {--except= : The operations to leave out, separated by commas}
                     {--stack= : The frontend stack (vue); detected from package.json by default}
@@ -49,7 +49,7 @@ class PagesMakeCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Create the panel pages and components of a model (CRUD and translations), and its item in the module navigation';
+    protected $description = 'Create the panel pages and components of a model (CRUD and translations), and its item in the artifact navigation';
 
     /**
      * Create a new command instance.
@@ -96,11 +96,11 @@ class PagesMakeCommand extends Command
             return self::FAILURE;
         }
 
-        if (! $this->files->exists($this->modulePath($artifact, 'navigation.ts'))) {
+        if (! $this->files->exists($this->artifactPath($artifact, 'navigation.ts'))) {
             $this->call('make:panel', ['artifact' => $artifact, '--stack' => $stack->name()]);
         }
 
-        $this->writeFiles($this->modulePath($artifact), $stack->pageFiles($blueprint, $operations), $stack->pageReplacements($blueprint, $operations));
+        $this->writeFiles($this->artifactPath($artifact), $stack->pageFiles($blueprint, $operations), $stack->pageReplacements($blueprint, $operations));
 
         if (in_array('index', $operations, true)) {
             $this->applyEdits($stack, [$stack->navigationEdit($blueprint, $this->iconName($this->option('icon'), 'Box'))]);

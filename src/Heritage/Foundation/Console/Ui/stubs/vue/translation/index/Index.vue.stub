@@ -2,11 +2,11 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import DataTable from '@/components/ui/table/data/DataTable.vue';
 import { usePage } from '@inertiajs/vue3';
-import { StoreDialog } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation';
-import { use[[ Model ]]TranslationColumns } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/index/data/columns';
-import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
-import type { [[ Model ]]Translation } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]-translation';
-import type { Locale } from '@module/i18n/types/locale';
+import { StoreDialog } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation';
+import { use[[ Model ]]TranslationColumns } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation/index/data/columns';
+import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
+import type { [[ Model ]]Translation } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]-translation';
+import type { Locale } from '@artifact/i18n/types/locale';
 import { AlertCircle, AlertTriangle } from 'lucide-vue-next';
 import { computed } from 'vue';
 

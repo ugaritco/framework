@@ -21,9 +21,9 @@ class PanelMakeCommand extends Command
      * @var string
      */
     protected $signature = 'make:panel
-                    {artifact : The artifact the panel module presents (e.g. library)}
-                    {--icon= : The Lucide icon of the module (e.g. Library)}
-                    {--group=master_data : The group of the main sidebar the module is listed in}
+                    {artifact : The artifact the panel presents (e.g. library)}
+                    {--icon= : The Lucide icon of the artifact (e.g. Library)}
+                    {--group=master_data : The group of the main sidebar the artifact is listed in}
                     {--all : Also generate the pages of every model of the artifact with capabilities}
                     {--icons= : With --all, the Lucide icons of the models, as Model:Icon separated by commas (e.g. Book:BookOpen)}
                     {--stack= : The frontend stack (vue); detected from package.json by default}
@@ -34,7 +34,7 @@ class PanelMakeCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Create the panel module of an artifact (layout, navigation, summary page, sidebar item, and the summary capability when missing), and with --all the pages of its models';
+    protected $description = 'Create the panel of an artifact (layout, navigation, summary page, sidebar item, and the summary capability when missing), and with --all the pages of its models';
 
     /**
      * Create a new command instance.
@@ -47,17 +47,17 @@ class PanelMakeCommand extends Command
     }
 
     /**
-     * Execute the console command: the module, then with --all make:pages for every model of the
+     * Execute the console command: the panel, then with --all make:pages for every model of the
      * artifact that has a store request (its capabilities), in the order their tables were created.
      *
      * @return int
      */
     public function handle(): int
     {
-        $module = (string) $this->argument('artifact');
+        $artifact = (string) $this->argument('artifact');
 
-        if (! $this->files->isDirectory($this->ugarit->basePath("artifacts/{$module}"))) {
-            $this->components->error("The artifact [{$module}] does not exist; create it with make:artifact.");
+        if (! $this->files->isDirectory($this->ugarit->basePath("artifacts/{$artifact}"))) {
+            $this->components->error("The artifact [{$artifact}] does not exist; create it with make:artifact.");
 
             return self::FAILURE;
         }
@@ -68,30 +68,30 @@ class PanelMakeCommand extends Command
 
         $icon = $this->iconName($this->option('icon'), 'Blocks');
 
-        $this->writeFiles($this->modulePath($module), $stack->panelFiles($module, $icon));
-        $this->writeArtifactLang($module);
-        $this->writeSummaryPage($stack, $module);
-        $this->applyEdits($stack, $stack->panelRegistrations($module, $icon, (string) $this->option('group')));
+        $this->writeFiles($this->artifactPath($artifact), $stack->panelFiles($artifact, $icon));
+        $this->writeArtifactLang($artifact);
+        $this->writeSummaryPage($stack, $artifact);
+        $this->applyEdits($stack, $stack->panelRegistrations($artifact, $icon, (string) $this->option('group')));
         $this->printReport();
         $this->refreshFrontend();
 
-        return $this->option('all') ? $this->makePages($module, $stack->name()) : self::SUCCESS;
+        return $this->option('all') ? $this->makePages($artifact, $stack->name()) : self::SUCCESS;
     }
 
     /**
      * Run make:pages for every model of the artifact with capabilities.
      *
-     * @param  string  $module
+     * @param  string  $artifact
      * @param  string  $stack
      * @return int
      */
-    protected function makePages(string $module, string $stack): int
+    protected function makePages(string $artifact, string $stack): int
     {
         $icons = $this->icons();
-        $models = $this->models($module);
+        $models = $this->models($artifact);
 
         if ($models === []) {
-            $this->components->warn("The artifact [{$module}] has no model with capabilities yet; add one with make:model --all, then run make:pages.");
+            $this->components->warn("The artifact [{$artifact}] has no model with capabilities yet; add one with make:model --all, then run make:pages.");
         }
 
         foreach ($models as $model) {
@@ -100,7 +100,7 @@ class PanelMakeCommand extends Command
 
             $status = $this->call('make:pages', [
                 'model' => $model,
-                '--artifact' => $module,
+                '--artifact' => $artifact,
                 '--icon' => $icons[$model] ?? null,
                 '--stack' => $stack,
                 '--force' => (bool) $this->option('force'),
@@ -118,18 +118,18 @@ class PanelMakeCommand extends Command
      * Write the artifact's lang/en/artifact.php, its name and description, as the sidebars and the
      * summary page show them.
      *
-     * @param  string  $module
+     * @param  string  $artifact
      * @return void
      */
-    protected function writeArtifactLang(string $module): void
+    protected function writeArtifactLang(string $artifact): void
     {
-        $manifest = $this->ugarit->basePath("artifacts/{$module}/art.php");
+        $manifest = $this->ugarit->basePath("artifacts/{$artifact}/art.php");
         $description = $this->files->exists($manifest) && preg_match("/\\\$description\\s*=\\s*'((?:[^'\\\\]|\\\\.)*)'/", $this->files->get($manifest), $match)
             ? $match[1]
             : '';
 
-        $this->writeFile($this->ugarit->basePath("artifacts/{$module}/lang/en/artifact.php"), $this->renderStub('artifact.php', [
-            '[[ title ]]' => Str::headline($module),
+        $this->writeFile($this->ugarit->basePath("artifacts/{$artifact}/lang/en/artifact.php"), $this->renderStub('artifact.php', [
+            '[[ title ]]' => Str::headline($artifact),
             '[[ description ]]' => $description,
         ]));
     }

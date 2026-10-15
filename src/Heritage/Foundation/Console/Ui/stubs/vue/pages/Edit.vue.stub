@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import HeadingSmall from '@/components/HeadingSmall.vue';
-import { show as artifact } from '@/routes/[[ module ]]/artifact';
+import { show as artifact } from '@/routes/[[ artifact ]]/artifact';
 [[ @index ]]
 import { index } from '@/routes/[[ model ]]';
 [[ @end ]]
 import type { BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
-import { [[ Module ]]Layout } from '@module/[[ module ]]/layouts';
-import { [[ updateComponent ]] } from '@module/[[ module ]]/pages/[[ model ]]/partials';
-import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import { [[ Artifact ]]Layout } from '@artifact/[[ artifact ]]/layouts';
+import { [[ updateComponent ]] } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials';
+import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
 import { trans } from 'laravel-vue-i18n';
 import { computed } from 'vue';
 
@@ -25,7 +25,7 @@ const props = defineProps<Props>();
 
 /** Breadcrumb trail of the edit page. */
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
-    { title: trans('[[ module ]]::artifact.name'), href: artifact().url },
+    { title: trans('[[ artifact ]]::artifact.name'), href: artifact().url },
     { title: trans('[[ lang ]].plural_definite'), href: [[ indexHref ]] },
     {
         title: trans('presentation.edit.title', {
@@ -40,7 +40,7 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
 <template>
     <Head :title="$t('[[ lang ]].plural')" />
 
-    <[[ Module ]]Layout :breadcrumbs="breadcrumbItems">
+    <[[ Artifact ]]Layout :breadcrumbs="breadcrumbItems">
         <div
             class="flex items-center justify-between rounded-xl bg-primary/3 p-4 ring-1 ring-primary/5"
         >
@@ -61,5 +61,5 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
         </div>
 
         <[[ updateComponent ]] :[[ modelCamel ]]="data" />
-    </[[ Module ]]Layout>
+    </[[ Artifact ]]Layout>
 </template>

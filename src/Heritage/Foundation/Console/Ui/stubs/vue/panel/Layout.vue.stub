@@ -9,12 +9,12 @@ import {
 } from '@/components/ui/tooltip';
 import { toUrl, urlIsActive } from '@/lib/utils';
 import type { BreadcrumbItem } from '@/types';
-import { [[ moduleCamel ]]NavItems } from '@module/[[ module ]]/navigation';
+import { [[ artifactCamel ]]NavItems } from '@artifact/[[ artifact ]]/navigation';
 import { [[ icon ]], PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 /**
- * [[ title ]] module layout: the module's identity card and inner sidebar beside the page.
+ * [[ title ]] artifact layout: the artifact's identity card and inner sidebar beside the page.
  */
 
 interface Props {
@@ -31,8 +31,8 @@ const page = usePage();
 /** Whether the inner sidebar shows icons only. */
 const isCollapsed = ref(false);
 
-/** The summary and the entities of the module. */
-const sidebarNavItems = computed(() => [[ moduleCamel ]]NavItems());
+/** The summary and the entities of the artifact. */
+const sidebarNavItems = computed(() => [[ artifactCamel ]]NavItems());
 
 /** Whether an item links to the current page (or, unless it ignores them, to a page under it). */
 const isActive = (item: (typeof sidebarNavItems.value)[number]) =>
@@ -76,7 +76,7 @@ const isActive = (item: (typeof sidebarNavItems.value)[number]) =>
                                 v-if="!isCollapsed"
                                 class="truncate text-base font-bold tracking-tight text-foreground"
                             >
-                                {{ $t('[[ module ]]::module.name') }}
+                                {{ $t('[[ artifact ]]::artifact.name') }}
                             </h2>
                         </div>
 
@@ -100,7 +100,7 @@ const isActive = (item: (typeof sidebarNavItems.value)[number]) =>
                         v-if="!isCollapsed"
                         class="line-clamp-2 text-xs leading-relaxed text-muted-foreground/80"
                     >
-                        {{ $t('[[ module ]]::module.description') }}
+                        {{ $t('[[ artifact ]]::artifact.description') }}
                     </p>
                 </div>
             </div>

@@ -20,7 +20,7 @@ import {
     update[[ Model ]]InitialValues,
     update[[ Model ]]Schema,
 } from '[[ updateForm ]]';
-import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
 import { LoaderCircle, SquareArrowOutUpLeft } from 'lucide-vue-next';
 [[ formImports ]]
 

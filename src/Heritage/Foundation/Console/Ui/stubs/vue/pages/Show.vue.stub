@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import [[ Model ]]Layout from '@module/[[ module ]]/layouts/[[ Model ]]Layout.vue';
-import { Summary } from '@module/[[ module ]]/pages/[[ model ]]/partials';[[ showImports ]]
-import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import [[ Model ]]Layout from '@artifact/[[ artifact ]]/layouts/[[ Model ]]Layout.vue';
+import { Summary } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials';[[ showImports ]]
+import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
 
 /**
  * [[ Model ]] show page: the [[ label ]]'s sections in the [[ label ]] layout.

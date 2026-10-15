@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/tooltip';
 import { show } from '@/routes/[[ model ]]';
 [[ showDialogImports ]]
-import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
 import { Eye, SquareArrowOutUpLeft } from 'lucide-vue-next';
 import { ref } from 'vue';
 

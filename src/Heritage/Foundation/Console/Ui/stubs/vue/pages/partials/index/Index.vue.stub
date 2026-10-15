@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import DataTable from '@/components/ui/table/data/DataTable.vue';
 import { columns } from '[[ columnsPath ]]';
-import type { [[ Model ]]Collection } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { [[ Model ]]Collection } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
 
 /**
  * [[ Models ]] table: the shared DataTable with the [[ label ]] columns.

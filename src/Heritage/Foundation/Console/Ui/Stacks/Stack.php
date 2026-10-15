@@ -10,7 +10,7 @@ use Heritage\Foundation\Console\Ui\Blueprint;
  * A frontend stack the panel is generated in (Vue, React, ...): the files it writes from its stubs
  * (under stubs/{name}), their placeholders, and the edits registering them in the application.
  *
- * Paths of written files are relative to the module folder (resources/js/apps/panel/modules/{module}).
+ * Paths of written files are relative to the artifact folder (resources/js/apps/panel/artifacts/{artifact}).
  * A file is given as ['path' => string, 'stub' => string, 'replace' => array<string, string|bool>,
  * 'ensure' => bool], 'replace' adding to the shared placeholders and 'ensure' writing it only when
  * it is missing. A placeholder named "@flag" keeps or drops the "[[ @flag ]] … [[ @end ]]" blocks
@@ -46,31 +46,31 @@ interface Stack
     public function iconPackage(): string;
 
     /**
-     * The files of an artifact's panel module.
+     * The files of an artifact's panel.
      *
-     * @param  string  $module
+     * @param  string  $artifact
      * @param  string  $icon
      * @return array<int, array<string, mixed>>
      */
-    public function panelFiles(string $module, string $icon): array;
+    public function panelFiles(string $artifact, string $icon): array;
 
     /**
      * The files of an artifact's summary page, which shows the data of its ShowArtifactCapability.
      *
-     * @param  string  $module
+     * @param  string  $artifact
      * @return array<int, array<string, mixed>>
      */
-    public function summaryFiles(string $module): array;
+    public function summaryFiles(string $artifact): array;
 
     /**
-     * The edits registering a panel module in the application.
+     * The edits registering an artifact's panel in the application.
      *
-     * @param  string  $module
+     * @param  string  $artifact
      * @param  string  $icon
-     * @param  string  $group  The group of the main sidebar listing the module.
+     * @param  string  $group  The group of the main sidebar listing the artifact.
      * @return array<int, array<string, mixed>>
      */
-    public function panelRegistrations(string $module, string $icon, string $group): array;
+    public function panelRegistrations(string $artifact, string $icon, string $group): array;
 
     /**
      * The files of a model's pages, for the given operations.
@@ -91,7 +91,7 @@ interface Stack
     public function pageReplacements(Blueprint $blueprint, array $operations): array;
 
     /**
-     * The edit adding a model to its module's navigation.
+     * The edit adding a model to its artifact's navigation.
      *
      * @param  Blueprint  $blueprint
      * @param  string  $icon
@@ -110,7 +110,7 @@ interface Stack
      * The files of a component.
      *
      * @param  string  $type
-     * @param  string  $path  The component path relative to the module (or to resources/js), without extension.
+     * @param  string  $path  The component path relative to the artifact folder (or to resources/js), without extension.
      * @param  string  $importPath  The alias the component is imported by, without extension.
      * @param  Blueprint|null  $blueprint  The model the component presents, if any.
      * @return array<int, array<string, mixed>>

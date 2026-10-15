@@ -13,9 +13,9 @@ import { Form } from '@inertiajs/vue3';
 import {
     update[[ Model ]]TranslationInitialValues,
     update[[ Model ]]TranslationSchema,
-} from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/update/form';
-import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
-import type { [[ Model ]]Translation } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]-translation';
+} from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation/update/form';
+import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
+import type { [[ Model ]]Translation } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]-translation';
 import { LoaderCircle } from 'lucide-vue-next';
 [[ translationFormImports ]]
 

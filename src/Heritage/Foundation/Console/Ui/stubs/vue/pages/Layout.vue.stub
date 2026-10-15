@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import HeadingSmall from '@/components/HeadingSmall.vue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { show as artifact } from '@/routes/[[ module ]]/artifact';
+import { show as artifact } from '@/routes/[[ artifact ]]/artifact';
 [[ @index ]]
 import { index } from '@/routes/[[ model ]]';
 [[ @end ]]
 import type { BreadcrumbItem } from '@/types';
-import { [[ Module ]]Layout } from '@module/[[ module ]]/layouts';
+import { [[ Artifact ]]Layout } from '@artifact/[[ artifact ]]/layouts';
 [[ @edit|destroy ]]
-import { [[ layoutPartials ]] } from '@module/[[ module ]]/pages/[[ model ]]/partials';
+import { [[ layoutPartials ]] } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials';
 [[ @end ]]
-import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
 import { trans } from 'laravel-vue-i18n';
 import { computed } from 'vue';
 
@@ -31,14 +31,14 @@ const emit = defineEmits(['tab-change']);
 
 /** Breadcrumb trail: artifact, [[ labels ]], the [[ label ]]. */
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
-    { title: trans('[[ module ]]::artifact.name'), href: artifact().url },
+    { title: trans('[[ artifact ]]::artifact.name'), href: artifact().url },
     { title: trans('[[ lang ]].plural_definite'), href: [[ indexHref ]] },
     { title: String([[ propsLabel ]]), href: '#' },
 ]);
 </script>
 
 <template>
-    <[[ Module ]]Layout :breadcrumbs="breadcrumbItems">
+    <[[ Artifact ]]Layout :breadcrumbs="breadcrumbItems">
         <!-- Header with the [[ label ]] actions -->
         <div
             class="flex items-center justify-between rounded-xl bg-primary/3 p-4 ring-1 ring-primary/5"
@@ -86,5 +86,5 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
                 <slot name="summary" />
             </TabsContent>[[ tabContents ]]
         </Tabs>
-    </[[ Module ]]Layout>
+    </[[ Artifact ]]Layout>
 </template>

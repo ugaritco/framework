@@ -105,15 +105,15 @@ trait GeneratesUi
     }
 
     /**
-     * The path of a panel module, or of a file in it.
+     * The path of an artifact's panel folder, or of a file in it.
      *
-     * @param  string  $module
+     * @param  string  $artifact
      * @param  string  $path
      * @return string
      */
-    protected function modulePath(string $module, string $path = ''): string
+    protected function artifactPath(string $artifact, string $path = ''): string
     {
-        return $this->panelPath("modules/{$module}".($path === '' ? '' : '/'.$path));
+        return $this->panelPath("artifacts/{$artifact}".($path === '' ? '' : '/'.$path));
     }
 
     /**
@@ -176,16 +176,16 @@ trait GeneratesUi
      * first when the artifact has none.
      *
      * @param  Stack  $stack
-     * @param  string  $module
+     * @param  string  $artifact
      * @return void
      */
-    protected function writeSummaryPage(Stack $stack, string $module): void
+    protected function writeSummaryPage(Stack $stack, string $artifact): void
     {
-        if (! $this->files->exists($this->ugarit->basePath("artifacts/{$module}/src/Capabilities/Artifact/ShowArtifactCapability.php"))) {
-            $this->call('make:summary', ['artifact' => $module]);
+        if (! $this->files->exists($this->ugarit->basePath("artifacts/{$artifact}/src/Capabilities/Artifact/ShowArtifactCapability.php"))) {
+            $this->call('make:summary', ['artifact' => $artifact]);
         }
 
-        $this->writeFiles($this->modulePath($module), $stack->summaryFiles($module));
+        $this->writeFiles($this->artifactPath($artifact), $stack->summaryFiles($artifact));
 
         foreach (['en', 'ar'] as $locale) {
             $path = $this->ugarit->langPath("{$locale}/summary.php");

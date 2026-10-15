@@ -66,7 +66,7 @@ class ComponentMakeCommand extends GeneratorCommand
     }
 
     /**
-     * Write a component of the frontend stack: in the artifact's panel module with --artifact (in
+     * Write a component of the frontend stack: in the artifact's panel with --artifact (in
      * its model's partials with --model), else in resources/js/components.
      *
      * @return int
@@ -114,7 +114,7 @@ class ComponentMakeCommand extends GeneratorCommand
 
         $name = implode('/', array_map(fn (string $segment) => Str::studly($segment), explode('/', str_replace('\\', '/', (string) $this->argument('name')))));
         $directory = $blueprint ? 'pages/'.Str::kebab($model).'/partials' : 'components';
-        [$root, $alias] = $artifact !== null ? [$this->modulePath($artifact), "@module/{$artifact}"] : [$this->ugarit->basePath('resources/js'), '@'];
+        [$root, $alias] = $artifact !== null ? [$this->artifactPath($artifact), "@artifact/{$artifact}"] : [$this->ugarit->basePath('resources/js'), '@'];
 
         $this->writeFiles(
             $root,

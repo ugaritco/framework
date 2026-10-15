@@ -1,5 +1,5 @@
 /**
- * [[ title ]] module layout exports.
+ * [[ title ]] artifact layout exports.
  */
 
-export { default as [[ Module ]]Layout } from '@module/[[ module ]]/layouts/[[ Module ]]Layout.vue';
+export { default as [[ Artifact ]]Layout } from '@artifact/[[ artifact ]]/layouts/[[ Artifact ]]Layout.vue';

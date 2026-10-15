@@ -1,4 +1,4 @@
-import type { [[ Model ]] } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
 import { toTypedSchema } from '@vee-validate/zod';
 import { trans } from 'laravel-vue-i18n';
 import * as z from 'zod';

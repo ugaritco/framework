@@ -1,7 +1,7 @@
 import type {
     [[ Model ]],
     [[ Model ]]ColumnMeta,
-} from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]';
+} from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
 import type { ColumnDef, FilterFn } from '@tanstack/vue-table';
 import { computed, h } from 'vue';
 

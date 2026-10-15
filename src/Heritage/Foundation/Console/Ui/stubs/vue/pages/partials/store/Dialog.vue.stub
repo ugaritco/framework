@@ -9,7 +9,7 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog';
 import { useRemember } from '@inertiajs/vue3';
-import { Store } from '@module/[[ module ]]/pages/[[ model ]]/partials';
+import { Store } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials';
 import { Plus } from 'lucide-vue-next';
 
 /**

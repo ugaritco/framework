@@ -1,4 +1,4 @@
-import { show as summary } from '@/routes/[[ module ]]/artifact';
+import { show as summary } from '@/routes/[[ artifact ]]/artifact';
 import type { NavItem } from '@/types';
 import { trans } from 'laravel-vue-i18n';
 import { LayoutDashboard } from 'lucide-vue-next';
@@ -6,23 +6,23 @@ import { LayoutDashboard } from 'lucide-vue-next';
 /**
  * An item of the module's inner sidebar; the summary is active only on its own page.
  */
-export type [[ Module ]]NavItem = NavItem & { ignoreNested?: boolean };
+export type [[ Artifact ]]NavItem = NavItem & { ignoreNested?: boolean };
 
 /**
  * The entities of the [[ title ]] module, in the order of its inner sidebar.
  */
-export const [[ moduleCamel ]]Entities = (): [[ Module ]]NavItem[] => [
+export const [[ artifactCamel ]]Entities = (): [[ Artifact ]]NavItem[] => [
 ];
 
 /**
  * The inner sidebar of the [[ title ]] module: its summary, then its entities.
  */
-export const [[ moduleCamel ]]NavItems = (): [[ Module ]]NavItem[] => [
+export const [[ artifactCamel ]]NavItems = (): [[ Artifact ]]NavItem[] => [
     {
         title: trans('pages.summary'),
         href: summary(),
         icon: LayoutDashboard,
         ignoreNested: true,
     },
-    ...[[ moduleCamel ]]Entities(),
+    ...[[ artifactCamel ]]Entities(),
 ];

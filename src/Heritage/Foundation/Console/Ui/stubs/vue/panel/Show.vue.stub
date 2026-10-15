@@ -3,15 +3,15 @@ import HeadingSmall from '@/components/HeadingSmall.vue';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { toUrl } from '@/lib/utils';
-import { show } from '@/routes/[[ module ]]/artifact';
+import { show } from '@/routes/[[ artifact ]]/artifact';
 import type { BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/vue3';
-import { [[ Module ]]Layout } from '@module/[[ module ]]/layouts';
-import { [[ moduleCamel ]]Entities } from '@module/[[ module ]]/navigation';
+import { [[ Artifact ]]Layout } from '@artifact/[[ artifact ]]/layouts';
+import { [[ artifactCamel ]]Entities } from '@artifact/[[ artifact ]]/navigation';
 import type {
     ArtifactSummary,
     SummaryEntity,
-} from '@module/[[ module ]]/types/artifact/summary';
+} from '@artifact/[[ artifact ]]/types/artifact/summary';
 import { getActiveLanguage, trans } from 'laravel-vue-i18n';
 import {
     Boxes,
@@ -42,7 +42,7 @@ const props = defineProps<Props>();
 
 /** Breadcrumb trail of the summary page. */
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
-    { title: trans('[[ module ]]::artifact.name'), href: show().url },
+    { title: trans('[[ artifact ]]::artifact.name'), href: show().url },
     { title: trans('pages.summary'), href: show().url },
 ]);
 
@@ -50,7 +50,7 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
 const icons = computed(
     () =>
         new Map(
-            [[ moduleCamel ]]Entities().map(
+            [[ artifactCamel ]]Entities().map(
                 (item) => [toUrl(item.href), item.icon] as const,
             ),
         ),
@@ -61,7 +61,7 @@ const entityIcon = (entity: SummaryEntity): LucideIcon =>
     (entity.url ? icons.value.get(entity.url) : undefined) ?? Database;
 
 /** The name of an entity, from its lang file. */
-const entityTitle = (lang: string) => trans(`[[ module ]]::${lang}.plural_definite`);
+const entityTitle = (lang: string) => trans(`[[ artifact ]]::${lang}.plural_definite`);
 
 /** The totals shown above the entities. */
 const stats = computed(() => [
@@ -131,16 +131,16 @@ const elapsed = (iso: string) => {
 </script>
 
 <template>
-    <Head :title="$t('[[ module ]]::artifact.name')" />
+    <Head :title="$t('[[ artifact ]]::artifact.name')" />
 
-    <[[ Module ]]Layout :breadcrumbs="breadcrumbItems">
+    <[[ Artifact ]]Layout :breadcrumbs="breadcrumbItems">
         <!-- Header: the artifact and its identity -->
         <div
             class="flex flex-col gap-3 rounded-xl bg-primary/3 p-4 ring-1 ring-primary/5 sm:flex-row sm:items-center sm:justify-between"
         >
             <HeadingSmall
-                :title="$t('[[ module ]]::artifact.name')"
-                :description="$t('[[ module ]]::artifact.description')"
+                :title="$t('[[ artifact ]]::artifact.name')"
+                :description="$t('[[ artifact ]]::artifact.description')"
             />
 
             <div class="flex flex-wrap items-center gap-2">
@@ -467,5 +467,5 @@ const elapsed = (iso: string) => {
                 </section>
             </div>
         </div>
-    </[[ Module ]]Layout>
+    </[[ Artifact ]]Layout>
 </template>

@@ -3,22 +3,22 @@
  */
 
 // Delete confirmation form, and the dialog opening it
-export { default as Destroy } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/destroy/Destroy.vue';
-export { default as DestroyDialog } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/destroy/Dialog.vue';
+export { default as Destroy } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation/destroy/Destroy.vue';
+export { default as DestroyDialog } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation/destroy/Dialog.vue';
 
 // The translations tab: alerts for the missing locales, and the translations table
-export { default as Index } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/index/Index.vue';
+export { default as Index } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation/index/Index.vue';
 
 // Quick view dialog
-export { default as ShowDialog } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/show/Dialog.vue';
+export { default as ShowDialog } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation/show/Dialog.vue';
 
 // Create form, and the dialog opening it
-export { default as Store } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/store/Store.vue';
-export { default as StoreDialog } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/store/Dialog.vue';
+export { default as Store } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation/store/Store.vue';
+export { default as StoreDialog } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation/store/Dialog.vue';
 
 // Summary of a translation
-export { default as Summary } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/summary/Summary.vue';
+export { default as Summary } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation/summary/Summary.vue';
 
 // Update form, and the dialog opening it
-export { default as Update } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/update/Update.vue';
-export { default as UpdateDialog } from '@module/[[ module ]]/pages/[[ model ]]/partials/translation/update/Dialog.vue';
+export { default as Update } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation/update/Update.vue';
+export { default as UpdateDialog } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation/update/Dialog.vue';

@@ -1,4 +1,4 @@
-import type { [[ Model ]]Translation } from '@module/[[ module ]]/types/[[ model ]]/[[ model ]]-translation';
+import type { [[ Model ]]Translation } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]-translation';
 import { toTypedSchema } from '@vee-validate/zod';
 import * as z from 'zod';
 
