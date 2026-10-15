@@ -69,6 +69,7 @@ use Heritage\Foundation\Console\JobMakeCommand;
 use Heritage\Foundation\Console\JobMiddlewareMakeCommand;
 use Heritage\Foundation\Console\KeyGenerateCommand;
 use Heritage\Foundation\Console\LangPublishCommand;
+use Heritage\Foundation\Console\LangSyncCommand;
 use Heritage\Foundation\Console\ListenerMakeCommand;
 use Heritage\Foundation\Console\MailMakeCommand;
 use Heritage\Foundation\Console\ModelListCommand;
@@ -235,6 +236,7 @@ class ScribeServiceProvider extends ServiceProvider implements DeferrableProvide
         'JobMake' => JobMakeCommand::class,
         'JobMiddlewareMake' => JobMiddlewareMakeCommand::class,
         'LangPublish' => LangPublishCommand::class,
+        'LangSync' => LangSyncCommand::class,
         'ListenerMake' => ListenerMakeCommand::class,
         'MailMake' => MailMakeCommand::class,
         'MiddlewareMake' => MiddlewareMakeCommand::class,
