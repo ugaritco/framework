@@ -143,6 +143,9 @@
 * feat(generators): `make:request --operation` validates a translated field from the translation table's column (`max:255` for a `varchar`, `nullable` for a nullable column) and a plain field as `nullable` when its column is
 * feat(generators): `make:pages` on a translatable model posts its create and update forms to the `{model}-feature` routes, and checks those routes for the `create` / `edit` operations
 * feat(generators): `make:field` also edits the Features Store / Update requests and Save parcel; a translatable field is not added to a request without `$translatable`
+* feat(generators): the generated capability and translation capability constructors comment their promoted repository instead of an empty body
+* feat(generators): `make:result` comments the `SUCCESS` and `FAILED` cases with the action and the feedback key each reads (`responses.deleted`, `responses.translation.failed_saved`, …)
+* feat(generators)!: `make:request --operation=destroy --model=` (and so `make:capabilities`) generates a request requiring a `confirmation` equal to the record's confirmation field (its slug, else its required untranslated label field, else its id: the field the generated delete page asks for), checked against the route's record with `Rule::in()`, from the overridable `stubs/request.destroy.stub`
 * feat(translations): scoped route bindings resolve a translation parameter (`translation`, `{model}_translation` or the translation class name) of a translatable model through `translations()`, so `->scoped([...])` nested translation routes return 404 for another parent's translation without a check in the controller
 
 ## [v1.02.01] - 2026-10-11
