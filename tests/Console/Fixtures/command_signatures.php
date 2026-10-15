@@ -2979,17 +2979,6 @@ return [
                 'default' => null,
                 'description' => 'The model that the policy applies to',
             ],
-            [
-                'name' => 'guard',
-                'shortcut' => 'g',
-                'negatable' => false,
-                'valueRequired' => false,
-                'valueOptional' => true,
-                'isArray' => false,
-                'acceptValue' => true,
-                'default' => null,
-                'description' => 'The guard that the policy relies on',
-            ],
         ],
     ],
     \Heritage\Foundation\Console\ProviderMakeCommand::class => [

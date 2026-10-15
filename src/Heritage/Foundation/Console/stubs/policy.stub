@@ -2,8 +2,8 @@
 
 namespace {{ namespace }};
 
+use Heritage\Contracts\Auth\Actor;
 use {{ namespacedModel }};
-use {{ namespacedUserModel }};
 
 /**
  * Who may do what with {{ model }} records: the abilities its capabilities declare with #[Authorize].
@@ -15,10 +15,10 @@ class {{ class }}
     /**
      * List {{ model }} records.
      *
-     * @param  {{ user }}  $user
+     * @param  Actor  $actor
      * @return bool
      */
-    public function viewAny({{ user }} $user): bool
+    public function viewAny(Actor $actor): bool
     {
         return true;
     }
@@ -26,11 +26,11 @@ class {{ class }}
     /**
      * View a {{ model }}.
      *
-     * @param  {{ user }}  $user
+     * @param  Actor  $actor
      * @param  {{ model }}  ${{ modelVariable }}
      * @return bool
      */
-    public function view({{ user }} $user, {{ model }} ${{ modelVariable }}): bool
+    public function view(Actor $actor, {{ model }} ${{ modelVariable }}): bool
     {
         return true;
     }
@@ -38,10 +38,10 @@ class {{ class }}
     /**
      * Create a {{ model }}.
      *
-     * @param  {{ user }}  $user
+     * @param  Actor  $actor
      * @return bool
      */
-    public function create({{ user }} $user): bool
+    public function create(Actor $actor): bool
     {
         return true;
     }
@@ -49,11 +49,11 @@ class {{ class }}
     /**
      * Update a {{ model }}.
      *
-     * @param  {{ user }}  $user
+     * @param  Actor  $actor
      * @param  {{ model }}  ${{ modelVariable }}
      * @return bool
      */
-    public function update({{ user }} $user, {{ model }} ${{ modelVariable }}): bool
+    public function update(Actor $actor, {{ model }} ${{ modelVariable }}): bool
     {
         return true;
     }
@@ -61,23 +61,23 @@ class {{ class }}
     /**
      * Save a {{ model }}: create it, or update the given one.
      *
-     * @param  {{ user }}  $user
+     * @param  Actor  $actor
      * @param  {{ model }}|null  ${{ modelVariable }}
      * @return bool
      */
-    public function save({{ user }} $user, ?{{ model }} ${{ modelVariable }} = null): bool
+    public function save(Actor $actor, ?{{ model }} ${{ modelVariable }} = null): bool
     {
-        return ${{ modelVariable }} === null ? $this->create($user) : $this->update($user, ${{ modelVariable }});
+        return ${{ modelVariable }} === null ? $this->create($actor) : $this->update($actor, ${{ modelVariable }});
     }
 
     /**
      * Delete a {{ model }}.
      *
-     * @param  {{ user }}  $user
+     * @param  Actor  $actor
      * @param  {{ model }}  ${{ modelVariable }}
      * @return bool
      */
-    public function delete({{ user }} $user, {{ model }} ${{ modelVariable }}): bool
+    public function delete(Actor $actor, {{ model }} ${{ modelVariable }}): bool
     {
         return true;
     }
@@ -85,11 +85,11 @@ class {{ class }}
     /**
      * Restore a soft-deleted {{ model }}.
      *
-     * @param  {{ user }}  $user
+     * @param  Actor  $actor
      * @param  {{ model }}  ${{ modelVariable }}
      * @return bool
      */
-    public function restore({{ user }} $user, {{ model }} ${{ modelVariable }}): bool
+    public function restore(Actor $actor, {{ model }} ${{ modelVariable }}): bool
     {
         return true;
     }
@@ -97,11 +97,11 @@ class {{ class }}
     /**
      * Permanently delete a {{ model }}.
      *
-     * @param  {{ user }}  $user
+     * @param  Actor  $actor
      * @param  {{ model }}  ${{ modelVariable }}
      * @return bool
      */
-    public function forceDelete({{ user }} $user, {{ model }} ${{ modelVariable }}): bool
+    public function forceDelete(Actor $actor, {{ model }} ${{ modelVariable }}): bool
     {
         return true;
     }

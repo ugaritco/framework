@@ -6,6 +6,7 @@ class PolicyMakeCommandTest extends TestCase
 {
     protected $files = [
         'app/Policies/FooPolicy.php',
+        'app/Policies/Post/FooPolicy.php',
     ];
 
     public function testItCanGeneratePolicyFile()
@@ -15,8 +16,11 @@ class PolicyMakeCommandTest extends TestCase
 
         $this->assertFileContains([
             'namespace App\Policies;',
-            'use Heritage\Foundation\Auth\User;',
             'class FooPolicy',
+        ], 'app/Policies/FooPolicy.php');
+
+        $this->assertFileNotContains([
+            'User',
         ], 'app/Policies/FooPolicy.php');
     }
 
@@ -26,17 +30,22 @@ class PolicyMakeCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertFileContains([
-            'namespace App\Policies;',
+            'namespace App\Policies\Post;',
             'use App\Models\Post;',
-            'use Heritage\Foundation\Auth\User;',
+            'use Heritage\Contracts\Auth\Actor;',
             'class FooPolicy',
-            'public function viewAny(User $user)',
-            'public function view(User $user, Post $post)',
-            'public function create(User $user)',
-            'public function update(User $user, Post $post)',
-            'public function delete(User $user, Post $post)',
-            'public function restore(User $user, Post $post)',
-            'public function forceDelete(User $user, Post $post)',
-        ], 'app/Policies/FooPolicy.php');
+            'public function viewAny(Actor $actor)',
+            'public function view(Actor $actor, Post $post)',
+            'public function create(Actor $actor)',
+            'public function update(Actor $actor, Post $post)',
+            'public function save(Actor $actor, ?Post $post = null)',
+            'public function delete(Actor $actor, Post $post)',
+            'public function restore(Actor $actor, Post $post)',
+            'public function forceDelete(Actor $actor, Post $post)',
+        ], 'app/Policies/Post/FooPolicy.php');
+
+        $this->assertFileNotContains([
+            'User',
+        ], 'app/Policies/Post/FooPolicy.php');
     }
 }

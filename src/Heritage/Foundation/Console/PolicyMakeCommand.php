@@ -5,7 +5,6 @@ namespace Heritage\Foundation\Console;
 use Heritage\Console\GeneratorCommand;
 use Heritage\Foundation\Console\Concerns\InspectsModel;
 use Heritage\Support\Str;
-use LogicException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -25,8 +24,7 @@ class PolicyMakeCommand extends GeneratorCommand
     protected $signature = 'make:policy
                     {name : The name of the policy}
                     {--f|force : Create the class even if the policy already exists}
-                    {--m|model= : The model that the policy applies to}
-                    {--g|guard= : The guard that the policy relies on}';
+                    {--m|model= : The model that the policy applies to}';
 
     /**
      * The console command description.
@@ -50,9 +48,7 @@ class PolicyMakeCommand extends GeneratorCommand
      */
     protected function buildClass($name)
     {
-        $stub = $this->replaceUserNamespace(
-            parent::buildClass($name)
-        );
+        $stub = parent::buildClass($name);
 
         $model = $this->option('model');
 
@@ -74,18 +70,16 @@ class PolicyMakeCommand extends GeneratorCommand
     protected function addTranslateAbility(string $stub): string
     {
         $model = class_basename(str_replace('/', '\\', (string) $this->option('model')));
-        $user = class_basename($this->userProviderModel());
-        $variable = '$'.Str::camel($user);
 
         $method = <<<PHP
 
             /**
              * Add, edit or delete the translations of {$model} records.
              *
-             * @param  {$user}  {$variable}
+             * @param  Actor  \$actor
              * @return bool
              */
-            public function translate({$user} {$variable}): bool
+            public function translate(Actor \$actor): bool
             {
                 return true;
             }
@@ -93,53 +87,6 @@ class PolicyMakeCommand extends GeneratorCommand
         PHP;
 
         return preg_replace('/\}\s*$/', $method."\n", $stub, 1);
-    }
-
-    /**
-     * Replace the User model namespace.
-     *
-     * @param  string  $stub
-     * @return string
-     */
-    protected function replaceUserNamespace($stub)
-    {
-        $model = $this->userProviderModel();
-
-        if (! $model) {
-            return $stub;
-        }
-
-        return str_replace(
-            $this->rootNamespace().'User',
-            $model,
-            $stub
-        );
-    }
-
-    /**
-     * Get the model for the guard's user provider.
-     *
-     * @return string|null
-     *
-     * @throws \LogicException
-     */
-    protected function userProviderModel()
-    {
-        $config = $this->ugarit['config'];
-
-        $guard = $this->option('guard') ?: $config->get('auth.defaults.guard');
-
-        if (is_null($guardProvider = $config->get('auth.guards.'.$guard.'.provider'))) {
-            throw new LogicException('The ['.$guard.'] guard is not defined in your "auth" configuration file.');
-        }
-
-        if (! $config->get('auth.providers.'.$guardProvider.'.model')) {
-            return 'App\\Models\\User';
-        }
-
-        return $config->get(
-            'auth.providers.'.$guardProvider.'.model'
-        );
     }
 
     /**
@@ -161,8 +108,6 @@ class PolicyMakeCommand extends GeneratorCommand
 
         $model = class_basename(trim($model, '\\'));
 
-        $dummyUser = class_basename($this->userProviderModel());
-
         $dummyModel = Str::camel($model) === 'user' ? 'model' : $model;
 
         $replace = [
@@ -175,10 +120,6 @@ class PolicyMakeCommand extends GeneratorCommand
             'dummyModel' => Str::camel($dummyModel),
             '{{ modelVariable }}' => Str::camel($dummyModel),
             '{{modelVariable}}' => Str::camel($dummyModel),
-            'DummyUser' => $dummyUser,
-            '{{ user }}' => $dummyUser,
-            '{{user}}' => $dummyUser,
-            '$user' => '$'.Str::camel($dummyUser),
         ];
 
         $stub = str_replace(
