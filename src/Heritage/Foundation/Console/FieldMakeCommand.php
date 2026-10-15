@@ -262,7 +262,9 @@ class FieldMakeCommand extends GeneratorCommand
     }
 
     /**
-     * Add the fields' rules to the Store and Update requests, and the translatable fields to their $translatable.
+     * Add the fields' rules to the Store and Update requests of the capabilities, and of the features
+     * when the model has them; a translatable field goes only to the requests declaring $translatable
+     * (the features', the capabilities' saving their model's columns only).
      *
      * @param  string  $model
      * @param  string  $modelClass
@@ -271,29 +273,55 @@ class FieldMakeCommand extends GeneratorCommand
      */
     protected function editRequests(string $model, string $modelClass, array $fields): void
     {
-        foreach (['Store', 'Update'] as $operation) {
-            $path = $this->srcPath("Http/Requests/{$model}/Capabilities/{$operation}{$model}Request");
+        foreach (['Capabilities', 'Features'] as $layer) {
+            foreach (['Store', 'Update'] as $operation) {
+                $path = $this->srcPath("Http/Requests/{$model}/{$layer}/{$operation}{$model}Request");
 
-            $this->edit($path, function (string $source) use ($path, $modelClass, $fields) {
-                foreach ($fields as $field) {
-                    $related = $this->relatedModel($modelClass, $field);
-                    $rule = $field->rule($related ? $this->tableOf($related) : null);
-
-                    $source = $this->add($source, $path, '/function rules\(\)[^{]*\{\s*return\s*\[/', "'{$field->name}' => '{$rule}'", 'rules()');
-
-                    if ($field->has('translatable')) {
-                        $source = $this->add($source, $path, '/protected (?:array )?\$translatable\s*=\s*\[/', "'{$field->name}'", '$translatable (the request is not translatable)');
-                    }
+                if ($layer === 'Features' && ! $this->files->exists($path)) {
+                    continue;
                 }
 
-                return $source;
-            });
+                $this->editRequest($path, $modelClass, $fields);
+            }
         }
     }
 
     /**
-     * Add the fields to the Save parcel's constructor, and to the Index parcel's filters
-     * (booleans and foreign keys) or its searchable and sortable columns (texts).
+     * Add the fields' rules to a request, and the translatable fields to its $translatable.
+     *
+     * @param  string  $path
+     * @param  string  $modelClass
+     * @param  array<int, Field>  $fields
+     * @return void
+     */
+    protected function editRequest(string $path, string $modelClass, array $fields): void
+    {
+        $this->edit($path, function (string $source) use ($path, $modelClass, $fields) {
+            $translates = (bool) preg_match('/protected (?:array )?\$translatable\s*=/', $source);
+
+            foreach ($fields as $field) {
+                if ($field->has('translatable') && ! $translates) {
+                    continue;
+                }
+
+                $related = $this->relatedModel($modelClass, $field);
+                $rule = $field->rule($related ? $this->tableOf($related) : null);
+
+                $source = $this->add($source, $path, '/function rules\(\)[^{]*\{\s*return\s*\[/', "'{$field->name}' => '{$rule}'", 'rules()');
+
+                if ($field->has('translatable')) {
+                    $source = $this->add($source, $path, '/protected (?:array )?\$translatable\s*=\s*\[/', "'{$field->name}'", '$translatable');
+                }
+            }
+
+            return $source;
+        });
+    }
+
+    /**
+     * Add the fields to the Save parcels' constructor (the capabilities', and the features' when the
+     * model has one), and to the Index parcel's filters (booleans and foreign keys) or its searchable
+     * and sortable columns (texts).
      *
      * @param  string  $model
      * @param  array<int, Field>  $fields
@@ -301,17 +329,23 @@ class FieldMakeCommand extends GeneratorCommand
      */
     protected function editParcels(string $model, array $fields): void
     {
-        $save = $this->srcPath("Parcels/{$model}/Capabilities/Save{$model}Parcel");
+        foreach (['Capabilities', 'Features'] as $layer) {
+            $save = $this->srcPath("Parcels/{$model}/{$layer}/Save{$model}Parcel");
 
-        $this->edit($save, function (string $source) use ($save, $fields) {
-            foreach ($fields as $field) {
-                if (! $field->has('translatable')) {
-                    $source = $this->addParameter($source, $save, $field, "The {$field->name} column.");
-                }
+            if ($layer === 'Features' && ! $this->files->exists($save)) {
+                continue;
             }
 
-            return $source;
-        });
+            $this->edit($save, function (string $source) use ($save, $fields) {
+                foreach ($fields as $field) {
+                    if (! $field->has('translatable')) {
+                        $source = $this->addParameter($source, $save, $field, "The {$field->name} column.");
+                    }
+                }
+
+                return $source;
+            });
+        }
 
         $index = $this->srcPath("Parcels/{$model}/Capabilities/Index{$model}Parcel");
 

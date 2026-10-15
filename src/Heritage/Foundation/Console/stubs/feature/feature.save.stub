@@ -1,0 +1,89 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ rootNamespace }}\Features\{{ model }};
+
+use Heritage\Capabilities\Attributes\Authorize;
+use Heritage\Features\Feature;
+use Heritage\Features\Flow\Call;
+use Heritage\Features\Flow\FlowState;
+use Heritage\Outcomes\Outcome;
+use Heritage\Translation\Locales;
+use {{ rootNamespace }}\Capabilities\{{ model }}\Save{{ model }}Capability;
+use {{ rootNamespace }}\Capabilities\{{ model }}\Show{{ model }}Capability;
+use {{ rootNamespace }}\Capabilities\{{ model }}\Translation\Destroy{{ model }}TranslationCapability;
+use {{ rootNamespace }}\Capabilities\{{ model }}\Translation\Save{{ model }}TranslationCapability;
+use {{ rootNamespace }}\Enums\{{ model }}\Features\Save{{ model }}Result;
+use {{ rootNamespace }}\Models\{{ model }};
+use {{ rootNamespace }}\Outcomes\{{ model }}\{{ model }}Outcome;
+use {{ rootNamespace }}\Parcels\{{ model }}\Capabilities\Save{{ model }}Parcel as Save{{ model }}CapabilityParcel;
+use {{ rootNamespace }}\Parcels\{{ model }}\Capabilities\Show{{ model }}Parcel;
+use {{ rootNamespace }}\Parcels\{{ model }}\Capabilities\Translation\Destroy{{ model }}TranslationParcel;
+use {{ rootNamespace }}\Parcels\{{ model }}\Capabilities\Translation\Save{{ model }}TranslationParcel;
+use {{ rootNamespace }}\Parcels\{{ model }}\Features\Save{{ model }}Parcel as Save{{ model }}FeatureParcel;
+
+/**
+ * Saves a {{ label }} with its translations.
+ *
+ * Flow, inside one transaction:
+ * 1. {{ modelVariable }}: Save{{ model }}Capability saves the {{ label }}'s own columns.
+ * 2. translations: for each locale of the payload (['ar' => ['{{ confirm }}' => ...], 'en' => null]),
+ *    Save{{ model }}TranslationCapability creates or updates it, Destroy{{ model }}TranslationCapability
+ *    deletes a locale sent as null. Omitted locales are left untouched.
+ * 3. {{ modelVariable }}WithTranslations: Show{{ model }}Capability loads the saved {{ label }} with its translations.
+ *
+ * Any failed step rolls the whole save back and returns a {{ model }}Outcome with the step's result.
+ */
+#[Authorize('save', {{ model }}::class)]
+class Save{{ model }}Feature extends Feature
+{
+    /**
+     * Save the {{ label }}, then each locale of its translations payload, in one transaction.
+     *
+     * @param  Save{{ model }}FeatureParcel  $data  The validated input; an attached {{ label }} is updated.
+     * @return Outcome SUCCESS (or SUCCESS_NO_TRANSLATION) with the saved {{ label }}; on a failed step, the
+     *                 step's result with its reason in `errors` (keyed `translations.{locale}` for a locale).
+     */
+    protected function perform(Save{{ model }}FeatureParcel $data): Outcome
+    {
+        return $this->flow({{ model }}Outcome::class, Save{{ model }}Result::FAILED)
+            ->step('{{ modelVariable }}', Save{{ model }}Capability::class, Save{{ model }}CapabilityParcel::fromParcel($data),
+                failWith: Save{{ model }}Result::FAILED_MODEL_SAVE)
+
+            ->each('translations', $data->translations ?? [],
+                fn (?array $attributes, string $locale, FlowState $state) => $this->translationCall($state->{{ modelVariable }}->id, $locale, $attributes),
+                errorKey: 'translations.{key}',
+                context: fn (FlowState $state, string $locale) => [
+                    'entity' => $state->{{ modelVariable }}->getRouteKey(),
+                    'locale' => Locales::resolver()->label($locale),
+                ])
+
+            ->step('{{ modelVariable }}WithTranslations', Show{{ model }}Capability::class,
+                fn (FlowState $state) => new Show{{ model }}Parcel(id: $state->{{ modelVariable }}->id))
+
+            ->finish(fn (FlowState $state) => {{ model }}Outcome::fromResult(
+                empty($data->translations) ? Save{{ model }}Result::SUCCESS_NO_TRANSLATION : Save{{ model }}Result::SUCCESS,
+                $state->{{ modelVariable }}WithTranslations
+            ));
+    }
+
+    /**
+     * The call saving a locale, or deleting it when sent as null.
+     *
+     * @param  int  ${{ foreignKeyVariable }}
+     * @param  string  $locale
+     * @param  array<string, mixed>|null  $attributes
+     * @return Call
+     */
+    protected function translationCall(int ${{ foreignKeyVariable }}, string $locale, ?array $attributes): Call
+    {
+        if ($attributes === null) {
+            return Call::to(Destroy{{ model }}TranslationCapability::class, new Destroy{{ model }}TranslationParcel({{ foreignKey }}: ${{ foreignKeyVariable }}, locale: $locale))
+                ->failWith(Save{{ model }}Result::FAILED_TRANSLATION_DESTROY);
+        }
+
+        return Call::to(Save{{ model }}TranslationCapability::class, Save{{ model }}TranslationParcel::fromArray([...$attributes, '{{ foreignKey }}' => ${{ foreignKeyVariable }}, 'locale' => $locale]))
+            ->failWith(Save{{ model }}Result::FAILED_TRANSLATION_SAVE);
+    }
+}

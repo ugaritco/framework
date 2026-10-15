@@ -13,6 +13,9 @@ use Symfony\Component\Console\Attribute\AsCommand;
  * Generates the full capabilities slice of a model: its repository, policy, results, parcels,
  * outcome, capabilities (index, create, show, edit, save, destroy), form requests, resource,
  * controller and lang file, each by its own make: command.
+ *
+ * A translatable model's capabilities save its own columns only: its translations have their own
+ * capabilities, and Save{Model}Feature saves both in one flow, behind the {model}-feature routes.
  */
 #[AsCommand(name: 'make:capabilities')]
 class CapabilitiesMakeCommand extends GeneratorCommand
@@ -83,7 +86,9 @@ class CapabilitiesMakeCommand extends GeneratorCommand
         $this->makeLang($model, $modelClass);
 
         if ($translatable) {
+            $this->makeFeatureRequests($model);
             $this->makeTranslation($model, $modelClass);
+            $this->makeFeatures($model, $modelClass);
         }
 
         $routes = $this->routes($model, $translatable);
@@ -104,8 +109,8 @@ class CapabilitiesMakeCommand extends GeneratorCommand
     }
 
     /**
-     * The routes of the slice, keyed by the alias of their controller: the resource, and the
-     * translations nested under it for a translatable model.
+     * The routes of the slice, keyed by the alias of their controller: the resource, and for a
+     * translatable model the store and update of its features and the translations nested under it.
      *
      * @param  string  $model
      * @param  bool  $translatable
@@ -124,6 +129,11 @@ class CapabilitiesMakeCommand extends GeneratorCommand
 
         if ($translatable) {
             $parameter = Str::snake($model);
+            $routes["{$model}FeaturesController"] = [
+                trim($this->rootNamespace(), '\\')."\\Http\\Controllers\\{$model}\\Features\\{$model}Controller",
+                "Route::resource('{$kebab}-feature', {$model}FeaturesController::class)"
+                ."->only(['store', 'update'])->parameters(['{$kebab}-feature' => '{$parameter}']);",
+            ];
             $routes["{$model}TranslationCapabilitiesController"] = [
                 "{$controllers}\\{$model}TranslationController",
                 "Route::resource('{{$parameter}}/{$kebab}-translation', {$model}TranslationCapabilitiesController::class)"
@@ -351,9 +361,80 @@ class CapabilitiesMakeCommand extends GeneratorCommand
             'controller' => ["Http\\Controllers\\{$model}\\Capabilities\\{$model}TranslationController", []],
         ];
 
+        $this->writeStubs('translation', $files, $replace);
+    }
+
+    /**
+     * Generate the form requests of a translatable model's features, validating its columns and
+     * its translated attributes, before the translation requests read their rules.
+     *
+     * @param  string  $model
+     * @return void
+     */
+    protected function makeFeatureRequests(string $model): void
+    {
+        foreach (['Store', 'Update'] as $request) {
+            $this->generate('make:request', array_filter([
+                'name' => "{$request}{$model}Request",
+                '--feature' => true,
+                '--model' => $model,
+                '--operation' => strtolower($request),
+                '--action' => "Features/{$model}/Save{$model}Feature",
+                '--nullable' => $this->option('nullable'),
+            ]));
+        }
+    }
+
+    /**
+     * Generate the features of a translatable model: Save{Model}Feature saving the model with its
+     * translations through their capabilities, its parcel, results and controller.
+     *
+     * @param  string  $model
+     * @param  class-string  $modelClass
+     * @return void
+     */
+    protected function makeFeatures(string $model, string $modelClass): void
+    {
+        $this->generate('make:parcel', [
+            'name' => "{$model}/Features/Save{$model}Parcel",
+            '--model' => $model,
+            '--operation' => 'save',
+        ]);
+
+        $instance = new $modelClass;
+        $translatable = $this->modelTranslatable($modelClass);
+        $foreignKey = $instance->getTranslationForeignKey();
+
+        $this->writeStubs('feature', [
+            'feature.save' => ["Features\\{$model}\\Save{$model}Feature", []],
+            'result.save' => ["Enums\\{$model}\\Features\\Save{$model}Result", []],
+            'controller' => ["Http\\Controllers\\{$model}\\Features\\{$model}Controller", []],
+        ], [
+            '{{ rootNamespace }}' => trim($this->rootNamespace(), '\\'),
+            '{{ model }}' => $model,
+            '{{ modelVariable }}' => Str::camel($model),
+            '{{ label }}' => Str::lower(Str::headline($model)),
+            '{{ foreignKey }}' => $foreignKey,
+            '{{ foreignKeyVariable }}' => Str::camel($foreignKey),
+            '{{ confirm }}' => array_values(array_intersect(['name', 'title'], $translatable))[0] ?? $translatable[0],
+        ]);
+    }
+
+    /**
+     * Write the files of a slice from the stubs of a folder, keeping the existing ones unless --force.
+     *
+     * @param  string  $folder  The stubs folder: "translation" or "feature".
+     * @param  array<string, array{0: string, 1: array<string, string>}>  $files  Stub => [class relative to the root namespace, extra replacements].
+     * @param  array<string, string>  $replace
+     * @return void
+     */
+    protected function writeStubs(string $folder, array $files, array $replace): void
+    {
+        $root = trim($this->rootNamespace(), '\\');
         $types = [
             'repository.interface' => 'Repository contract', 'repository' => 'Repository', 'parcel' => 'Parcel',
             'capability' => 'Capability', 'request' => 'Request', 'resource' => 'Resource', 'controller' => 'Controller',
+            'feature' => 'Feature', 'result' => 'Result',
         ];
 
         foreach ($files as $stub => [$class, $extra]) {
@@ -366,7 +447,7 @@ class CapabilitiesMakeCommand extends GeneratorCommand
                 continue;
             }
 
-            $source = str_replace(array_keys([...$replace, ...$extra]), array_values([...$replace, ...$extra]), $this->files->get($this->translationStub($stub)));
+            $source = str_replace(array_keys([...$replace, ...$extra]), array_values([...$replace, ...$extra]), $this->files->get($this->sliceStub($folder, $stub)));
 
             $this->makeDirectory($path);
             $this->files->put($path, $this->sortUses($source));
@@ -375,8 +456,9 @@ class CapabilitiesMakeCommand extends GeneratorCommand
     }
 
     /**
-     * The rules of the translatable attributes, read from the model's store request (a plain
-     * string when it has none), and whether the migrations make each unique per locale.
+     * The rules of the translatable attributes, read from the model's store request (its features'
+     * one, else its capabilities'; a plain string when none has it), and whether the migrations
+     * make each unique per locale.
      *
      * @param  string  $model
      * @param  string  $table
@@ -385,8 +467,18 @@ class CapabilitiesMakeCommand extends GeneratorCommand
      */
     protected function translationRules(string $model, string $table, array $translatable): array
     {
-        $request = $this->getPath(trim($this->rootNamespace(), '\\')."\\Http\\Requests\\{$model}\\Capabilities\\Store{$model}Request");
-        $source = $this->files->exists($request) ? Str::after($this->files->get($request), 'function rules(') : '';
+        $source = '';
+
+        foreach (['Features', 'Capabilities'] as $layer) {
+            $request = $this->getPath(trim($this->rootNamespace(), '\\')."\\Http\\Requests\\{$model}\\{$layer}\\Store{$model}Request");
+
+            if ($this->files->exists($request)) {
+                $source = Str::after($this->files->get($request), 'function rules(');
+
+                break;
+            }
+        }
+
         $migrations = $this->migrationsSource($table);
         $rules = [];
 
@@ -491,17 +583,17 @@ class CapabilitiesMakeCommand extends GeneratorCommand
     }
 
     /**
-     * The stub of a translation slice file: the application's stubs/translation/{name}.stub,
-     * else the framework's.
+     * The stub of a slice file: the application's stubs/{folder}/{name}.stub, else the framework's.
      *
+     * @param  string  $folder  "translation" or "feature".
      * @param  string  $name
      * @return string
      */
-    protected function translationStub(string $name): string
+    protected function sliceStub(string $folder, string $name): string
     {
-        return file_exists($custom = $this->ugarit->basePath("stubs/translation/{$name}.stub"))
+        return file_exists($custom = $this->ugarit->basePath("stubs/{$folder}/{$name}.stub"))
             ? $custom
-            : __DIR__."/stubs/translation/{$name}.stub";
+            : __DIR__."/stubs/{$folder}/{$name}.stub";
     }
 
     /**

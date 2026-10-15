@@ -1,0 +1,42 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ rootNamespace }}\Http\Controllers\{{ model }}\Features;
+
+use Heritage\Routing\Controller;
+use {{ rootNamespace }}\Features\{{ model }}\Save{{ model }}Feature;
+use {{ rootNamespace }}\Http\Requests\{{ model }}\Features\Store{{ model }}Request;
+use {{ rootNamespace }}\Http\Requests\{{ model }}\Features\Update{{ model }}Request;
+use {{ rootNamespace }}\Http\Resources\{{ model }}\{{ model }}Resource;
+use {{ rootNamespace }}\Models\{{ model }};
+use {{ rootNamespace }}\Parcels\{{ model }}\Features\Save{{ model }}Parcel;
+
+/**
+ * Handles the HTTP endpoints of the {{ model }} features: saving a {{ label }} with its translations.
+ */
+class {{ model }}Controller extends Controller
+{
+    /**
+     * Create a {{ label }} with its translations.
+     *
+     * @param  Store{{ model }}Request  $request  Validated creation payload.
+     * @return mixed
+     */
+    public function store(Store{{ model }}Request $request)
+    {
+        return $this->back(Save{{ model }}Feature::class, Save{{ model }}Parcel::fromArray($request->validated()), {{ model }}Resource::class);
+    }
+
+    /**
+     * Update a {{ label }} and its translations.
+     *
+     * @param  Update{{ model }}Request  $request  Validated update payload.
+     * @param  {{ model }}  ${{ modelVariable }}  Resolved via route-model binding.
+     * @return mixed
+     */
+    public function update(Update{{ model }}Request $request, {{ model }} ${{ modelVariable }})
+    {
+        return $this->back(Save{{ model }}Feature::class, Save{{ model }}Parcel::fromArray($request->validated())->setModel(${{ modelVariable }}), {{ model }}Resource::class);
+    }
+}
