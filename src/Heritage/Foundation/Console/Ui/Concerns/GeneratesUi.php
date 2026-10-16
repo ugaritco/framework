@@ -281,18 +281,20 @@ trait GeneratesUi
      * @param  string  $source
      * @param  string  $path
      * @param  string  $opening  A regex matching up to and including the opening "[", "(" or "{".
-     * @param  string  $key  Text whose presence in the list means the item is there.
+     * @param  string|array<int, string>  $key  Text whose presence in the list means the item is there (any of them).
      * @param  string  $item
      * @param  string  $place  The list, as reported when it is not found.
      * @param  bool  $trailingComma
      * @return string
      */
-    protected function addEntry(string $source, string $path, string $opening, string $key, string $item, string $place, bool $trailingComma = true): string
+    protected function addEntry(string $source, string $path, string $opening, string|array $key, string $item, string $place, bool $trailingComma = true): string
     {
         $content = $this->listContent($source, $opening);
 
-        if ($content !== null && str_contains($content, $key)) {
-            return $source;
+        foreach ((array) $key as $text) {
+            if ($content !== null && str_contains($content, $text)) {
+                return $source;
+            }
         }
 
         $edited = $content === null ? null : $this->addToList($source, $opening, $item, null, $trailingComma);

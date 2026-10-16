@@ -17,9 +17,10 @@ use Heritage\Foundation\Console\Ui\Blueprint;
  * of a stub.
  *
  * An edit adds an item to a list of an existing file, given as ['path' => string (relative to the
- * application), 'opening' => regex, 'key' => string, 'item' => string, 'place' => string,
- * 'trailingComma' => bool, 'icons' => array<int, string>, 'imports' => array<string, string>]: the
- * icons, and each import whose key is absent, are added when the item is.
+ * application), 'opening' => regex, 'key' => string|array<int, string>, 'item' => string,
+ * 'place' => string, 'trailingComma' => bool, 'icons' => array<int, string>, 'imports' =>
+ * array<string, string>]: the item is added unless the list holds its key (or one of its keys);
+ * the icons, and each import whose key is absent, are added when the item is.
  */
 interface Stack
 {

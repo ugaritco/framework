@@ -160,7 +160,7 @@ class VueStack implements Stack
             [
                 'path' => 'resources/js/app.ts',
                 'opening' => '/import\.meta\.glob<DefineComponent>\(\[/',
-                'key' => "artifacts/{$artifact}/pages",
+                'key' => ["artifacts/{$artifact}/pages", 'artifacts/*/pages'],
                 'item' => "'./apps/panel/artifacts/{$artifact}/pages/**/*.vue'",
                 'place' => 'the artifact pages glob',
             ],
