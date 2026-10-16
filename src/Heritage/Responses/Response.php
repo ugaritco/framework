@@ -60,7 +60,7 @@ abstract readonly class Response extends Outcome
      */
     public function getContext(): array
     {
-        return array_merge($this->defaultContext(), $this->context);
+        return $this->feedbackPlaceholders(array_merge($this->defaultContext(), $this->context));
     }
 
     /**

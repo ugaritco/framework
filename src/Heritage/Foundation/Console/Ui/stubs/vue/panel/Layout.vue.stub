@@ -1,20 +1,8 @@
 <script setup lang="ts">
-import { Link, usePage } from '@inertiajs/vue3';
-import { Button } from '@/components/ui/button';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { toUrl, urlIsActive } from '@/lib/utils';
 import type { BreadcrumbItem } from '@/types';
-import { [[ artifactCamel ]]NavItems } from '@artifact/[[ artifact ]]/navigation';
-import { [[ icon ]], PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
 
 /**
- * [[ title ]] artifact layout: the artifact's identity card and inner sidebar beside the page.
+ * [[ title ]] artifact layout. Its interfaces and entities are listed in the panel sidebar.
  */
 
 interface Props {
@@ -25,142 +13,10 @@ interface Props {
 withDefaults(defineProps<Props>(), {
     breadcrumbs: () => [],
 });
-
-const page = usePage();
-
-/** Whether the inner sidebar shows icons only. */
-const isCollapsed = ref(false);
-
-/** The summary and the entities of the artifact. */
-const sidebarNavItems = computed(() => [[ artifactCamel ]]NavItems());
-
-/** Whether an item links to the current page (or, unless it ignores them, to a page under it). */
-const isActive = (item: (typeof sidebarNavItems.value)[number]) =>
-    urlIsActive(item.href, page.url, { ignoreNested: item.ignoreNested });
 </script>
 
 <template>
-    <div
-        class="flex h-full min-h-0 flex-1 flex-col gap-6 overflow-hidden lg:flex-row"
-    >
-        <!-- Inner collapsible sidebar -->
-        <aside
-            :class="[
-                'flex shrink-0 flex-col transition-all duration-300 ease-in-out',
-                isCollapsed ? 'items-center lg:w-16' : 'lg:w-64',
-            ]"
-        >
-            <!-- Module identity card -->
-            <div
-                :class="[
-                    'relative mb-4 w-full overflow-hidden rounded-2xl bg-primary/5 ring-1 ring-primary/10 transition-all duration-300 dark:bg-primary/[0.03]',
-                    isCollapsed ? 'flex flex-col items-center p-2' : 'p-4',
-                ]"
-            >
-                <div
-                    v-if="!isCollapsed"
-                    class="pointer-events-none absolute -end-4 -top-4 text-primary/5"
-                >
-                    <[[ icon ]] class="size-24 rotate-12" />
-                </div>
-
-                <div class="relative flex flex-col gap-3">
-                    <div class="flex items-center justify-between gap-2">
-                        <div class="flex items-center gap-2.5">
-                            <div
-                                class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-xs ring-1 ring-primary/20"
-                            >
-                                <[[ icon ]] class="size-5" />
-                            </div>
-                            <h2
-                                v-if="!isCollapsed"
-                                class="truncate text-base font-bold tracking-tight text-foreground"
-                            >
-                                {{ $t('[[ artifact ]]::artifact.name') }}
-                            </h2>
-                        </div>
-
-                        <!-- Collapse / expand -->
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            class="size-7 rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                            @click="isCollapsed = !isCollapsed"
-                        >
-                            <PanelLeftClose
-                                v-if="!isCollapsed"
-                                class="size-4 rtl:rotate-180"
-                            />
-                            <PanelLeftOpen v-else class="size-4 rtl:rotate-180" />
-                            <span class="sr-only">Toggle sidebar</span>
-                        </Button>
-                    </div>
-
-                    <p
-                        v-if="!isCollapsed"
-                        class="line-clamp-2 text-xs leading-relaxed text-muted-foreground/80"
-                    >
-                        {{ $t('[[ artifact ]]::artifact.description') }}
-                    </p>
-                </div>
-            </div>
-
-            <!-- Navigation items -->
-            <nav class="flex min-h-0 w-full flex-col space-y-1 overflow-y-auto">
-                <TooltipProvider
-                    v-for="item in sidebarNavItems"
-                    :key="toUrl(item.href)"
-                >
-                    <Tooltip :disabled="!isCollapsed">
-                        <TooltipTrigger as-child>
-                            <Button
-                                variant="ghost"
-                                :class="[
-                                    'group relative flex h-10 w-full shrink-0 items-center rounded-xl transition-all',
-                                    isCollapsed
-                                        ? 'justify-center px-0'
-                                        : 'justify-start px-3.5',
-                                    isActive(item)
-                                        ? 'bg-primary/10 font-bold text-primary hover:bg-primary/15'
-                                        : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground',
-                                ]"
-                                as-child
-                            >
-                                <Link :href="toUrl(item.href)">
-                                    <component
-                                        :is="item.icon"
-                                        v-if="item.icon"
-                                        :class="[
-                                            'size-4.5 shrink-0 transition-transform group-hover:scale-110',
-                                            isCollapsed ? '' : 'me-3',
-                                            isActive(item)
-                                                ? 'text-primary'
-                                                : 'text-muted-foreground group-hover:text-foreground',
-                                        ]"
-                                    />
-                                    <span
-                                        v-if="!isCollapsed"
-                                        class="flex-1 truncate text-start"
-                                        >{{ item.title }}</span
-                                    >
-                                    <div
-                                        v-if="!isCollapsed && isActive(item)"
-                                        class="size-1.5 rounded-full bg-primary"
-                                    />
-                                </Link>
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">
-                            <p>{{ item.title }}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
-            </nav>
-        </aside>
-
-        <!-- Page content -->
-        <main class="min-h-0 min-w-0 flex-1 space-y-4 overflow-x-hidden">
-            <slot />
-        </main>
+    <div class="min-h-0 min-w-0 flex-1 space-y-4 overflow-x-hidden">
+        <slot />
     </div>
 </template>

@@ -4,18 +4,18 @@ import { trans } from 'laravel-vue-i18n';
 import { LayoutDashboard } from 'lucide-vue-next';
 
 /**
- * An item of the module's inner sidebar; the summary is active only on its own page.
+ * An item of the module's panel sidebar; the summary is active only on its own page.
  */
 export type [[ Artifact ]]NavItem = NavItem & { ignoreNested?: boolean };
 
 /**
- * The entities of the [[ title ]] module, in the order of its inner sidebar.
+ * The entities of the [[ title ]] module, in the order of its panel sidebar.
  */
 export const [[ artifactCamel ]]Entities = (): [[ Artifact ]]NavItem[] => [
 ];
 
 /**
- * The inner sidebar of the [[ title ]] module: its summary, then its entities.
+ * The [[ title ]] module in the panel sidebar: its summary, then its entities.
  */
 export const [[ artifactCamel ]]NavItems = (): [[ Artifact ]]NavItem[] => [
     {

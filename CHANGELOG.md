@@ -72,6 +72,9 @@
 * refactor(outcomes)!: the Outcome `data` is `mixed`: capabilities return models, collections or paginators instead of Resources
 * feat(routing): `Controller::execute()` / `respond()` accept `resource:`, presenting the outcome's data with a Resource (`make()` for a model, `collection()` for a collection, paginator or array) through the new `present()`
 * fix(responders): the response carries the resolved `title`, `message`, `variant` and `statusCode` instead of the raw constructor values; arrays of Resources/Arrayables are resolved
+* feat(outcomes): fill the `:entity` and `:locale` feedback placeholders from the subject model or translation model when omitted
+* fix(translation): sort placeholders by length descending in `Translator::makeReplacements()` to prevent prefix overlap, and map null to an empty string
+* refactor(panel): clean the panel Layout stub and resolve relation select labels via listedOptions helpers
 * refactor(console): `make:capability` / `make:feature` with `--outcome` generate `{Outcome}::fromResult(...)`
 * feat(routing): add `Controller::page()`, `back()`, `toRoute()` and `json()` shortcuts over `execute()`
 * feat(responders): add `ResponderType::AUTO`, resolved by the controller per request (`resolveResponderType()`): JSON when the client expects JSON and is not an Inertia visit, otherwise the Inertia page, the route redirect or a redirect back. The shortcuts (except `json()`) use it

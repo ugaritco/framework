@@ -333,8 +333,12 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 
             $shouldReplace[':'.Str::ucfirst($key)] = Str::ucfirst($value ?? '');
             $shouldReplace[':'.Str::upper($key)] = Str::upper($value ?? '');
-            $shouldReplace[':'.$key] = $value;
+            $shouldReplace[':'.$key] = $value ?? '';
         }
+
+        // Longer placeholders first, so :model does not consume the start of a longer key,
+        // and a null value never leaves the placeholder in place.
+        uksort($shouldReplace, static fn (string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
 
         return strtr($line, $shouldReplace);
     }

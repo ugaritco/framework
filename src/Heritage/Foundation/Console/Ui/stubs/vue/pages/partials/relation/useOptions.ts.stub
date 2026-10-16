@@ -1,4 +1,5 @@
 import { index } from '@/routes/[[ relatedRoute ]]';
+import { listedLabel, listedRecords } from '@/lib/listedOptions';
 import { ref } from 'vue';
 
 /**
@@ -31,9 +32,9 @@ export const use[[ Related ]]Options = () => {
             },
         })
             .then((response) => (response.ok ? response.json() : { data: [] }))
-            .then((json: { data?: [[ Related ]]Option[] }) => {
-                options.value = (json.data ?? []).sort((a, b) =>
-                    String(a.[[ relatedLabelField ]] ?? a.id).localeCompare(String(b.[[ relatedLabelField ]] ?? b.id)),
+            .then((json: { data?: unknown }) => {
+                options.value = listedRecords<[[ Related ]]Option>(json.data).sort((a, b) =>
+                    listedLabel(a).localeCompare(listedLabel(b)),
                 );
             })
             .catch(() => {
@@ -49,7 +50,7 @@ export const use[[ Related ]]Options = () => {
         const option = options.value.find((item) => item.id === id);
 
         if (option) {
-            return String(option.[[ relatedLabelField ]] ?? option.id);
+            return listedLabel(option);
         }
 
         return id == null ? '' : `#${id}`;

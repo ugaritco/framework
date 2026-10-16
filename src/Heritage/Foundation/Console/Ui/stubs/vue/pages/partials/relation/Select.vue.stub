@@ -19,7 +19,7 @@ import { use[[ Related ]]Options } from '[[ optionsPath ]]';
  * The `[[ field ]]` field of the [[ label ]] forms: a select of the [[ relatedLabels ]].
  */
 
-const { options, loading } = use[[ Related ]]Options();
+const { options, loading, labelOf } = use[[ Related ]]Options();
 </script>
 
 <template>
@@ -43,7 +43,7 @@ const { options, loading } = use[[ Related ]]Options();
                             :key="option.id"
                             :value="option.id"
                         >
-                            {{ option.[[ relatedLabelField ]] || option.id }}
+                            {{ labelOf(option.id) }}
                         </SelectItem>
                     </SelectContent>
                 </Select>

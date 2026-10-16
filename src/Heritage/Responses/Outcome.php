@@ -8,6 +8,9 @@ use Heritage\Actions\Feedback\Toast;
 use Heritage\Contracts\Result\ResultContract;
 use Heritage\Contracts\Support\Arrayable;
 use Heritage\Contracts\Support\Jsonable;
+use Heritage\Contracts\Translation\LocaleResolver;
+use Heritage\Database\Eloquent\Model;
+use Heritage\Database\Eloquent\ModelTranslation;
 use Heritage\Enums\Actions\Feedback\Variant;
 use Heritage\Http\Resources\Json\JsonResource;
 use JsonSerializable;
@@ -315,7 +318,7 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
      */
     public function getContext(): array
     {
-        return array_merge($this->defaultContext(), $this->context);
+        return $this->feedbackPlaceholders(array_merge($this->defaultContext(), $this->context));
     }
 
     /**
@@ -327,6 +330,126 @@ readonly class Outcome implements Arrayable, Jsonable, JsonSerializable
     protected function defaultContext(): array
     {
         return [];
+    }
+
+    /**
+     * Fill the name and locale placeholders from the record when the caller did not.
+     *
+     * A translation outcome otherwise leaves :entity empty and :locale untouched, and a record
+     * addressed by its numeric key would show that key where the message expects a name.
+     *
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
+     */
+    protected function feedbackPlaceholders(array $context): array
+    {
+        $subject = $this->subject();
+
+        if (! $subject instanceof Model) {
+            return $context;
+        }
+
+        $record = $subject;
+        $localeCode = null;
+
+        if ($subject instanceof ModelTranslation) {
+            $localeCode = $subject->getLocaleCode();
+            $parent = $subject->parent;
+
+            if ($parent instanceof Model) {
+                $record = $parent;
+            }
+        }
+
+        if ($this->placeholderMissing($context['entity'] ?? null) || $this->placeholderIsKey($context['entity'] ?? null, $record)) {
+            $name = $this->displayName($subject) ?? $this->displayName($record);
+
+            if ($name !== null) {
+                $context['entity'] = $name;
+            }
+        }
+
+        if ($localeCode !== null && $this->placeholderMissing($context['locale'] ?? null)) {
+            $context['locale'] = $this->localeLabel($localeCode);
+        }
+
+        return $context;
+    }
+
+    /**
+     * The first human label on the model: its translated name, then native name, title or slug.
+     */
+    protected function displayName(Model $model): ?string
+    {
+        $attributes = array_unique([
+            ...(method_exists($model, 'getTranslatable') ? $model->getTranslatable() : []),
+            'name',
+            'native_name',
+            'title',
+            'slug',
+        ]);
+
+        foreach ($attributes as $attribute) {
+            if (! is_string($attribute) || $attribute === '') {
+                continue;
+            }
+
+            $value = $this->readableAttribute($model, $attribute);
+
+            if (is_scalar($value) && trim((string) $value) !== '') {
+                return trim((string) $value);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * A translatable attribute, a stored column, or a get mutator; nothing else, so a missing
+     * column is not queried as a relationship.
+     */
+    protected function readableAttribute(Model $model, string $attribute): mixed
+    {
+        if (method_exists($model, 'isTranslatableAttribute') && $model->isTranslatableAttribute($attribute)) {
+            return $model->getAttribute($attribute);
+        }
+
+        if (array_key_exists($attribute, $model->getAttributes()) || $model->hasGetMutator($attribute)) {
+            return $model->getAttribute($attribute);
+        }
+
+        return null;
+    }
+
+    /**
+     * The locale's own name, or its code when the resolver has no label.
+     */
+    protected function localeLabel(string $code): string
+    {
+        if (function_exists('app') && app()->bound(LocaleResolver::class)) {
+            $resolver = app(LocaleResolver::class);
+
+            if (method_exists($resolver, 'label')) {
+                return (string) $resolver->label($code);
+            }
+        }
+
+        return $code;
+    }
+
+    protected function placeholderMissing(mixed $value): bool
+    {
+        return $value === null || (is_string($value) && trim($value) === '');
+    }
+
+    /**
+     * True when the placeholder is only the record's numeric key.
+     */
+    protected function placeholderIsKey(mixed $value, Model $model): bool
+    {
+        return is_scalar($value)
+            && (string) $value !== ''
+            && (string) $value === (string) $model->getKey();
     }
 
     /**
