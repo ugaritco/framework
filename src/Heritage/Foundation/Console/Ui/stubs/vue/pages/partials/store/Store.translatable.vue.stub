@@ -22,7 +22,7 @@ import {
     create[[ Model ]]Schema,
     empty[[ Model ]]Translation,
 } from '[[ storeForm ]]';
-import type { Locale } from '@artifact/i18n/types/locale';
+import type { [[ LocaleImport ]] } from '@artifact/i18n/types/locale';
 import { LoaderCircle, Plus, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, ref[[ slugVue ]] } from 'vue';
 [[ formImports ]]
@@ -43,8 +43,8 @@ const { meta, resetForm, handleError, setFieldValue, values } = useFormHandlers(
 
 /** The locales of the application, and the current one, whose section cannot be removed. */
 const page = usePage();
-const currentLocale = (page.props.locale as Locale).code;
-const allLocales = page.props.locales as Locale[];
+const currentLocale = (page.props.locale as [[ Locale ]]).code;
+const allLocales = page.props.locales as [[ Locale ]][];
 
 /** The locale codes whose section is shown. */
 const activeLocales = ref<string[]>([]);

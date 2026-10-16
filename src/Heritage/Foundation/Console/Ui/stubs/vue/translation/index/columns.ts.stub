@@ -12,7 +12,7 @@ import type {
     [[ Model ]]Translation,
     [[ Model ]]TranslationColumnMeta,
 } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]-translation';
-import type { Locale } from '@artifact/i18n/types/locale';
+import type { [[ LocaleImport ]] } from '@artifact/i18n/types/locale';
 import type { ColumnDef, FilterFn } from '@tanstack/vue-table';
 import { trans } from 'laravel-vue-i18n';
 import { computed, h } from 'vue';
@@ -23,9 +23,9 @@ const contains: FilterFn<[[ Model ]]Translation> = (row, id, value: string) =>
 
 /** The locale of a translation row. */
 const localeOf = (code: string) =>
-    (usePage().props.locales as Locale[]).find(
+    (usePage().props.locales as [[ Locale ]][]).find(
         (locale) => locale.code === code,
-    ) as Locale;
+    ) as [[ Locale ]];
 
 /**
  * The columns of the [[ label ]] translations table: the locale, the translated fields, the last
@@ -97,19 +97,19 @@ export function use[[ Model ]]TranslationColumns([[ modelCamel ]]: [[ Model ]]) 
                     h(ShowDialog, {
                         translation: row.original,
                         [[ modelCamel ]],
-                        locale: localeOf(row.original.locale),
+                        [[ locale ]]: localeOf(row.original.locale),
                         asIcon: true,
                     }),
                     h(UpdateDialog, {
                         translation: row.original,
                         [[ modelCamel ]],
-                        locale: localeOf(row.original.locale),
+                        [[ locale ]]: localeOf(row.original.locale),
                         asIcon: true,
                     }),
                     h(DestroyDialog, {
                         translation: row.original,
                         [[ modelCamel ]],
-                        locale: localeOf(row.original.locale),
+                        [[ locale ]]: localeOf(row.original.locale),
                         asIcon: true,
                     }),
                 ]),

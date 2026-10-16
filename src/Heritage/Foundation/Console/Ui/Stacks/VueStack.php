@@ -115,6 +115,24 @@ class VueStack implements Stack
     }
 
     /**
+     * The placeholders naming the locale of the translation pages (its type, imported from the i18n
+     * artifact, and its prop): renamed for a model named Locale, whose own type and prop they would be.
+     *
+     * @param  string  $model
+     * @return array<string, string>
+     */
+    protected function localeNames(string $model): array
+    {
+        $collides = $model === 'Locale';
+
+        return [
+            '[[ Locale ]]' => $collides ? 'AppLocale' : 'Locale',
+            '[[ LocaleImport ]]' => $collides ? 'Locale as AppLocale' : 'Locale',
+            '[[ locale ]]' => $collides ? 'translationLocale' : 'locale',
+        ];
+    }
+
+    /**
      * The placeholders of an artifact's names; the former "module" ones are kept for the stubs an
      * application overrides.
      *
@@ -258,6 +276,7 @@ class VueStack implements Stack
             '[[ model ]]' => $kebab,
             '[[ modelCamel ]]' => $camel,
             '[[ models ]]' => Str::camel(Str::pluralStudly($model)),
+            ...$this->localeNames($model),
             '[[ label ]]' => Str::lower(Str::headline($model)),
             '[[ labels ]]' => Str::lower(Str::headline(Str::pluralStudly($model))),
             '[[ lang ]]' => $lang,

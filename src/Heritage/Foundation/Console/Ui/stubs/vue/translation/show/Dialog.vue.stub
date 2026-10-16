@@ -17,7 +17,7 @@ import {
 } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation';
 import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
 import type { [[ Model ]]Translation } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]-translation';
-import type { Locale } from '@artifact/i18n/types/locale';
+import type { [[ LocaleImport ]] } from '@artifact/i18n/types/locale';
 import { Eye } from 'lucide-vue-next';
 import { ref } from 'vue';
 
@@ -34,7 +34,7 @@ interface Props {
     translation: [[ Model ]]Translation;
 
     /** The locale of the translation. */
-    locale: Locale;
+    [[ locale ]]: [[ Locale ]];
 
     /** Renders an icon trigger instead of the default text button. */
     asIcon?: boolean;
@@ -89,7 +89,7 @@ const open = ref(false);
                             $t('presentation.translation.show.description', {
                                 model_singular: $t('[[ lang ]].singular'),
                                 entity: String([[ entityLabel ]]),
-                                locale: String(locale?.language.name ?? translation.locale),
+                                locale: String([[ locale ]]?.language.name ?? translation.locale),
                             })
                         "
                     />
@@ -105,12 +105,12 @@ const open = ref(false);
                     <UpdateDialog
                         :[[ modelCamel ]]="[[ modelCamel ]]"
                         :translation="translation"
-                        :locale="locale"
+                        :[[ locale ]]="[[ locale ]]"
                     />
                     <DestroyDialog
                         :[[ modelCamel ]]="[[ modelCamel ]]"
                         :translation="translation"
-                        :locale="locale"
+                        :[[ locale ]]="[[ locale ]]"
                     />
                 </div>
             </DialogFooter>

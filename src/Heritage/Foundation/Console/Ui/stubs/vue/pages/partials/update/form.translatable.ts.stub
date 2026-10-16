@@ -13,7 +13,7 @@ export const empty[[ Model ]]Translation = () => ({
  * The values of a [[ label ]] in the shape of the update form: its translations keyed by locale
  * code when they are loaded, else its values in the current locale, whose section always exists.
  */
-export const update[[ Model ]]InitialValues = ([[ modelCamel ]]: [[ Model ]], locale: string) => {
+export const update[[ Model ]]InitialValues = ([[ modelCamel ]]: [[ Model ]], [[ locale ]]: string) => {
     const translations: Record<string, ReturnType<typeof empty[[ Model ]]Translation>> = [[ modelCamel ]].translations
         ? Object.fromEntries(
               Object.entries([[ modelCamel ]].translations).map(([code, translation]) => [
@@ -24,14 +24,14 @@ export const update[[ Model ]]InitialValues = ([[ modelCamel ]]: [[ Model ]], lo
               ]),
           )
         : {
-              [locale]: {
+              [[[ locale ]]]: {
 [[ translationFlatValues ]]
               },
           };
 
     return {
 [[ plainUpdateValues ]]
-        translations: { [locale]: empty[[ Model ]]Translation(), ...translations },
+        translations: { [[[ locale ]]]: empty[[ Model ]]Translation(), ...translations },
     };
 };
 

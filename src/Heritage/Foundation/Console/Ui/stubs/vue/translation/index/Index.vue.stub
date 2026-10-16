@@ -6,7 +6,7 @@ import { StoreDialog } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials
 import { use[[ Model ]]TranslationColumns } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation/index/data/columns';
 import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
 import type { [[ Model ]]Translation } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]-translation';
-import type { Locale } from '@artifact/i18n/types/locale';
+import type { [[ LocaleImport ]] } from '@artifact/i18n/types/locale';
 import { AlertCircle, AlertTriangle } from 'lucide-vue-next';
 import { computed } from 'vue';
 
@@ -26,7 +26,7 @@ interface Props {
 const props = defineProps<Props>();
 
 /** The locales of the application. */
-const locales = computed(() => (usePage().props.locales as Locale[]) || []);
+const locales = computed(() => (usePage().props.locales as [[ Locale ]][]) || []);
 
 /** The translations, as table rows. */
 const rows = computed(() => Object.values(props.translations ?? {}));

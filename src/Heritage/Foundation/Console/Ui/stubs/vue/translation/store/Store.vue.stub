@@ -22,7 +22,7 @@ import {
     create[[ Model ]]TranslationSchema,
 } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation/store/form';
 import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
-import type { Locale } from '@artifact/i18n/types/locale';
+import type { [[ LocaleImport ]] } from '@artifact/i18n/types/locale';
 import { LoaderCircle } from 'lucide-vue-next';
 [[ translationFormImports ]]
 
@@ -36,10 +36,10 @@ interface Props {
     [[ modelCamel ]]: [[ Model ]];
 
     /** The locales offered (all of the application by default). */
-    locales?: Locale[];
+    locales?: [[ Locale ]][];
 
     /** The locale of the translation, which is then not chosen. */
-    locale?: Locale;
+    [[ locale ]]?: [[ Locale ]];
 }
 
 const props = defineProps<Props>();
@@ -50,11 +50,11 @@ const emit = defineEmits(['success']);
 /** Form helpers bound to the create schema, for the given locale if any. */
 const { meta, resetForm, handleError } = useFormHandlers(
     create[[ Model ]]TranslationSchema,
-    create[[ Model ]]TranslationInitialValues(props.locale?.code),
+    create[[ Model ]]TranslationInitialValues(props.[[ locale ]]?.code),
 );
 
 /** The locales to choose from. */
-const choices = () => props.locales ?? (usePage().props.locales as Locale[]);
+const choices = () => props.locales ?? (usePage().props.locales as [[ Locale ]][]);
 
 /** Resets the form and notifies the parent after a successful create. */
 const onSuccess = () => {
@@ -73,7 +73,7 @@ const onSuccess = () => {
         class="grid grid-cols-6 gap-4"
     >
         <!-- Locale -->
-        <input v-if="locale" type="hidden" name="locale" :value="locale.code" />
+        <input v-if="[[ locale ]]" type="hidden" name="locale" :value="[[ locale ]].code" />
 
         <FormField v-else v-slot="{ componentField }" name="locale">
             <FormItem class="col-span-6">

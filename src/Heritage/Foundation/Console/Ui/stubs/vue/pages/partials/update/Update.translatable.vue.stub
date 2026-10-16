@@ -23,7 +23,7 @@ import {
     update[[ Model ]]Schema,
 } from '[[ updateForm ]]';
 import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
-import type { Locale } from '@artifact/i18n/types/locale';
+import type { [[ LocaleImport ]] } from '@artifact/i18n/types/locale';
 import { LoaderCircle, Plus, Trash2 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 [[ formImports ]]
@@ -46,8 +46,8 @@ const emit = defineEmits(['success']);
 
 /** The locales of the application, and the current one, whose section cannot be removed. */
 const page = usePage();
-const currentLocale = (page.props.locale as Locale).code;
-const allLocales = page.props.locales as Locale[];
+const currentLocale = (page.props.locale as [[ Locale ]]).code;
+const allLocales = page.props.locales as [[ Locale ]][];
 
 /** Form helpers bound to the update schema and the [[ label ]]'s values. */
 const { meta, resetForm, handleError, setFieldValue, values } = useFormHandlers(

@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Store } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation';
 import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
-import type { Locale } from '@artifact/i18n/types/locale';
+import type { [[ LocaleImport ]] } from '@artifact/i18n/types/locale';
 import { Languages } from 'lucide-vue-next';
 import { ref } from 'vue';
 
@@ -24,10 +24,10 @@ interface Props {
     [[ modelCamel ]]: [[ Model ]];
 
     /** The locales offered (all of the application by default). */
-    locales?: Locale[];
+    locales?: [[ Locale ]][];
 
     /** The locale of the translation, which is then not chosen. */
-    locale?: Locale;
+    [[ locale ]]?: [[ Locale ]];
 
     /** Renders an icon trigger instead of the default text button. */
     asIcon?: boolean;
@@ -89,7 +89,7 @@ const open = ref(false);
             <Store
                 :[[ modelCamel ]]="[[ modelCamel ]]"
                 :locales="locales"
-                :locale="locale"
+                :[[ locale ]]="[[ locale ]]"
                 @success="open = false"
             />
         </DialogContent>

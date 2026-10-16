@@ -11,7 +11,7 @@ import {
 import { Update } from '@artifact/[[ artifact ]]/pages/[[ model ]]/partials/translation';
 import type { [[ Model ]] } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]';
 import type { [[ Model ]]Translation } from '@artifact/[[ artifact ]]/types/[[ model ]]/[[ model ]]-translation';
-import type { Locale } from '@artifact/i18n/types/locale';
+import type { [[ LocaleImport ]] } from '@artifact/i18n/types/locale';
 import { Edit } from 'lucide-vue-next';
 import { ref } from 'vue';
 
@@ -25,7 +25,7 @@ interface Props {
     [[ modelCamel ]]: [[ Model ]];
 
     /** The locale of the translation. */
-    locale: Locale;
+    [[ locale ]]: [[ Locale ]];
 
     /** The translation being edited. */
     translation: [[ Model ]]Translation;
@@ -81,7 +81,7 @@ const open = ref(false);
                             $t('presentation.translation.edit.description', {
                                 model_singular: $t('[[ lang ]].singular'),
                                 entity: String([[ entityLabel ]]),
-                                locale: String(locale?.language.name ?? translation.locale),
+                                locale: String([[ locale ]]?.language.name ?? translation.locale),
                             })
                         "
                     />
