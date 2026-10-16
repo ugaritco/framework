@@ -121,92 +121,57 @@ abstract class Responder implements ResponderContract
     }
 
     /**
-     * Ensure that the given Inertia component exists in the application or artifact pages directory.
+     * Ensure that the given Inertia component exists among the pages of its application.
      *
-     * Supported notations:
-     * 1. Artifact notation: "artifact::PagePath" (e.g., "i18n::Languages/Index").
-     * 2. Core project notation: "PagePath" (e.g., "Dashboard/Index").
+     * Each application of the frontend (web, auth, panel) owns its pages and layouts under
+     * resources/js/apps/{app}, so a page is named after its application:
+     * 1. Application notation: "app/PagePath" (e.g. "panel/Dashboard", "auth/Login") is
+     *    resources/js/apps/{app}/pages/{PagePath}.
+     * 2. Artifact notation: "artifact::PagePath" (e.g. "i18n::language/Index") is a page of the
+     *    artifact's panel, resources/js/apps/panel/artifacts/{artifact}/pages, or of its package,
+     *    artifacts/{artifact}/resources/js/pages.
+     * A frontend without resources/js/apps keeps its pages in resources/js/pages.
      *
-     * @param  string  $component  The component identifier (e.g. "Languages/Index" or "i18n::Languages/Index").
+     * @param  string  $component  The component identifier (e.g. "panel/Dashboard" or "i18n::language/Index").
      * @return void
      *
-     * @throws InvalidArgumentException If the component file does not exist in any supported search path.
+     * @throws InvalidArgumentException If the component file does not exist in its pages directory.
      */
     protected function ensureComponentExists(string $component): void
     {
-        // Supported frontend component file extensions in Ugarit
-        $extensions = ['vue', 'jsx', 'tsx', 'svelte'];
-
-        // Case 1: Artifact scoped component notation ("artifact::path")
         if (str_contains($component, '::')) {
-            // Split artifact slug from relative page path
             [$artifact, $path] = explode('::', $component, 2);
-
-            // Candidate search paths for artifact pages
-            $searchPaths = [
-                // Integrated project artifact assets
-                resource_path("js/artifacts/{$artifact}/pages/{$path}"),
-                resource_path("js/artifacts/{$artifact}/Pages/{$path}"),
-                // Panel artifact resources
-                resource_path("js/apps/panel/artifacts/{$artifact}/pages/{$path}"),
-                resource_path("js/apps/panel/pages/{$artifact}/{$path}"),
-                // Standalone package artifact resources
-                base_path("artifacts/{$artifact}/resources/js/pages/{$path}"),
-                base_path("artifacts/{$artifact}/resources/js/Pages/{$path}"),
+            $directories = [
+                resource_path("js/apps/panel/artifacts/{$artifact}/pages"),
+                base_path("artifacts/{$artifact}/resources/js/pages"),
             ];
+        } elseif (is_dir(resource_path('js/apps'))) {
+            [$app, $path] = array_pad(explode('/', $component, 2), 2, '');
+            $directories = [resource_path("js/apps/{$app}/pages")];
+        } else {
+            $path = $component;
+            $directories = [resource_path('js/pages')];
+        }
 
-            // Add ucfirst variation for last segment if needed
-            $parts = explode('/', $path);
-            $lastPart = array_pop($parts);
-            $ucLastPath = empty($parts) ? ucfirst($lastPart) : implode('/', $parts).'/'.ucfirst($lastPart);
-            if ($ucLastPath !== $path) {
-                $searchPaths[] = resource_path("js/apps/panel/artifacts/{$artifact}/pages/{$ucLastPath}");
-                $searchPaths[] = resource_path("js/artifacts/{$artifact}/pages/{$ucLastPath}");
-                $searchPaths[] = base_path("artifacts/{$artifact}/resources/js/pages/{$ucLastPath}");
-            }
+        $segments = explode('/', $path);
+        $segments[] = ucfirst((string) array_pop($segments));
+        $candidates = array_unique([$path, implode('/', $segments)]);
 
-            // Search for file existence across all extensions
-            foreach ($searchPaths as $searchPath) {
-                foreach ($extensions as $ext) {
-                    if (is_file("{$searchPath}.{$ext}")) {
-                        // Component verified successfully
+        foreach ($directories as $directory) {
+            foreach ($candidates as $candidate) {
+                foreach (['vue', 'jsx', 'tsx', 'svelte'] as $extension) {
+                    if (is_file("{$directory}/{$candidate}.{$extension}")) {
                         return;
                     }
                 }
             }
-
-            // Component was not found in any artifact directory
-            throw new InvalidArgumentException(
-                "Inertia component [{$component}] was not found in artifact pages."
-            );
         }
 
-        // Case 2: Central project pages
-        $projectPagePaths = [
-            // Standard default pages
-            resource_path("js/Pages/{$component}"),
-            resource_path("js/pages/{$component}"),
-            // Multi-app project paths
-            resource_path("js/apps/auth/pages/{$component}"),
-            resource_path("js/apps/app/pages/{$component}"),
-            resource_path("js/apps/panel/pages/{$component}"),
-            resource_path("js/apps/panel/Pages/{$component}"),
-        ];
-
-        // Search for file existence in project directories
-        foreach ($projectPagePaths as $projectPagePath) {
-            foreach ($extensions as $ext) {
-                if (is_file("{$projectPagePath}.{$ext}")) {
-                    // Component verified successfully
-                    return;
-                }
-            }
-        }
-
-        // Throw descriptive exception to prevent frontend runtime render failures
-        throw new InvalidArgumentException(
-            "Inertia component [{$component}] was not found in Project Pages."
-        );
+        throw new InvalidArgumentException(sprintf(
+            'Inertia component [%s] was not found in [%s]; a page is named after its application ("panel/Dashboard") or artifact ("i18n::language/Index").',
+            $component,
+            implode('], [', $directories)
+        ));
     }
 
     /**
