@@ -6,6 +6,7 @@ namespace Heritage\Foundation\Console;
 
 use Heritage\Console\GeneratorCommand;
 use Heritage\Foundation\Console\Concerns\InspectsModel;
+use Heritage\Foundation\Console\Concerns\ParsesInputFields;
 use Heritage\Foundation\Console\Ui\Blueprint;
 use Heritage\Support\Str;
 use InvalidArgumentException;
@@ -19,7 +20,7 @@ use function Ugarit\Prompts\text;
 #[AsCommand(name: 'make:request')]
 class RequestMakeCommand extends GeneratorCommand
 {
-    use InspectsModel;
+    use InspectsModel, ParsesInputFields;
 
     /**
      * The name and signature of the console command.
@@ -38,6 +39,7 @@ class RequestMakeCommand extends GeneratorCommand
                     {--action= : The Capability or Feature the request feeds, relative to the root namespace (e.g. Capabilities/Branch/SaveBranchCapability)}
                     {--operation= : Generate the rules of an operation from the --model columns: store, update or destroy}
                     {--nullable= : Comma-separated fields the rules accept empty (e.g. email,published_at)}
+                    {--input= : Typed input fields whose rules are generated (e.g. code:string,note:?string,count:int)}
                     {--f|force : Create the class even if the request already exists}';
 
     /**
@@ -122,6 +124,10 @@ class RequestMakeCommand extends GeneratorCommand
 
         if ($hasTranslatableFlag) {
             $this->input->setOption('translatable', true);
+            return;
+        }
+
+        if ($this->option('input')) {
             return;
         }
 
@@ -296,7 +302,7 @@ class RequestMakeCommand extends GeneratorCommand
         }
 
         $classContent = $this->replaceForAction(parent::buildClass($name));
-        $columnRules = $this->operationRules();
+        $columnRules = [...$this->operationRules(), ...$this->inputRules()];
 
         if ($columnRules !== [] && ! $this->isTranslatable()) {
             $classContent = preg_replace('/^            \/\/(\r?\n)/m', implode("\n", $columnRules).'$1', $classContent, 1);
@@ -461,6 +467,22 @@ class RequestMakeCommand extends GeneratorCommand
             }
 
             $rules[] = '            '.$this->allowEmpty($column, "'{$column}' => '{$rule}',");
+        }
+
+        return $rules;
+    }
+
+    /**
+     * The rule lines of the --input fields.
+     *
+     * @return array<int, string>
+     */
+    protected function inputRules(): array
+    {
+        $rules = [];
+
+        foreach ($this->parseInputFields($this->option('input')) as $name => $field) {
+            $rules[] = $this->allowEmpty($name, $this->inputFieldRule($name, $field));
         }
 
         return $rules;

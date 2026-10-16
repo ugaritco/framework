@@ -6,13 +6,14 @@ namespace Heritage\Foundation\Console;
 
 use Heritage\Console\GeneratorCommand;
 use Heritage\Foundation\Console\Concerns\InspectsModel;
+use Heritage\Foundation\Console\Concerns\ParsesInputFields;
 use InvalidArgumentException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'make:parcel')]
 class ParcelMakeCommand extends GeneratorCommand
 {
-    use InspectsModel;
+    use InspectsModel, ParsesInputFields;
 
     /**
      * The name and signature of the console command.
@@ -25,6 +26,7 @@ class ParcelMakeCommand extends GeneratorCommand
                     {--query : Create a QueryParcel for a listing (search, sort, page, filters)}
                     {--operation= : Generate the fields of an operation: create, show, edit, save or destroy}
                     {--model= : The model whose columns become the fields (relative to Models/ or fully-qualified)}
+                    {--fields= : Typed input fields (e.g. code:string,note:?string,count:int)}
                     {--f|force : Create the class even if the parcel already exists}';
 
     /**
@@ -128,11 +130,13 @@ class ParcelMakeCommand extends GeneratorCommand
             throw new InvalidArgumentException("Unknown parcel operation [{$operation}]; use ".implode(', ', $this->operations).'.');
         }
 
-        $stub = $this->render(parent::buildClass($name), $this->operationFields($operation, $model, ! str_contains($name, '\\Capabilities\\')), [
+        $fields = [...$this->operationFields($operation, $model, ! str_contains($name, '\\Capabilities\\')), ...$this->inputFields()];
+
+        $stub = $this->render(parent::buildClass($name), $fields, [
             '{{ description }}' => $this->description($operation, $modelName),
         ]);
 
-        return $operation === null
+        return $operation === null && $fields === []
             ? preg_replace('/__construct\((\r?\n)    \) \{\}/', '__construct($1        // public ?int $id = null,$1    ) {}', $stub)
             : $stub;
     }
@@ -156,6 +160,23 @@ class ParcelMakeCommand extends GeneratorCommand
             'destroy' => [...$id, 'force' => ['bool', 'false', 'Whether to delete it permanently.']],
             'save' => [...$id, ...$this->columnFields($model, $translations)],
         };
+    }
+
+    /**
+     * The --fields input as nullable properties: a parcel keeps what was given, the request
+     * deciding what is required.
+     *
+     * @return array<string, array{0: string, 1: string, 2: string}>
+     */
+    protected function inputFields(): array
+    {
+        $fields = [];
+
+        foreach ($this->parseInputFields($this->option('fields')) as $name => ['type' => $type]) {
+            $fields[$name] = ["?{$type}", 'null', 'The '.str_replace('_', ' ', $name).'.'];
+        }
+
+        return $fields;
     }
 
     /**
