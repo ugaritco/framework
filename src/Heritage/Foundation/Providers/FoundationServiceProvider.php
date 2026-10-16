@@ -23,6 +23,7 @@ use Heritage\Foundation\Precognition;
 use Heritage\Foundation\Vite;
 use Heritage\Http\Client\Factory as HttpFactory;
 use Heritage\Http\Request;
+use Heritage\Http\Responders\PageFinder;
 use Heritage\Log\Events\MessageLogged;
 use Heritage\Queue\Events\JobAttempted;
 use Heritage\Support\AggregateServiceProvider;
@@ -98,6 +99,7 @@ class FoundationServiceProvider extends AggregateServiceProvider
         $this->registerExceptionTracking();
         $this->registerExceptionRenderer();
         $this->registerMaintenanceModeManager();
+        $this->registerInertiaPageFinder();
     }
 
     /**
@@ -296,5 +298,20 @@ class FoundationServiceProvider extends AggregateServiceProvider
             MaintenanceModeContract::class,
             fn () => $this->app->make(MaintenanceModeManager::class)->driver()
         );
+    }
+
+    /**
+     * Make Inertia find a page, when rendering or asserting it in a test, among the pages of the
+     * application it is named after ("panel/Dashboard" in resources/js/apps/panel/pages).
+     *
+     * @return void
+     */
+    protected function registerInertiaPageFinder()
+    {
+        $this->app->extend('inertia.view-finder', fn ($finder, $app) => new PageFinder(
+            $app['files'],
+            $app['config']->get('inertia.pages.paths', [$app->resourcePath('js/pages')]),
+            $app['config']->get('inertia.pages.extensions', PageFinder::EXTENSIONS)
+        ));
     }
 }

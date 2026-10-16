@@ -121,16 +121,8 @@ abstract class Responder implements ResponderContract
     }
 
     /**
-     * Ensure that the given Inertia component exists among the pages of its application.
-     *
-     * Each application of the frontend (web, auth, panel) owns its pages and layouts under
-     * resources/js/apps/{app}, so a page is named after its application:
-     * 1. Application notation: "app/PagePath" (e.g. "panel/Dashboard", "auth/Login") is
-     *    resources/js/apps/{app}/pages/{PagePath}.
-     * 2. Artifact notation: "artifact::PagePath" (e.g. "i18n::language/Index") is a page of the
-     *    artifact's panel, resources/js/apps/panel/artifacts/{artifact}/pages, or of its package,
-     *    artifacts/{artifact}/resources/js/pages.
-     * A frontend without resources/js/apps keeps its pages in resources/js/pages.
+     * Ensure that the given Inertia component exists among the pages of its application, as the
+     * PageFinder names them ("panel/Dashboard", "i18n::language/Index").
      *
      * @param  string  $component  The component identifier (e.g. "panel/Dashboard" or "i18n::language/Index").
      * @return void
@@ -139,39 +131,7 @@ abstract class Responder implements ResponderContract
      */
     protected function ensureComponentExists(string $component): void
     {
-        if (str_contains($component, '::')) {
-            [$artifact, $path] = explode('::', $component, 2);
-            $directories = [
-                resource_path("js/apps/panel/artifacts/{$artifact}/pages"),
-                base_path("artifacts/{$artifact}/resources/js/pages"),
-            ];
-        } elseif (is_dir(resource_path('js/apps'))) {
-            [$app, $path] = array_pad(explode('/', $component, 2), 2, '');
-            $directories = [resource_path("js/apps/{$app}/pages")];
-        } else {
-            $path = $component;
-            $directories = [resource_path('js/pages')];
-        }
-
-        $segments = explode('/', $path);
-        $segments[] = ucfirst((string) array_pop($segments));
-        $candidates = array_unique([$path, implode('/', $segments)]);
-
-        foreach ($directories as $directory) {
-            foreach ($candidates as $candidate) {
-                foreach (['vue', 'jsx', 'tsx', 'svelte'] as $extension) {
-                    if (is_file("{$directory}/{$candidate}.{$extension}")) {
-                        return;
-                    }
-                }
-            }
-        }
-
-        throw new InvalidArgumentException(sprintf(
-            'Inertia component [%s] was not found in [%s]; a page is named after its application ("panel/Dashboard") or artifact ("i18n::language/Index").',
-            $component,
-            implode('], [', $directories)
-        ));
+        (new PageFinder(app('files'), [resource_path('js/pages')], PageFinder::EXTENSIONS))->find($component);
     }
 
     /**
