@@ -139,13 +139,35 @@ class ControllerMakeCommand extends GeneratorCommand
         if ($baseControllerExists) {
             $replace["use {$controllerNamespace}\Controller;\n"] = '';
         } else {
-            $replace[' extends Controller'] = '';
             $replace["use {$rootNamespace}Http\Controllers\Controller;\n"] = '';
         }
 
-        return str_replace(
+        $class = str_replace(
             array_keys($replace), array_values($replace), parent::buildClass($name)
         );
+
+        return $baseControllerExists || ! str_contains($class, ' extends Controller')
+            ? $class
+            : $this->importKernelController($class);
+    }
+
+    /**
+     * Import the kernel's base controller (Heritage\Routing\Controller, with page() and back())
+     * where there is no Http\Controllers\Controller of its own, as in an artifact.
+     *
+     * @param  string  $class
+     * @return string
+     */
+    protected function importKernelController(string $class): string
+    {
+        preg_match_all('/^use [^;]+;$/m', $class, $matches);
+
+        $imports = array_unique([...$matches[0], 'use Heritage\Routing\Controller;']);
+        sort($imports);
+
+        $class = preg_replace('/^use [^;]+;\R/m', '', $class);
+
+        return preg_replace_callback('/^namespace [^;]+;\R\R/m', fn (array $match) => $match[0].implode("\n", $imports)."\n", $class, 1);
     }
 
     /**
