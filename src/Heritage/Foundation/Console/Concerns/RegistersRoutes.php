@@ -25,7 +25,7 @@ trait RegistersRoutes
         $path = $artifact ? $this->ugarit->basePath("artifacts/{$artifact}/routes/web.php") : $this->ugarit->basePath('routes/web.php');
 
         if (! $this->files->exists($path)) {
-            $imports = implode("\n", array_map(fn (string $alias) => "use {$routes[$alias][0]} as {$alias};", array_keys($routes)));
+            $imports = implode("\n", array_map(fn (string $alias) => $this->routeImport($routes[$alias][0], $alias), array_keys($routes)));
             $lines = implode("\n\n", array_map(fn (array $route) => "    {$route[1]}", $routes));
             $group = $artifact ? "Route::middleware(['web', 'auth'])->prefix('panel/artifact/{$artifact}')" : "Route::middleware(['web', 'auth'])";
 
@@ -45,11 +45,23 @@ trait RegistersRoutes
                 continue;
             }
 
-            $content = $this->insertRoute($content, "use {$controller} as {$alias};", $route);
+            $content = $this->insertRoute($content, $this->routeImport($controller, $alias), $route);
             $this->components->info(sprintf('Routes [%s] register [%s].', $path, $route));
         }
 
         $this->files->put($path, $content);
+    }
+
+    /**
+     * The "use" statement importing a controller by its alias.
+     *
+     * @param  class-string  $controller
+     * @param  string  $alias
+     * @return string
+     */
+    protected function routeImport(string $controller, string $alias): string
+    {
+        return class_basename($controller) === $alias ? "use {$controller};" : "use {$controller} as {$alias};";
     }
 
     /**

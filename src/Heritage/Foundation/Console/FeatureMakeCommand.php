@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Heritage\Foundation\Console;
 
 use Heritage\Console\GeneratorCommand;
+use Heritage\Foundation\Console\Concerns\GeneratesActionSlice;
 use Heritage\Foundation\Console\Concerns\GeneratesDomainActions;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'make:feature')]
 class FeatureMakeCommand extends GeneratorCommand
 {
-    use GeneratesDomainActions;
+    use GeneratesActionSlice, GeneratesDomainActions;
 
     /**
      * The name and signature of the console command.
@@ -26,6 +27,15 @@ class FeatureMakeCommand extends GeneratorCommand
                     {--outcome= : The Outcome class (relative to Outcomes/ or fully-qualified)}
                     {--authorize= : The ability the feature requires (#[Authorize])}
                     {--model= : The model the ability is about (relative to Models/ or fully-qualified)}
+                    {--a|all : Also generate its result, parcel, form request, controller method, route, feedback messages and component}
+                    {--fields= : The typed input of --all (e.g. code:string,note:?string): the parcel properties and the request rules}
+                    {--feedback= : The feedback key of the --all result (its snake name by default, e.g. register_member)}
+                    {--route= : The --all route as verb:uri (e.g. post:members/register); POST on its kebab name by default}
+                    {--route-name= : The name of the --all route (its dotted kebab name by default)}
+                    {--controller= : The controller --all adds the method to (relative to Http/Controllers; its folder\'s controller by default)}
+                    {--method= : The controller method of --all (its camel name by default)}
+                    {--page= : The page the --all GET method renders (e.g. company::members/Register); JSON without it}
+                    {--resource= : The resource presenting the outcome data in the --all method (relative to Http/Resources or fully-qualified)}
                     {--f|force : Create the class even if the feature already exists}';
 
     /**
@@ -132,6 +142,22 @@ class FeatureMakeCommand extends GeneratorCommand
             (bool) $failWith => "failWith: {$failWith}",
             default => '',
         };
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function sliceLayer(): string
+    {
+        return 'Features';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function sliceAcceptsNoInput(): bool
+    {
+        return false;
     }
 
     /**

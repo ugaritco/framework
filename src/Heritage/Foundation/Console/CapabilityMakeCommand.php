@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Heritage\Foundation\Console;
 
 use Heritage\Console\GeneratorCommand;
+use Heritage\Foundation\Console\Concerns\GeneratesActionSlice;
 use Heritage\Foundation\Console\Concerns\GeneratesDomainActions;
 use Heritage\Foundation\Console\Concerns\InspectsModel;
 use InvalidArgumentException;
@@ -13,7 +14,7 @@ use Symfony\Component\Console\Attribute\AsCommand;
 #[AsCommand(name: 'make:capability')]
 class CapabilityMakeCommand extends GeneratorCommand
 {
-    use GeneratesDomainActions, InspectsModel;
+    use GeneratesActionSlice, GeneratesDomainActions, InspectsModel;
 
     /**
      * The name and signature of the console command.
@@ -31,6 +32,15 @@ class CapabilityMakeCommand extends GeneratorCommand
                     {--authorize= : The ability the capability requires (#[Authorize])}
                     {--model= : The model the ability is about (relative to Models/ or fully-qualified)}
                     {--operation= : Generate the body of an operation: index, create, show, edit, save or destroy}
+                    {--a|all : Also generate its result, parcel, form request, controller method, route, feedback messages and component}
+                    {--fields= : The typed input of --all (e.g. code:string,note:?string): the parcel properties and the request rules}
+                    {--feedback= : The feedback key of the --all result (its snake name by default, e.g. set_locale)}
+                    {--route= : The --all route as verb:uri (e.g. post:settings/locale); POST with input, else GET, on its kebab name by default}
+                    {--route-name= : The name of the --all route (its dotted kebab name by default)}
+                    {--controller= : The controller --all adds the method to (relative to Http/Controllers; its folder\'s controller by default)}
+                    {--method= : The controller method of --all (its camel name by default)}
+                    {--page= : The page the --all GET method renders (e.g. i18n::settings/Locale); JSON without it}
+                    {--resource= : The resource presenting the outcome data in the --all method (relative to Http/Resources or fully-qualified)}
                     {--f|force : Create the class even if the capability already exists}';
 
     /**
@@ -251,6 +261,22 @@ class CapabilityMakeCommand extends GeneratorCommand
         $model = $this->option('model');
 
         return is_string($model) && $model !== '' ? class_basename(str_replace('/', '\\', $model)) : 'Record';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function sliceLayer(): string
+    {
+        return 'Capabilities';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function sliceAcceptsNoInput(): bool
+    {
+        return true;
     }
 
     /**
