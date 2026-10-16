@@ -4,6 +4,7 @@ namespace Heritage\Database\Console\Factories;
 
 use Heritage\Console\GeneratorCommand;
 use Heritage\Database\Console\Field;
+use Heritage\Foundation\Console\Concerns\InspectsModel;
 use Heritage\Support\Str;
 use Heritage\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -12,6 +13,8 @@ use Throwable;
 #[AsCommand(name: 'make:factory')]
 class FactoryMakeCommand extends GeneratorCommand
 {
+    use InspectsModel;
+
     /**
      * The name and signature of the console command.
      *
@@ -135,7 +138,8 @@ class FactoryMakeCommand extends GeneratorCommand
 
     /**
      * The default state of an existing model: a fake value for each fillable and translatable
-     * attribute, guessed from its name and cast; a foreign key creates its related model.
+     * attribute, guessed from its name and cast; a foreign key creates its related model, which may
+     * be in another artifact.
      *
      * @param  string  $model
      * @return array{0: array<int, string>, 1: array<int, string>} The definition lines and the classes they import.
@@ -160,7 +164,7 @@ class FactoryMakeCommand extends GeneratorCommand
         foreach (array_unique([...$instance->getFillable(), ...$translatable]) as $column) {
             $value = $this->fakeValue($column, $casts[$column] ?? null);
 
-            if (str_ends_with($column, '_id') && class_exists($related = Str::beforeLast($model, '\\').'\\'.Str::studly(Str::beforeLast($column, '_id')))) {
+            if (($related = $this->relatedModelOf($instance, $column)) !== null) {
                 $imports[] = $related;
                 $value = class_basename($related).'::factory()';
             }

@@ -518,7 +518,8 @@ class RequestMakeCommand extends GeneratorCommand
     }
 
     /**
-     * The table of the model a foreign key names ("branch_id" names Branch in the model's folder).
+     * The table of the model a foreign key refers to: its belongsTo() relation's model, which may be
+     * in another artifact, else the model of that name in the model's folder ("branch_id" names Branch).
      *
      * @param  string|null  $model
      * @param  string  $column
@@ -526,13 +527,10 @@ class RequestMakeCommand extends GeneratorCommand
      */
     protected function relatedTable(?string $model, string $column): ?string
     {
-        if ($model === null) {
-            return null;
-        }
+        $instance = $this->modelInstance($model);
+        $related = $instance !== null ? $this->relatedModelOf($instance, $column) : null;
 
-        $related = $this->modelInstance(Str::beforeLast($model, '\\').'\\'.Str::studly(Str::beforeLast($column, '_id')));
-
-        return $related?->getTable();
+        return $this->modelInstance($related)?->getTable();
     }
 
     /**

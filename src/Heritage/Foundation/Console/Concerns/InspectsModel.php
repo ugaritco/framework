@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Heritage\Foundation\Console\Concerns;
 
 use Heritage\Database\Eloquent\Model;
+use Heritage\Database\Eloquent\Relations\BelongsTo;
 use Heritage\Support\Str;
+use ReflectionMethod;
+use ReflectionNamedType;
 use Throwable;
 
 /**
  * Reads what the domain generators need from an existing model: its fillable columns with their
- * PHP types (from $casts, or "_id" for foreign keys), and its translatable attributes, which
- * travel in a `translations` payload instead of columns.
+ * PHP types (from $casts, or "_id" for foreign keys), the models its foreign keys refer to, and its
+ * translatable attributes, which travel in a `translations` payload instead of columns.
  */
 trait InspectsModel
 {
@@ -93,6 +96,40 @@ trait InspectsModel
             $cast === null && str_ends_with($column, '_id') => 'int',
             default => 'string',
         };
+    }
+
+    /**
+     * The model a foreign key refers to: the related model of the belongsTo() relation it names
+     * ("country_id" names country(), whose model may be in another artifact), else the model of
+     * that name in the model's folder ("branch_id" names Branch).
+     *
+     * @param  \Heritage\Database\Eloquent\Model  $instance
+     * @param  string  $column  The foreign key, e.g. "country_id".
+     * @return class-string<\Heritage\Database\Eloquent\Model>|null Null when no such model exists.
+     */
+    protected function relatedModelOf(object $instance, string $column): ?string
+    {
+        if (! str_ends_with($column, '_id')) {
+            return null;
+        }
+
+        $relation = Str::camel(Str::beforeLast($column, '_id'));
+
+        if (method_exists($instance, $relation)) {
+            $type = (new ReflectionMethod($instance, $relation))->getReturnType();
+
+            if ($type instanceof ReflectionNamedType && is_a($type->getName(), BelongsTo::class, true)) {
+                try {
+                    return $instance->{$relation}()->getRelated()::class;
+                } catch (Throwable) {
+                    return null;
+                }
+            }
+        }
+
+        $related = Str::beforeLast($instance::class, '\\').'\\'.Str::studly($relation);
+
+        return is_subclass_of($related, Model::class) ? $related : null;
     }
 
     /**
