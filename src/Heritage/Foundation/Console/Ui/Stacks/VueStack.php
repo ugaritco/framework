@@ -159,7 +159,7 @@ class VueStack implements Stack
         return [
             [
                 'path' => 'resources/js/app.ts',
-                'opening' => '/import\.meta\.glob<DefineComponent>\(\[/',
+                'opening' => "/import\\.meta\\.glob(?:<[^>]*>)?(?:\\((?=\\s*'\\.\\/apps\\/panel\\/artifacts\\/\\*\\/)|\\(\\s*\\[(?=\\s*'\\.\\/apps\\/panel\\/artifacts\\/))/",
                 'key' => ["artifacts/{$artifact}/pages", 'artifacts/*/pages'],
                 'item' => "'./apps/panel/artifacts/{$artifact}/pages/**/*.vue'",
                 'place' => 'the artifact pages glob',
@@ -167,8 +167,8 @@ class VueStack implements Stack
             [
                 'path' => 'vite.config.ts',
                 'opening' => '/alias:\s*\{/',
-                'key' => "'@artifact/{$artifact}'",
-                'item' => "'@artifact/{$artifact}': path.resolve(projectRoot, 'resources/js/apps/panel/artifacts/{$artifact}')",
+                'key' => ["'@artifact':", "'@artifact/{$artifact}'"],
+                'item' => "'@artifact': path.resolve(projectRoot, 'resources/js/apps/panel/artifacts')",
                 'place' => 'resolve.alias',
             ],
             [
@@ -181,8 +181,8 @@ class VueStack implements Stack
             [
                 'path' => 'tsconfig.json',
                 'opening' => '/"paths":\s*\{/',
-                'key' => "\"@artifact/{$artifact}/*\"",
-                'item' => "\"@artifact/{$artifact}/*\": [\n    \"./resources/js/apps/panel/artifacts/{$artifact}/*\"\n]",
+                'key' => ['"@artifact/*"', "\"@artifact/{$artifact}/*\""],
+                'item' => "\"@artifact/*\": [\n    \"./resources/js/apps/panel/artifacts/*\"\n]",
                 'place' => 'compilerOptions.paths',
                 'trailingComma' => false,
             ],
