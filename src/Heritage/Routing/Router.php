@@ -494,13 +494,7 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function localized(Closure $callback, array $options = [])
     {
-        $availableLocales = function_exists('config')
-            ? array_keys(config('locale.available_locales', ['ar' => [], 'en' => []]))
-            : ['ar', 'en'];
-
-        if (empty($availableLocales)) {
-            $availableLocales = ['ar', 'en'];
-        }
+        $availableLocales = LocalizedCodes::all();
 
         $defaultLocale = function_exists('config')
             ? (config('locale.default_locale') ?? config('app.locale', 'ar'))

@@ -4,6 +4,7 @@ namespace Heritage\Routing\Middleware;
 
 use Closure;
 use Heritage\Http\Request;
+use Heritage\Routing\LocalizedCodes;
 use Heritage\Support\Facades\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -21,13 +22,7 @@ class SetLocaleFromUrl
     {
         $locale = $locale ?? $request->segment(1);
 
-        $availableLocales = function_exists('config')
-            ? array_keys(config('locale.available_locales', ['ar' => [], 'en' => []]))
-            : ['ar', 'en'];
-
-        if (empty($availableLocales)) {
-            $availableLocales = ['ar', 'en'];
-        }
+        $availableLocales = LocalizedCodes::all();
 
         if (! in_array($locale, $availableLocales, true)) {
             $locale = function_exists('config')
@@ -35,14 +30,14 @@ class SetLocaleFromUrl
                 : 'ar';
         }
 
-        app()->setLocale($locale);
+        app()->setLocale(LocalizedCodes::translation($locale));
 
         if ($request->hasSession()) {
             $request->session()->put('locale', $locale);
         }
 
         if (class_exists(View::class)) {
-            View::share('locale', $locale);
+            View::share('locale', LocalizedCodes::translation($locale));
             View::share('seo_alternates', $this->generateSeoAlternates($request, $availableLocales));
         }
 
