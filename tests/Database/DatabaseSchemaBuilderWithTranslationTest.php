@@ -251,4 +251,66 @@ class DatabaseSchemaBuilderWithTranslationTest extends TestCase
 
         Schema::dropIfExistsTranslatable('labels');
     }
+
+    /**
+     * partialUnique() ignores soft-deleted rows and scopes a slug to its parent.
+     */
+    public function testPartialUniqueIgnoresSoftDeletedRows()
+    {
+        Schema::create('cities', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('governorate_id');
+            $table->string('slug');
+            $table->softDeletes();
+        });
+
+        Schema::partialUnique('cities', ['governorate_id', 'slug']);
+
+        $connection = $this->db->getConnection();
+        $connection->table('cities')->insert(['governorate_id' => 1, 'slug' => 'tripoli', 'deleted_at' => '2026-01-01 00:00:00']);
+        $connection->table('cities')->insert(['governorate_id' => 1, 'slug' => 'tripoli']);
+        $connection->table('cities')->insert(['governorate_id' => 2, 'slug' => 'tripoli']);
+
+        $this->assertSame(3, $connection->table('cities')->count());
+
+        try {
+            $connection->table('cities')->insert(['governorate_id' => 1, 'slug' => 'tripoli']);
+            $this->fail('A live duplicate slug in the same governorate must be rejected.');
+        } catch (\Heritage\Database\QueryException) {
+            $this->addToAssertionCount(1);
+        }
+
+        Schema::drop('cities');
+    }
+
+    /**
+     * A true predicate allows one live row and still allows a soft-deleted one.
+     */
+    public function testPartialUniqueAllowsASingleTrueValue()
+    {
+        Schema::create('locales', function (Blueprint $table) {
+            $table->id();
+            $table->boolean('default')->default(false);
+            $table->softDeletes();
+        });
+
+        Schema::partialUnique('locales', ['default'], ['default' => 'true']);
+
+        $connection = $this->db->getConnection();
+        $connection->table('locales')->insert(['default' => 1, 'deleted_at' => '2026-01-01 00:00:00']);
+        $connection->table('locales')->insert(['default' => 1]);
+        $connection->table('locales')->insert(['default' => 0]);
+        $connection->table('locales')->insert(['default' => 0]);
+
+        $this->assertSame(4, $connection->table('locales')->count());
+
+        try {
+            $connection->table('locales')->insert(['default' => 1]);
+            $this->fail('A second live default locale must be rejected.');
+        } catch (\Heritage\Database\QueryException) {
+            $this->addToAssertionCount(1);
+        }
+
+        Schema::drop('locales');
+    }
 }

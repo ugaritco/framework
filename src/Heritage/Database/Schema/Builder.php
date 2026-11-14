@@ -535,7 +535,8 @@ class Builder
      *  - table:         translation table name (default "{singular}_translations")
      *  - foreign_key:   column referencing the main table (default "{singular}_id", or
      *                   "translated_{singular}_id" when that is the locale column: a translatable locales table)
-     *  - locale_column: defaults to the LocaleResolver's column ("locale_id" with i18n, else "locale")
+     *  - locale_column: defaults to config('locale.storage'), then the LocaleResolver's column
+     *  - locale_table:  table a locale_id column references; null keeps the column without a foreign key yet
      *  - locale_length: length of a "locale" code column (default 10)
      *  - timestamps:    translation rows keep their own timestamps (default true)
      *  - translation:   Closure customizing the translation table blueprint
@@ -551,7 +552,7 @@ class Builder
      */
     public function createTranslatable($table, Closure $callback, array $options = [])
     {
-        if ($unknown = array_diff(array_keys($options), ['table', 'foreign_key', 'locale_column', 'locale_length', 'timestamps', 'translation'])) {
+        if ($unknown = array_diff(array_keys($options), ['table', 'foreign_key', 'locale_column', 'locale_table', 'locale_length', 'timestamps', 'translation'])) {
             throw new InvalidArgumentException('Unknown createTranslatable() options: '.implode(', ', $unknown).'.');
         }
 
@@ -561,14 +562,14 @@ class Builder
 
         $translationCallback = $options['translation'] ?? null;
         $translationTable = $options['table'] ?? (isset($schema) ? "{$schema}.{$defaultTranslationName}" : $defaultTranslationName);
-        // "locale_id" (FK to the resolver's table) with the i18n artifact, a "locale" code column otherwise.
-        $localeColumn = $options['locale_column'] ?? $resolver->storageColumn();
+        // Explicit options and config('locale.storage') win over whichever resolver happens to be bound.
+        $localeColumn = $this->localeColumn($options, $resolver);
         $foreignKey = $options['foreign_key'] ?? Str::singular($tableName).'_id';
 
         if (! isset($options['foreign_key']) && $foreignKey === $localeColumn) {
             $foreignKey = "translated_{$foreignKey}";
         }
-        $localeTable = $localeColumn === $resolver->storageColumn() ? $resolver->storageTable() : null;
+        $localeTable = $this->localeTable($options, $localeColumn, $resolver);
         $localeLength = $options['locale_length'] ?? 10;
         // Translation rows keep their own timestamps unless disabled.
         $includeTimestamps = $options['timestamps'] ?? true;
@@ -663,9 +664,12 @@ class Builder
                 $tableBlueprint->foreignId($foreignKey)->constrained($table, $primaryKeyName)->cascadeOnDelete();
             }
 
-            // Locale column
+            // Locale column. An id column without a table yet (the locales table is created later)
+            // is still locale_id, and the foreign key is added once that table exists.
             if ($localeTable !== null) {
                 $tableBlueprint->foreignId($localeColumn)->constrained($localeTable)->cascadeOnDelete();
+            } elseif ($localeColumn === 'locale_id') {
+                $tableBlueprint->foreignId($localeColumn);
             } else {
                 $tableBlueprint->string($localeColumn, $localeLength)->index();
             }
@@ -729,7 +733,7 @@ class Builder
         });
 
         foreach ($partialUniques as $columns) {
-            $this->createPartialUnique($translationTable, $columns, $softDeleteColumn);
+            $this->createPartialUnique($translationTable, $columns, $this->grammar->wrap($softDeleteColumn).' is null');
         }
     }
 
@@ -867,7 +871,7 @@ class Builder
         });
 
         foreach ($partialUniques as $columns) {
-            $this->createPartialUnique($translationTable, $columns, 'deleted_at');
+            $this->createPartialUnique($translationTable, $columns, $this->grammar->wrap('deleted_at').' is null');
         }
     }
 
@@ -882,26 +886,156 @@ class Builder
     }
 
     /**
-     * Create a unique index covering only the rows that are not soft deleted.
+     * Unique index that ignores soft-deleted rows.
+     *
+     * PostgreSQL, SQLite and SQL Server store it as a partial index (`where deleted_at is null`).
+     * `$and` adds further predicates: `null`, `not null`, `true`, or `false`. A `true` predicate
+     * is how a single live default row is enforced. MySQL and MariaDB have no partial indexes:
+     * an empty `$and` falls back to a plain unique index (trashed rows still collide); a non-empty
+     * `$and` is rejected, because that plain index would mean a different constraint.
      *
      * @param  string  $table
      * @param  array<int, string>  $columns
+     * @param  array<string, 'null'|'not null'|'true'|'false'>  $and
      * @param  string  $deletedAtColumn
      * @return void
      */
-    protected function createPartialUnique(string $table, array $columns, string $deletedAtColumn): void
+    public function partialUnique(string $table, array $columns, array $and = [], string $deletedAtColumn = 'deleted_at'): void
+    {
+        $this->assertIdentifier($deletedAtColumn);
+
+        foreach ($columns as $column) {
+            $this->assertIdentifier($column);
+        }
+
+        $where = [$this->grammar->wrap($deletedAtColumn).' is null'];
+
+        foreach ($and as $column => $predicate) {
+            $this->assertIdentifier((string) $column);
+
+            $where[] = $this->partialPredicate((string) $column, strtolower((string) $predicate));
+        }
+
+        if (! $this->supportsPartialIndexes()) {
+            if ($and !== []) {
+                throw new InvalidArgumentException('Partial unique indexes with extra predicates require PostgreSQL, SQLite, or SQL Server.');
+            }
+
+            $this->table($table, function (Blueprint $blueprint) use ($columns) {
+                $blueprint->unique($columns);
+            });
+
+            return;
+        }
+
+        $this->createPartialUnique($table, $columns, implode(' and ', $where));
+    }
+
+    /**
+     * Create a unique index restricted by $where (already a SQL predicate).
+     *
+     * @param  string  $table
+     * @param  array<int, string>  $columns
+     * @param  string  $where
+     * @return void
+     */
+    protected function createPartialUnique(string $table, array $columns, string $where): void
     {
         $name = str_replace(['-', '.'], '_', strtolower(
             $this->connection->getTablePrefix().$table.'_'.implode('_', $columns).'_unique'
         ));
 
         $this->connection->statement(sprintf(
-            'create unique index %s on %s (%s) where %s is null',
+            'create unique index %s on %s (%s) where %s',
             $this->grammar->wrap($name),
             $this->grammar->wrapTable($table),
             $this->grammar->columnize($columns),
-            $this->grammar->wrap($deletedAtColumn)
+            $where
         ));
+    }
+
+    /**
+     * One extra predicate of a partial unique index.
+     */
+    protected function partialPredicate(string $column, string $predicate): string
+    {
+        $wrapped = $this->grammar->wrap($column);
+
+        if (in_array($predicate, ['null', 'not null'], true)) {
+            return $wrapped.' is '.$predicate;
+        }
+
+        if (! in_array($predicate, ['true', 'false'], true)) {
+            throw new InvalidArgumentException("Partial unique predicate for [{$column}] must be \"null\", \"not null\", \"true\", or \"false\".");
+        }
+
+        $value = $predicate === 'true';
+
+        return match ($this->connection->getDriverName()) {
+            'pgsql', 'sqlite' => $wrapped.' is '.($value ? 'true' : 'false'),
+            default => $wrapped.' = '.($value ? '1' : '0'),
+        };
+    }
+
+    /**
+     * The locale column for a translation table.
+     *
+     * An explicit option wins. Otherwise config('i18n.storage') / config('locale.storage')
+     * is `id` (locale_id) or `code` (a locale string). When that config is empty, the bound
+     * resolver decides, which is what lets the kernel migrate before the i18n provider is registered.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    protected function localeColumn(array $options, \Heritage\Contracts\Translation\LocaleResolver $resolver): string
+    {
+        if (isset($options['locale_column'])) {
+            return (string) $options['locale_column'];
+        }
+
+        $storage = config('i18n.storage') ?? config('locale.storage');
+
+        return match ((string) $storage) {
+            'id', 'relational_id' => 'locale_id',
+            'code' => 'locale',
+            default => $resolver->storageColumn(),
+        };
+    }
+
+    /**
+     * The table a locale_id column references, or null when the column stores a code
+     * or the referenced table does not exist yet.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    protected function localeTable(array $options, string $localeColumn, \Heritage\Contracts\Translation\LocaleResolver $resolver): ?string
+    {
+        if (array_key_exists('locale_table', $options)) {
+            $table = $options['locale_table'];
+
+            return $table === null || $table === '' ? null : (string) $table;
+        }
+
+        $storage = (string) (config('i18n.storage') ?? config('locale.storage'));
+
+        if ($storage === 'id' || $storage === 'relational_id') {
+            return $resolver->storageTable() ?: 'locales';
+        }
+
+        if ($storage === 'code') {
+            return null;
+        }
+
+        return $localeColumn === $resolver->storageColumn() ? $resolver->storageTable() : null;
+    }
+
+    /**
+     * Reject anything that is not a bare SQL identifier.
+     */
+    protected function assertIdentifier(string $name): void
+    {
+        if (! preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name)) {
+            throw new InvalidArgumentException("Invalid identifier [{$name}].");
+        }
     }
 
     /**

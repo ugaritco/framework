@@ -21,7 +21,7 @@ class LocalizedCodes
     public static function all(): array
     {
         $codes = function_exists('config')
-            ? array_keys(config('locale.available_locales', ['ar' => [], 'en' => []]))
+            ? array_keys(config('i18n.supported_locales') ?? config('locale.available_locales', ['ar' => [], 'en' => []]))
             : ['ar', 'en'];
 
         try {
@@ -36,7 +36,9 @@ class LocalizedCodes
             // Route registration still falls back to the configured languages.
         }
 
-        $default = function_exists('config') ? config('locale.default_locale') : null;
+        $default = function_exists('config')
+            ? (config('i18n.default_locale') ?? config('locale.default_locale'))
+            : null;
 
         if (is_string($default) && $default !== '') {
             $codes[] = $default;
@@ -58,7 +60,7 @@ class LocalizedCodes
     public static function translation(string $locale): string
     {
         $configured = function_exists('config')
-            ? array_keys(config('locale.available_locales', []))
+            ? array_keys(config('i18n.supported_locales') ?? config('locale.available_locales', []))
             : [];
 
         if (in_array($locale, $configured, true)) {

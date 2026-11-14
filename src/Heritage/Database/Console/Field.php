@@ -39,7 +39,7 @@ final readonly class Field
      *
      * @var array<int, string>
      */
-    public const MODIFIERS = ['nullable', 'unique', 'index', 'translatable'];
+    public const MODIFIERS = ['nullable', 'unique', 'index', 'translatable', 'type'];
 
     /**
      * Create a field.
@@ -152,6 +152,35 @@ final readonly class Field
     }
 
     /**
+     * Determine if this field represents a Taxonomy Type reference.
+     *
+     * @return bool
+     */
+    public function isTaxonomyType(): bool
+    {
+        return $this->type === 'foreignId' && (
+            str_ends_with($this->name, '_type_id') ||
+            $this->name === 'type_id' ||
+            in_array('type', $this->modifiers, true)
+        );
+    }
+
+    /**
+     * Resolve the target model scope in the Taxonomy types table.
+     *
+     * @param  string|null  $owner
+     * @return string
+     */
+    public function taxonomyModel(?string $owner = null): string
+    {
+        if (str_ends_with($this->name, '_type_id')) {
+            return Str::snake(preg_replace('/_type_id$/', '', $this->name));
+        }
+
+        return $owner ? Str::snake($owner) : 'entity';
+    }
+
+    /**
      * The belongsTo() method of a foreign key, to the model of the same folder it names.
      *
      * @param  string  $owner  The model the method is added to.
@@ -160,14 +189,34 @@ final readonly class Field
     public function belongsTo(string $owner): string
     {
         $relation = $this->relation();
-        $related = Str::studly($relation);
-        $owner = str_replace('_', ' ', Str::snake($owner));
+        $ownerSnake = str_replace('_', ' ', Str::snake($owner));
         $label = str_replace('_', ' ', Str::snake($relation));
+
+        if ($this->isTaxonomyType()) {
+            $targetModel = $this->taxonomyModel($owner);
+
+            return <<<PHP
+
+                /**
+                 * The taxonomy type defining this {$ownerSnake}'s {$label}.
+                 *
+                 * @return BelongsTo<Type, \$this>
+                 */
+                public function {$relation}(): BelongsTo
+                {
+                    return \$this->belongsTo(Type::class, '{$this->name}')
+                        ->where('model', '{$targetModel}');
+                }
+
+            PHP;
+        }
+
+        $related = Str::studly($relation);
 
         return <<<PHP
 
             /**
-             * The {$label} the {$owner} belongs to.
+             * The {$label} the {$ownerSnake} belongs to.
              *
              * @return BelongsTo<{$related}, \$this>
              */
@@ -423,7 +472,8 @@ final readonly class Field
         }
 
         if ($this->type === 'foreignId') {
-            $column .= '->constrained()'.($this->has('nullable') ? '->nullOnDelete()' : '');
+            $constrained = $this->isTaxonomyType() ? "->constrained('types')" : '->constrained()';
+            $column .= $constrained.($this->has('nullable') ? '->nullOnDelete()' : '');
         }
 
         return $column.';';

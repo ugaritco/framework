@@ -85,6 +85,7 @@ class PageFinder extends FileViewFinder
             [$artifact, $path] = explode('::', $page, 2);
 
             return [[
+                resource_path("js/apps/panel/pages/{$artifact}"),
                 resource_path("js/apps/panel/artifacts/{$artifact}/pages"),
                 base_path("artifacts/{$artifact}/resources/js/pages"),
             ], $path];

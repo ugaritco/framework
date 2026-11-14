@@ -33,7 +33,7 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
 
     <[[ Artifact ]]Layout :breadcrumbs="breadcrumbItems">
         <div
-            class="flex items-center justify-between rounded-xl bg-primary/3 p-4 ring-1 ring-primary/5"
+            class="flex items-center justify-between bg-primary/3 p-4 ring-1 ring-primary/5"
         >
             <HeadingSmall
                 :title="

@@ -304,14 +304,21 @@ abstract class Seeder
         // Sort discovered seeders by foundational priority
         $priorityOrder = [
             'i18n' => 10,
+            'l10n' => 15,
             'geography' => 20,
+            'registry' => 25,
+            'taxonomy' => 28,
             'identity' => 30,
             'auth' => 35,
             'authentication' => 36,
             'authorization' => 37,
             'ums' => 40,
             'company' => 50,
-            'taxonomy' => 60,
+            'attributes' => 70,
+            'files' => 80,
+            'contacts' => 85,
+            'stores' => 86,
+            'users' => 87,
         ];
 
         uksort($discovered, function ($a, $b) use ($priorityOrder) {

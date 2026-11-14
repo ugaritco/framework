@@ -24,8 +24,8 @@ class Store{{ model }}TranslationRequest extends FormRequest
                 'required',
                 'string',
                 Rule::in(Locales::resolver()->available()),
-                function (string $attribute, mixed $value, Closure $fail) use (${{ modelVariable }}) {
-                    if (${{ modelVariable }} instanceof {{ model }} && ${{ modelVariable }}->hasTranslation((string) $value)) {
+                function (string $field, mixed $inputValue, Closure $fail) use (${{ modelVariable }}) {
+                    if (${{ modelVariable }} instanceof {{ model }} && ${{ modelVariable }}->hasTranslation((string) $inputValue)) {
                         $fail('validation.unique')->translate();
                     }
                 },

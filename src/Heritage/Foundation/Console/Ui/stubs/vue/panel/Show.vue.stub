@@ -136,7 +136,7 @@ const elapsed = (iso: string) => {
     <[[ Artifact ]]Layout :breadcrumbs="breadcrumbItems">
         <!-- Header: the artifact and its identity -->
         <div
-            class="flex flex-col gap-3 rounded-xl bg-primary/3 p-4 ring-1 ring-primary/5 sm:flex-row sm:items-center sm:justify-between"
+            class="flex flex-col gap-3 bg-primary/3 p-4 ring-1 ring-primary/5 sm:flex-row sm:items-center sm:justify-between"
         >
             <HeadingSmall
                 :title="$t('[[ artifact ]]::artifact.name')"
@@ -198,7 +198,7 @@ const elapsed = (iso: string) => {
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
             <!-- Entities -->
             <section
-                class="flex flex-col gap-4 rounded-xl bg-primary/3 p-4 lg:col-span-8"
+                class="flex flex-col gap-4 bg-primary/3 p-4 lg:col-span-8"
             >
                 <div class="flex items-center gap-2">
                     <Boxes class="size-4 text-primary" />

@@ -24,17 +24,17 @@ class ConfigLocaleResolver implements LocaleResolver
 
     public function default(): string
     {
-        return (string) $this->config('locale.default_locale', $this->config('app.locale', 'en'));
+        return (string) $this->config('i18n.default_locale', $this->config('locale.default_locale', $this->config('app.locale', 'en')));
     }
 
     public function fallback(): string
     {
-        return $this->config('locale.fallback_locale', $this->config('app.fallback_locale', 'en'));
+        return $this->config('i18n.fallback_locale', $this->config('locale.fallback_locale', $this->config('app.fallback_locale', 'en')));
     }
 
     public function available(): array
     {
-        $codes = array_keys((array) $this->config('locale.available_locales', []));
+        $codes = array_keys((array) ($this->config('i18n.supported_locales') ?? $this->config('locale.available_locales', [])));
 
         return $codes !== [] ? $codes : array_values(array_unique([$this->current(), $this->fallback()]));
     }
@@ -66,7 +66,7 @@ class ConfigLocaleResolver implements LocaleResolver
 
     public function label(string $code): string
     {
-        return (string) ($this->config("locale.available_locales.{$code}.native") ?? strtoupper($code));
+        return (string) ($this->config("i18n.supported_locales.{$code}.native") ?? $this->config("locale.available_locales.{$code}.native") ?? strtoupper($code));
     }
 
     /**

@@ -77,6 +77,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Locale Storage
+    |--------------------------------------------------------------------------
+    |
+    | Empty follows the bound resolver. id stores locale_id. code stores the
+    | locale string. Set id in the host when the i18n artifact is installed.
+    |
+    */
+
+    'storage' => env('APP_LOCALE_STORAGE'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Default Locale
     |--------------------------------------------------------------------------
     |

@@ -577,6 +577,14 @@ class ModelMakeCommand extends GeneratorCommand
             parent::buildClass($name)
         );
 
+        if ($modelBase === 'Model') {
+            $classContent = str_replace(
+                ['use Heritage\Database\Eloquent\Model;', 'class Model extends Model'],
+                ['use Heritage\Database\Eloquent\Model as BaseModel;', 'class Model extends BaseModel'],
+                $classContent
+            );
+        }
+
         return $this->generatesFields() ? $this->fillFields($classContent, $modelBase) : $classContent;
     }
 
@@ -612,14 +620,21 @@ class ModelMakeCommand extends GeneratorCommand
             );
         }
 
+        $externalImports = $this->externalRelatedModels($relations);
+        $conflictsWithModel = $model === 'Model' || in_array(true, array_map(fn (string $fqcn) => class_basename($fqcn) === 'Model', $externalImports), true);
+
         $imports = [
             'Heritage\\Database\\Eloquent\\Factories\\HasFactory',
-            'Heritage\\Database\\Eloquent\\Model',
+            $conflictsWithModel ? 'Heritage\\Database\\Eloquent\\Model as BaseModel' : 'Heritage\\Database\\Eloquent\\Model',
             'Heritage\\Database\\Eloquent\\SoftDeletes',
             ...($relations !== [] ? ['Heritage\\Database\\Eloquent\\Relations\\BelongsTo'] : []),
-            ...$this->externalRelatedModels($relations),
+            ...$externalImports,
         ];
         sort($imports);
+
+        if ($conflictsWithModel) {
+            $class = str_replace("class {$model} extends Model", "class {$model} extends BaseModel", $class);
+        }
 
         return str_replace(
             ['{{ imports }}', '{{ relations }}'],
@@ -641,6 +656,11 @@ class ModelMakeCommand extends GeneratorCommand
         $imports = [];
 
         foreach ($relations as $field) {
+            if ($field->isTaxonomyType()) {
+                $imports[] = 'Ugarit\\Artifacts\\Taxonomy\\Models\\Type';
+                continue;
+            }
+
             $related = Str::studly($field->relation());
 
             if (is_subclass_of("{$folder}\\{$related}", Model::class)) {
@@ -651,6 +671,11 @@ class ModelMakeCommand extends GeneratorCommand
                 $class = 'Ugarit\\Artifacts\\'.Str::studly($artifact).'\\Models\\'.$related;
 
                 if (is_subclass_of($class, Model::class)) {
+                    $ref = new ReflectionClass($class);
+                    if (str_contains((string) $ref->getDocComment(), '@deprecated')) {
+                        continue;
+                    }
+
                     $imports[] = $class;
 
                     break;
@@ -672,7 +697,7 @@ class ModelMakeCommand extends GeneratorCommand
         $model = $this->qualifyClass($this->getNameInput());
 
         foreach ($this->fields as $field) {
-            if ($field->relation() === null) {
+            if ($field->relation() === null || $field->isTaxonomyType()) {
                 continue;
             }
 

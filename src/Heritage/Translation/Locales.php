@@ -46,7 +46,10 @@ final class Locales
 
     private static function resolve(Container $app): LocaleResolver
     {
-        if ($app->bound('config') && is_string($class = $app['config']->get('locale.resolver')) && $class !== '') {
+        $configuredResolver = $app['config']->get('i18n.resolver')
+            ?? $app['config']->get('locale.resolver');
+
+        if ($app->bound('config') && is_string($class = $configuredResolver) && $class !== '') {
             $app->singletonIf($class);
 
             return $app->make($class);

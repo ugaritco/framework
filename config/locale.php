@@ -77,6 +77,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Locale Storage
+    |--------------------------------------------------------------------------
+    |
+    | How translation tables store the locale. Empty follows the bound resolver,
+    | so a migrate that runs before the i18n provider still asks that resolver
+    | and otherwise stores a locale code.
+    |
+    | id   → locale_id, a foreign key to the locales table.
+    | code → a locale string column, with no locales table required.
+    |
+    */
+
+    'storage' => env('APP_LOCALE_STORAGE'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Default Locale
     |--------------------------------------------------------------------------
     |

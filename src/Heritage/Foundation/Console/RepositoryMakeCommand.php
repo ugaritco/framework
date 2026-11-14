@@ -165,11 +165,32 @@ class RepositoryMakeCommand extends GeneratorCommand
     {
         $this->replaceNamespace($stub, $name);
         $model = $this->namespacedModel();
+        $modelBase = class_basename($model);
 
-        return str_replace(
+        $content = str_replace(
             ['{{ namespacedContract }}', '{{ contract }}', '{{ implementation }}', '{{ namespacedModel }}', '{{ model }}'],
-            [$this->contractClass(), class_basename($this->contractClass()), class_basename($this->qualifyClass('')), $model, class_basename($model)],
+            [$this->contractClass(), class_basename($this->contractClass()), class_basename($this->qualifyClass('')), $model, $modelBase],
             $this->replaceClass($stub, $name)
         );
+
+        if ($modelBase === 'Model') {
+            $content = str_replace(
+                [
+                    'use Heritage\Contracts\Repositories\ModelRepositoryInterface;',
+                    'interface ModelRepositoryInterface extends ModelRepositoryInterface',
+                    'use Heritage\Repositories\ModelRepository;',
+                    'class ModelRepository extends ModelRepository',
+                ],
+                [
+                    'use Heritage\Contracts\Repositories\ModelRepositoryInterface as BaseRepositoryInterface;',
+                    'interface ModelRepositoryInterface extends BaseRepositoryInterface',
+                    'use Heritage\Repositories\ModelRepository as BaseRepository;',
+                    'class ModelRepository extends BaseRepository',
+                ],
+                $content
+            );
+        }
+
+        return $content;
     }
 }

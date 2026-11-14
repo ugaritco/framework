@@ -515,7 +515,9 @@ if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
     function fake($locale = null): \Faker\Generator
     {
         if (app()->bound('config')) {
-            $locale ??= app('config')->get('locale.faker_locale') ?? app('config')->get('app.faker_locale');
+            $locale ??= app('config')->get('i18n.faker_locale')
+                ?? app('config')->get('locale.faker_locale')
+                ?? app('config')->get('app.faker_locale');
         }
 
         $locale ??= 'en_US';

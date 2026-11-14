@@ -26,7 +26,7 @@ class SetLocaleFromUrl
 
         if (! in_array($locale, $availableLocales, true)) {
             $locale = function_exists('config')
-                ? (config('locale.default_locale') ?? config('app.locale', 'ar'))
+                ? (config('i18n.default_locale') ?? config('locale.default_locale') ?? config('app.locale', 'ar'))
                 : 'ar';
         }
 

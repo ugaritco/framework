@@ -53,6 +53,19 @@ class ApplicationBuilder
     }
 
     /**
+     * Set the application namespace.
+     *
+     * @param  string  $namespace
+     * @return $this
+     */
+    public function withNamespace(string $namespace): static
+    {
+        $this->app->useNamespace($namespace);
+
+        return $this;
+    }
+
+    /**
      * Register the standard kernel classes for the application.
      *
      * @return $this

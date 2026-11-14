@@ -102,6 +102,7 @@ class DatabaseServiceProvider extends ServiceProvider
 
         $this->app->singleton(FakerGenerator::class, function ($app, $parameters) {
             $locale = $parameters['locale']
+                ?? $app['config']->get('i18n.faker_locale')
                 ?? $app['config']->get('locale.faker_locale')
                 ?? $app['config']->get('app.faker_locale', 'en_US');
 

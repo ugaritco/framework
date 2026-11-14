@@ -497,11 +497,11 @@ class Router implements BindingRegistrar, RegistrarContract
         $availableLocales = LocalizedCodes::all();
 
         $defaultLocale = function_exists('config')
-            ? (config('locale.default_locale') ?? config('app.locale', 'ar'))
+            ? (config('i18n.default_locale') ?? config('locale.default_locale') ?? config('app.locale', 'ar'))
             : 'ar';
 
         $hideDefault = function_exists('config')
-            ? (bool) config('locale.hide_default_locale_in_url', false)
+            ? (bool) (config('i18n.hide_default_locale_in_url') ?? config('locale.hide_default_locale_in_url', false))
             : false;
 
         $as = $options['as'] ?? '';

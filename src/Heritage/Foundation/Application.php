@@ -451,7 +451,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function path($path = '')
     {
-        return $this->joinPaths($this->appPath ?: $this->basePath('app'), $path);
+        $defaultAppPath = is_dir($this->basePath('apps')) ? $this->basePath('apps') : $this->basePath('app');
+
+        return $this->joinPaths($this->appPath ?: $defaultAppPath, $path);
     }
 
     /**
@@ -465,6 +467,19 @@ class Application extends Container implements ApplicationContract, CachesConfig
         $this->appPath = $path;
 
         $this->instance('path', $path);
+
+        return $this;
+    }
+
+    /**
+     * Set the application namespace.
+     *
+     * @param  string  $namespace
+     * @return $this
+     */
+    public function useNamespace($namespace)
+    {
+        $this->namespace = trim($namespace, '\\').'\\';
 
         return $this;
     }
@@ -1708,11 +1723,16 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Get the current application locale.
      *
+     * Resolves from the i18n artifact configuration first, falling back to legacy
+     * locale and app configuration keys.
+     *
      * @return string
      */
     public function getLocale()
     {
-        return $this['config']->get('locale.locale')
+        return $this['config']->get('i18n.locale')
+            ?? $this['config']->get('i18n.default_locale')
+            ?? $this['config']->get('locale.locale')
             ?? $this['config']->get('locale.default_locale')
             ?? $this['config']->get('app.locale', 'en');
     }
@@ -1734,12 +1754,16 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function getFallbackLocale()
     {
-        return $this['config']->get('locale.fallback_locale')
+        return $this['config']->get('i18n.fallback_locale')
+            ?? $this['config']->get('locale.fallback_locale')
             ?? $this['config']->get('app.fallback_locale', 'en');
     }
 
     /**
      * Set the current application locale.
+     *
+     * Updates the i18n artifact state, backward-compatible config keys, the translator,
+     * and dispatches the LocaleUpdated event.
      *
      * @param  string  $locale
      * @return void
@@ -1748,6 +1772,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
     {
         $previous = $this->getLocale();
 
+        $this['config']->set('i18n.locale', $locale);
         $this['config']->set('locale.locale', $locale);
         $this['config']->set('app.locale', $locale);
 
@@ -1764,6 +1789,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function setFallbackLocale($fallbackLocale)
     {
+        $this['config']->set('i18n.fallback_locale', $fallbackLocale);
         $this['config']->set('locale.fallback_locale', $fallbackLocale);
         $this['config']->set('app.fallback_locale', $fallbackLocale);
 
@@ -1881,6 +1907,12 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 if (realpath($this->path()) === realpath($this->basePath($pathChoice))) {
                     return $this->namespace = $namespace;
                 }
+            }
+        }
+
+        foreach ((array) data_get($composer, 'autoload.psr-4') as $namespace => $path) {
+            if (str_starts_with($namespace, 'Apps\\')) {
+                return $this->namespace = 'Apps\\';
             }
         }
 
